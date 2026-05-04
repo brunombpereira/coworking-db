@@ -261,6 +261,7 @@ namespace CoworkingApp.Controls
         private void DgvRecent_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
             if (dgvRecent.Columns.Count == 0) return;
+            Theme.ApplyStatusColor(e, "Estado", dgvRecent);
             if (dgvRecent.Columns[e.ColumnIndex].Name == "Valor" && e.Value != null)
             {
                 if (decimal.TryParse(e.Value.ToString(), out decimal val))
@@ -332,7 +333,7 @@ namespace CoworkingApp.Controls
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

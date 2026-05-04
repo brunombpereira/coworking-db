@@ -23,6 +23,7 @@ namespace CoworkingApp.Controls
         // ── State ────────────────────────────────────────────────────────────
         private int _editId = -1;
         private ComboBox cmbFiltroCliente, cmbFiltroEstado;
+        private Label _lblStatus;
 
         // ────────────────────────────────────────────────────────────────────
         public UcAdesoes()
@@ -80,9 +81,10 @@ namespace CoworkingApp.Controls
             btnGuardar.Click  += BtnGuardar_Click;
             btnCancelar.Click += BtnCancelar_Click;
 
+            _lblStatus = new Label { AutoSize = true, Visible = false, Margin = new Padding(16, 8, 0, 0), Font = Theme.FontSub };
             flpToolbar.Controls.AddRange(new Control[]
             {
-                btnNovo, btnEditar, btnEliminar, btnGuardar, btnCancelar
+                btnNovo, btnEditar, btnEliminar, btnGuardar, btnCancelar, _lblStatus
             });
             pnlToolbar.Controls.Add(flpToolbar);
 
@@ -90,6 +92,7 @@ namespace CoworkingApp.Controls
             dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleGrid(dgv);
             dgv.SelectionChanged += Dgv_SelectionChanged;
+            dgv.CellFormatting   += (s, e) => Theme.ApplyStatusColor(e, "Estado", dgv);
 
             // ── Form panel (Dock=Bottom, height=160) ─────────────────────────
             pnlForm = Theme.FormPanel(160);
@@ -250,7 +253,7 @@ namespace CoworkingApp.Controls
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro ao carregar combos: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
@@ -483,7 +486,7 @@ namespace CoworkingApp.Controls
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -547,12 +550,13 @@ namespace CoworkingApp.Controls
                     }
                 }
 
+                Theme.ShowSuccess(_lblStatus);
                 SetEditMode(false);
                 LoadData();
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

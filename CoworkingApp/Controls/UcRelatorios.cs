@@ -226,7 +226,7 @@ ORDER BY e.nome, p.codigo";
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -268,6 +268,7 @@ ORDER BY e.nome, p.codigo";
             Theme.StyleGrid(dgvHistCliente);
             dgvHistCliente.CellFormatting += (s, e) =>
             {
+                Theme.ApplyStatusColor(e, "Estado", dgvHistCliente);
                 if (e.ColumnIndex >= 0 && dgvHistCliente.Columns[e.ColumnIndex].HeaderText == "Valor" &&
                     e.Value != null && e.Value != DBNull.Value)
                 {
@@ -313,7 +314,7 @@ WHERE r.cliente_id=@c ORDER BY r.data_reserva DESC";
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -355,6 +356,7 @@ WHERE r.cliente_id=@c ORDER BY r.data_reserva DESC";
             Theme.StyleGrid(dgvHistPag);
             dgvHistPag.CellFormatting += (s, e) =>
             {
+                Theme.ApplyStatusColor(e, "Estado", dgvHistPag);
                 if (e.ColumnIndex >= 0 && dgvHistPag.Columns[e.ColumnIndex].HeaderText == "Valor" &&
                     e.Value != null && e.Value != DBNull.Value)
                 {
@@ -396,7 +398,7 @@ FROM pagamento p WHERE p.cliente_id=@c ORDER BY p.data_pagamento DESC";
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -588,7 +590,7 @@ GROUP BY e.espaco_id, e.nome ORDER BY e.nome";
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -630,7 +632,7 @@ SELECT ISNULL(SUM(valor),0) FROM pagamento WHERE estado='Pago' AND data_pagament
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -658,7 +660,7 @@ SELECT ISNULL(SUM(valor),0) FROM pagamento WHERE estado='Pago' AND data_pagament
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro ao carregar clientes: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

@@ -18,6 +18,7 @@ namespace CoworkingApp.Controls
         private int _editId = -1;
         private TextBox txtSearch;
         private Label   lblCount;
+        private Label   _lblStatus;
 
         public UcClientes()
         {
@@ -61,9 +62,16 @@ namespace CoworkingApp.Controls
             btnGuardar.Visible  = false;
             btnCancelar.Visible = false;
 
+            _lblStatus = new Label
+            {
+                AutoSize  = true,
+                Visible   = false,
+                Margin    = new Padding(16, 8, 0, 0),
+                Font      = Theme.FontSub
+            };
             flp.Controls.AddRange(new Control[]
             {
-                btnNovo, btnEditar, btnEliminar, btnGuardar, btnCancelar
+                btnNovo, btnEditar, btnEliminar, btnGuardar, btnCancelar, _lblStatus
             });
             pnlToolbar.Controls.Add(flp);
 
@@ -282,7 +290,7 @@ namespace CoworkingApp.Controls
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -328,12 +336,13 @@ namespace CoworkingApp.Controls
                     }
                 }
 
+                Theme.ShowSuccess(_lblStatus);
                 SetEditMode(false);
                 LoadData();
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

@@ -343,7 +343,7 @@ AND NOT EXISTS (SELECT 1 FROM pagamento pg WHERE pg.adesao_id=a.adesao_id AND pg
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro ao carregar itens: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
@@ -481,7 +481,7 @@ ORDER BY p.data_pagamento DESC";
                 catch (SqlException ex)
                 {
                     tran.Rollback();
-                    MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                    MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }

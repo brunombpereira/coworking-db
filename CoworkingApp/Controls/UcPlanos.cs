@@ -13,6 +13,7 @@ namespace CoworkingApp.Controls
         private Button btnNovo, btnEditar, btnEliminar, btnGuardar, btnCancelar;
         private TextBox txtNome, txtPreco, txtDuracao, txtDescricao;
         private int _editId = -1;
+        private Label _lblStatus;
 
         public UcPlanos()
         {
@@ -63,11 +64,13 @@ namespace CoworkingApp.Controls
             btnGuardar.Click  += BtnGuardar_Click;
             btnCancelar.Click += BtnCancelar_Click;
 
+            _lblStatus = new Label { AutoSize = true, Visible = false, Margin = new Padding(16, 8, 0, 0), Font = Theme.FontSub };
             flow.Controls.Add(btnNovo);
             flow.Controls.Add(btnEditar);
             flow.Controls.Add(btnEliminar);
             flow.Controls.Add(btnGuardar);
             flow.Controls.Add(btnCancelar);
+            flow.Controls.Add(_lblStatus);
             pnlToolbar.Controls.Add(flow);
 
             // ── Grid ─────────────────────────────────────────────────────────
@@ -169,7 +172,7 @@ namespace CoworkingApp.Controls
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -240,7 +243,7 @@ namespace CoworkingApp.Controls
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -302,12 +305,13 @@ namespace CoworkingApp.Controls
                     cmd.Dispose();
                 }
 
+                Theme.ShowSuccess(_lblStatus);
                 SetEditMode(false);
                 LoadData();
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
