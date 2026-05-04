@@ -143,6 +143,8 @@ CREATE INDEX idx_reserva_posto     ON reserva  (posto_id, data_reserva, hora_ini
 CREATE INDEX idx_pagamento_adesao  ON pagamento(adesao_id);
 CREATE INDEX idx_pagamento_reserva ON pagamento(reserva_id);
 CREATE INDEX idx_adesao_cliente    ON adesao   (cliente_id, estado);
+CREATE INDEX idx_reserva_cliente   ON reserva  (cliente_id, estado);
+CREATE INDEX idx_pagamento_cliente ON pagamento(cliente_id, estado);
 GO
 
 -- =====================================================================
