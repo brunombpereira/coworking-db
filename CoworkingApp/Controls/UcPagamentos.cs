@@ -16,6 +16,8 @@ namespace CoworkingApp.Controls
         private Button btnAtualizar;
         private DataGridView dgvPagamentos;
         private DataTable _itensTable;
+        private DateTimePicker dtpHistDE, dtpHistAte;
+        private ComboBox cmbHistCliente, cmbHistMetodo;
 
         public UcPagamentos()
         {
@@ -174,9 +176,53 @@ namespace CoworkingApp.Controls
             lblTitle.Location = new Point(18, 14);
             pnlTitle.Controls.Add(lblTitle);
 
+            // ── History filter panel (Dock=Top) ─────────────────────────────
+            var pnlHistFiltros = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = 44,
+                BackColor = Color.White,
+                Padding   = new Padding(12, 8, 12, 4)
+            };
+            var flpHistFiltros = new FlowLayoutPanel
+            {
+                Dock          = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents  = false
+            };
+
+            var lblDE = new Label { Text = "De:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
+            dtpHistDE = new DateTimePicker { Format = DateTimePickerFormat.Short, Width = 96, Value = DateTime.Today.AddDays(-30), Margin = new Padding(0, 3, 8, 0) };
+            var lblAte = new Label { Text = "Até:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
+            dtpHistAte = new DateTimePicker { Format = DateTimePickerFormat.Short, Width = 96, Value = DateTime.Today, Margin = new Padding(0, 3, 8, 0) };
+            var lblCli = new Label { Text = "Cliente:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
+            cmbHistCliente = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, Font = Theme.FontBase, Margin = new Padding(0, 3, 8, 0) };
+            var lblMet = new Label { Text = "Método:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
+            cmbHistMetodo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110, Font = Theme.FontBase, Margin = new Padding(0, 3, 8, 0) };
+            cmbHistMetodo.Items.AddRange(new object[] { "(Todos)", "Dinheiro", "Cartao", "Transferencia", "MBWay", "PayPal" });
+            cmbHistMetodo.SelectedIndex = 0;
+
+            var btnFiltrar = Theme.BtnPrim("Filtrar");
+            var btnLimpar  = Theme.BtnGray("Limpar");
+            btnFiltrar.Margin = new Padding(0, 3, 4, 0);
+            btnLimpar.Margin  = new Padding(0, 3, 0, 0);
+            btnFiltrar.Click += (s, e) => LoadPagamentos();
+            btnLimpar.Click  += (s, e) =>
+            {
+                dtpHistDE.Value            = DateTime.Today.AddDays(-30);
+                dtpHistAte.Value           = DateTime.Today;
+                cmbHistCliente.SelectedIndex = 0;
+                cmbHistMetodo.SelectedIndex  = 0;
+                LoadPagamentos();
+            };
+
+            flpHistFiltros.Controls.AddRange(new Control[] { lblDE, dtpHistDE, lblAte, dtpHistAte, lblCli, cmbHistCliente, lblMet, cmbHistMetodo, btnFiltrar, btnLimpar });
+            pnlHistFiltros.Controls.Add(flpHistFiltros);
+
             // Add order: Fill first, then Top panels in reverse visual order, title last
             this.Controls.Add(dgvPagamentos);      // Dock=Fill
             this.Controls.Add(pnlRecentHeader);    // Dock=Top
+            this.Controls.Add(pnlHistFiltros);     // Dock=Top
             this.Controls.Add(pnlSeparator);       // Dock=Top
             this.Controls.Add(pnlRegisto);         // Dock=Top
             this.Controls.Add(pnlTitle);           // Dock=Top — added last = visually topmost
@@ -205,9 +251,30 @@ namespace CoworkingApp.Controls
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro ao carregar clientes: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+
+            // Populate history filter client combo
+            try
+            {
+                using (var conn2 = Database.GetConnection())
+                using (var cmd2 = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn2))
+                using (var da2 = new SqlDataAdapter(cmd2))
+                {
+                    var dt2 = new DataTable();
+                    da2.Fill(dt2);
+                    var rowTodos = dt2.NewRow();
+                    rowTodos["cliente_id"] = DBNull.Value;
+                    rowTodos["nome"]       = "(Todos)";
+                    dt2.Rows.InsertAt(rowTodos, 0);
+                    cmbHistCliente.DataSource    = dt2;
+                    cmbHistCliente.DisplayMember = "nome";
+                    cmbHistCliente.ValueMember   = "cliente_id";
+                    cmbHistCliente.SelectedIndex = 0;
+                }
+            }
+            catch { /* filter combo is optional */ }
         }
 
         private void LoadItens()
@@ -307,18 +374,37 @@ AND NOT EXISTS (SELECT 1 FROM pagamento pg WHERE pg.adesao_id=a.adesao_id AND pg
         {
             try
             {
-                using (var conn = Database.GetConnection())
-                {
-                    string sql = @"
+                var whereParts = new System.Collections.Generic.List<string>();
+                whereParts.Add("p.data_pagamento BETWEEN @de AND @ate");
+
+                bool filtraPorCliente = cmbHistCliente?.SelectedValue != null
+                    && !(cmbHistCliente.SelectedValue is System.DBNull)
+                    && cmbHistCliente.SelectedIndex > 0;
+                if (filtraPorCliente) whereParts.Add("p.cliente_id = @c");
+
+                bool filtraPorMetodo = cmbHistMetodo?.SelectedIndex > 0;
+                if (filtraPorMetodo) whereParts.Add("p.metodo_pagamento = @m");
+
+                string where = "WHERE " + string.Join(" AND ", whereParts);
+
+                string sql = $@"
 SELECT p.pagamento_id AS ID, c.nome AS Cliente,
   CONVERT(varchar,p.data_pagamento,103) AS Data,
   p.valor AS Valor, p.metodo_pagamento AS Método, p.estado AS Estado,
   CASE WHEN p.reserva_id IS NOT NULL THEN 'Reserva #' + CAST(p.reserva_id AS varchar)
        ELSE 'Adesão #' + CAST(p.adesao_id AS varchar) END AS Referência
 FROM pagamento p JOIN cliente c ON p.cliente_id=c.cliente_id
+{where}
 ORDER BY p.data_pagamento DESC";
 
-                    using (var cmd = new SqlCommand(sql, conn))
+                using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@de",  dtpHistDE?.Value.Date  ?? DateTime.Today.AddDays(-30));
+                    cmd.Parameters.AddWithValue("@ate", dtpHistAte?.Value.Date ?? DateTime.Today);
+                    if (filtraPorCliente) cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbHistCliente.SelectedValue));
+                    if (filtraPorMetodo)  cmd.Parameters.AddWithValue("@m", cmbHistMetodo.Text);
+
                     using (var da = new SqlDataAdapter(cmd))
                     {
                         var dt = new DataTable();
@@ -332,7 +418,7 @@ ORDER BY p.data_pagamento DESC";
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro ao carregar pagamentos: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

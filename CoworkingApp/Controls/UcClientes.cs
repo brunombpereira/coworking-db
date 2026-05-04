@@ -16,6 +16,8 @@ namespace CoworkingApp.Controls
         private TextBox txtNome, txtNif, txtEmail, txtTelefone;
 
         private int _editId = -1;
+        private TextBox txtSearch;
+        private Label   lblCount;
 
         public UcClientes()
         {
@@ -138,8 +140,52 @@ namespace CoworkingApp.Controls
             // WinForms processes Dock in reverse add order for Top/Bottom.
             // Add Bottom first, then Fill, then Top panels last — so Top panels
             // claim their space first (last added = first processed for Top).
+            // ── Search bar panel (Dock=Top) ──────────────────────────────────
+            var pnlSearch = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = 40,
+                BackColor = Color.White,
+                Padding   = new Padding(12, 6, 12, 4)
+            };
+            var flpSearch = new FlowLayoutPanel
+            {
+                Dock          = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents  = false
+            };
+            var lblSearchLabel = new Label
+            {
+                Text      = "Pesquisar:",
+                Font      = Theme.FontLabel,
+                ForeColor = ColorTranslator.FromHtml("#64748b"),
+                AutoSize  = true,
+                Margin    = new Padding(0, 6, 6, 0)
+            };
+            txtSearch = new TextBox
+            {
+                Width       = 320,
+                Font        = Theme.FontBase,
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor   = ColorTranslator.FromHtml("#f8fafc"),
+                Margin      = new Padding(0, 2, 12, 0)
+            };
+            lblCount = new Label
+            {
+                AutoSize  = true,
+                ForeColor = ColorTranslator.FromHtml("#64748b"),
+                Font      = Theme.FontSub,
+                Margin    = new Padding(0, 7, 0, 0)
+            };
+            txtSearch.TextChanged += (s, e) => LoadData(txtSearch.Text.Trim());
+            flpSearch.Controls.Add(lblSearchLabel);
+            flpSearch.Controls.Add(txtSearch);
+            flpSearch.Controls.Add(lblCount);
+            pnlSearch.Controls.Add(flpSearch);
+
             this.Controls.Add(pnlForm);     // Bottom
             this.Controls.Add(dgv);         // Fill
+            this.Controls.Add(pnlSearch);   // Top (third)
             this.Controls.Add(pnlToolbar);  // Top (second)
             this.Controls.Add(pnlTitle);    // Top (first — outermost)
 
@@ -302,37 +348,50 @@ namespace CoworkingApp.Controls
         // Data
         // ────────────────────────────────────────────────────────────────────
 
-        private void LoadData()
+        private void LoadData(string filter = "")
         {
             try
             {
-                var sql = @"SELECT cliente_id AS ID,
+                string where = string.IsNullOrWhiteSpace(filter)
+                    ? ""
+                    : "WHERE nome LIKE @q OR nif LIKE @q OR email LIKE @q";
+
+                var sql = $@"SELECT cliente_id AS ID,
                                    nome        AS Nome,
                                    nif         AS NIF,
                                    email       AS Email,
                                    telefone    AS Telefone,
                                    CONVERT(varchar,data_registo,103) AS [Data Registo]
                             FROM cliente
+                            {where}
                             ORDER BY nome";
 
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(sql, conn))
-                using (var adapter = new SqlDataAdapter(cmd))
                 {
-                    var dt = new DataTable();
-                    adapter.Fill(dt);
-                    dgv.DataSource = dt;
+                    if (!string.IsNullOrWhiteSpace(filter))
+                        cmd.Parameters.AddWithValue("@q", "%" + filter + "%");
+
+                    using (var adapter = new SqlDataAdapter(cmd))
+                    {
+                        var dt = new DataTable();
+                        adapter.Fill(dt);
+                        dgv.DataSource = dt;
+                    }
                 }
 
-                // Hide the PK column from the user
                 if (dgv.Columns.Contains("ID"))
                     dgv.Columns["ID"].Visible = false;
+
+                int count = dgv.Rows.Count;
+                if (lblCount != null)
+                    lblCount.Text = count + " cliente" + (count != 1 ? "s" : "");
 
                 UpdateButtonState();
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

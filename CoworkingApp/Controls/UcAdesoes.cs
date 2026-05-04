@@ -22,6 +22,7 @@ namespace CoworkingApp.Controls
 
         // ── State ────────────────────────────────────────────────────────────
         private int _editId = -1;
+        private ComboBox cmbFiltroCliente, cmbFiltroEstado;
 
         // ────────────────────────────────────────────────────────────────────
         public UcAdesoes()
@@ -160,9 +161,46 @@ namespace CoworkingApp.Controls
 
             pnlForm.Controls.Add(tbl);
 
-            // ── Add controls in correct dock order ───────────────────────────
+            // ── Filter panel (Dock=Top) ──────────────────────────────────────
+            var pnlFiltros = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = 44,
+                BackColor = Color.White,
+                Padding   = new Padding(12, 8, 12, 4)
+            };
+            var flpFiltros = new FlowLayoutPanel
+            {
+                Dock          = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents  = false
+            };
+
+            var lblCli = new Label { Text = "Cliente:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
+            cmbFiltroCliente = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180, Font = Theme.FontBase, Margin = new Padding(0, 3, 8, 0) };
+            var lblEst = new Label { Text = "Estado:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
+            cmbFiltroEstado = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120, Font = Theme.FontBase, Margin = new Padding(0, 3, 8, 0) };
+            cmbFiltroEstado.Items.AddRange(new object[] { "(Todos)", "Pendente", "Ativa", "Suspensa", "Cancelada", "Terminada" });
+            cmbFiltroEstado.SelectedIndex = 0;
+
+            var btnFiltrar = Theme.BtnPrim("Filtrar");
+            var btnLimpar  = Theme.BtnGray("Limpar");
+            btnFiltrar.Margin = new Padding(0, 3, 4, 0);
+            btnLimpar.Margin  = new Padding(0, 3, 0, 0);
+            btnFiltrar.Click += (s, e) => LoadData();
+            btnLimpar.Click  += (s, e) =>
+            {
+                cmbFiltroCliente.SelectedIndex = 0;
+                cmbFiltroEstado.SelectedIndex  = 0;
+                LoadData();
+            };
+
+            flpFiltros.Controls.AddRange(new Control[] { lblCli, cmbFiltroCliente, lblEst, cmbFiltroEstado, btnFiltrar, btnLimpar });
+            pnlFiltros.Controls.Add(flpFiltros);
+
             this.Controls.Add(pnlForm);     // Dock=Bottom  — added first
             this.Controls.Add(dgv);         // Dock=Fill
+            this.Controls.Add(pnlFiltros);  // Dock=Top
             this.Controls.Add(pnlToolbar);  // Dock=Top
             this.Controls.Add(pnlTitle);    // Dock=Top — added last → appears at very top
         }
@@ -219,13 +257,48 @@ namespace CoworkingApp.Controls
             // Wire up live data-fim preview after datasource is set
             cmbPlano.SelectedIndexChanged      += (s, e) => UpdateDataFimLabel();
             dtpDataInicio.ValueChanged         += (s, e) => UpdateDataFimLabel();
+
+            // Populate filter client combo
+            try
+            {
+                using (var conn2 = Database.GetConnection())
+                using (var cmdFilt = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn2))
+                using (var adFilt = new SqlDataAdapter(cmdFilt))
+                {
+                    var dtFilt = new DataTable();
+                    adFilt.Fill(dtFilt);
+                    var rowTodos = dtFilt.NewRow();
+                    rowTodos["cliente_id"] = DBNull.Value;
+                    rowTodos["nome"]       = "(Todos)";
+                    dtFilt.Rows.InsertAt(rowTodos, 0);
+                    cmbFiltroCliente.DataSource    = dtFilt;
+                    cmbFiltroCliente.DisplayMember = "nome";
+                    cmbFiltroCliente.ValueMember   = "cliente_id";
+                    cmbFiltroCliente.SelectedIndex = 0;
+                }
+            }
+            catch { /* filter combo is optional */ }
         }
 
         private void LoadData()
         {
             try
             {
-                const string sql = @"
+                var whereParts = new System.Collections.Generic.List<string>();
+
+                bool filtraPorCliente = cmbFiltroCliente?.SelectedValue != null
+                    && !(cmbFiltroCliente.SelectedValue is System.DBNull)
+                    && cmbFiltroCliente.SelectedIndex > 0;
+                if (filtraPorCliente) whereParts.Add("a.cliente_id = @c");
+
+                bool filtraPorEstado = cmbFiltroEstado?.SelectedIndex > 0;
+                if (filtraPorEstado) whereParts.Add("a.estado = @e");
+
+                string where = whereParts.Count > 0
+                    ? "WHERE " + string.Join(" AND ", whereParts)
+                    : "";
+
+                string sql = $@"
                     SELECT a.adesao_id AS ID,
                            c.nome AS Cliente,
                            p.nome_plano AS Plano,
@@ -235,15 +308,21 @@ namespace CoworkingApp.Controls
                     FROM adesao a
                     JOIN cliente c ON a.cliente_id = c.cliente_id
                     JOIN plano   p ON a.plano_id   = p.plano_id
+                    {where}
                     ORDER BY a.data_inicio DESC";
 
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(sql, conn))
-                using (var adapter = new SqlDataAdapter(cmd))
                 {
-                    var dt = new DataTable();
-                    adapter.Fill(dt);
-                    dgv.DataSource = dt;
+                    if (filtraPorCliente) cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbFiltroCliente.SelectedValue));
+                    if (filtraPorEstado)  cmd.Parameters.AddWithValue("@e", cmbFiltroEstado.Text);
+
+                    using (var adapter = new SqlDataAdapter(cmd))
+                    {
+                        var dt = new DataTable();
+                        adapter.Fill(dt);
+                        dgv.DataSource = dt;
+                    }
                 }
 
                 if (dgv.Columns.Contains("ID"))
@@ -253,7 +332,7 @@ namespace CoworkingApp.Controls
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

@@ -14,6 +14,8 @@ namespace CoworkingApp.Controls
         // ── Toolbar controls ─────────────────────────────────────────────────
         private Button btnNova, btnCancelarRes, btnAtualizar;
         private ComboBox cmbFiltro;
+        private DateTimePicker dtpFiltroDE, dtpFiltroAte;
+        private ComboBox cmbFiltroCliente;
 
         // ── Nova reserva panel ───────────────────────────────────────────────
         private Panel pnlNovaReserva;
@@ -85,33 +87,9 @@ namespace CoworkingApp.Controls
             btnCancelarRes.Click += BtnCancelarRes_Click;
             btnAtualizar.Click  += (s, e) => LoadData();
 
-            var lblFiltro = new Label
-            {
-                Text = "Filtro:",
-                ForeColor = ColorTranslator.FromHtml("#64748b"),
-                Font = new Font("Segoe UI", 9f),
-                AutoSize = true,
-                Margin = new Padding(12, 8, 4, 0)
-            };
-
-            cmbFiltro = new ComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Width = 130,
-                Font = new Font("Segoe UI", 9f),
-                FlatStyle = FlatStyle.Flat,
-                Margin = new Padding(0, 6, 0, 0)
-            };
-            cmbFiltro.Items.AddRange(new object[]
-            {
-                "(Todos)", "Pendente", "Confirmada", "Cancelada", "Concluida"
-            });
-            cmbFiltro.SelectedIndex = 0;
-            cmbFiltro.SelectedIndexChanged += (s, e) => LoadData();
-
             flpToolbar.Controls.AddRange(new Control[]
             {
-                btnNova, btnCancelarRes, btnAtualizar, lblFiltro, cmbFiltro
+                btnNova, btnCancelarRes, btnAtualizar
             });
             pnlToolbar.Controls.Add(flpToolbar);
 
@@ -139,9 +117,81 @@ namespace CoworkingApp.Controls
             // ── Nova Reserva panel (Dock=Bottom) ─────────────────────────────
             pnlNovaReserva = BuildNovaReservaPanel();
 
-            // ── Add controls in correct dock order ───────────────────────────
+            // ── Filter panel (Dock=Top) ──────────────────────────────────────
+            var pnlFiltros = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = 44,
+                BackColor = Color.White,
+                Padding   = new Padding(12, 8, 12, 4)
+            };
+            var flpFiltros = new FlowLayoutPanel
+            {
+                Dock          = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents  = false
+            };
+
+            var lblDE = new Label { Text = "De:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
+            dtpFiltroDE = new DateTimePicker
+            {
+                Format = DateTimePickerFormat.Short,
+                Width  = 96,
+                Value  = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1),
+                Margin = new Padding(0, 3, 8, 0)
+            };
+            var lblAte = new Label { Text = "Até:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
+            dtpFiltroAte = new DateTimePicker
+            {
+                Format = DateTimePickerFormat.Short,
+                Width  = 96,
+                Value  = DateTime.Today,
+                Margin = new Padding(0, 3, 8, 0)
+            };
+            var lblCli = new Label { Text = "Cliente:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
+            cmbFiltroCliente = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width         = 160,
+                Font          = Theme.FontBase,
+                Margin        = new Padding(0, 3, 8, 0)
+            };
+            var lblEstado = new Label { Text = "Estado:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
+            cmbFiltro = new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width         = 110,
+                Font          = Theme.FontBase,
+                Margin        = new Padding(0, 3, 8, 0)
+            };
+            cmbFiltro.Items.AddRange(new object[] { "(Todos)", "Pendente", "Confirmada", "Cancelada", "Concluida" });
+            cmbFiltro.SelectedIndex = 0;
+
+            var btnFiltrar = Theme.BtnPrim("Filtrar");
+            var btnLimpar  = Theme.BtnGray("Limpar");
+            btnFiltrar.Margin = new Padding(0, 3, 4, 0);
+            btnLimpar.Margin  = new Padding(0, 3, 0, 0);
+            btnFiltrar.Click += (s, e) => LoadData();
+            btnLimpar.Click  += (s, e) =>
+            {
+                dtpFiltroDE.Value   = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+                dtpFiltroAte.Value  = DateTime.Today;
+                cmbFiltroCliente.SelectedIndex = 0;
+                cmbFiltro.SelectedIndex        = 0;
+                LoadData();
+            };
+
+            flpFiltros.Controls.AddRange(new Control[]
+            {
+                lblDE, dtpFiltroDE, lblAte, dtpFiltroAte,
+                lblCli, cmbFiltroCliente, lblEstado, cmbFiltro,
+                btnFiltrar, btnLimpar
+            });
+            pnlFiltros.Controls.Add(flpFiltros);
+
             this.Controls.Add(pnlNovaReserva);  // Dock=Bottom — added first
             this.Controls.Add(dgv);              // Dock=Fill
+            this.Controls.Add(pnlFiltros);       // Dock=Top
             this.Controls.Add(pnlToolbar);       // Dock=Top
             this.Controls.Add(pnlTitle);         // Dock=Top — appears at very top
         }
@@ -341,9 +391,30 @@ namespace CoworkingApp.Controls
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro ao carregar clientes: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+
+            // Populate filter client combo (with "Todos os clientes" as first item)
+            try
+            {
+                using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn))
+                using (var adapter = new SqlDataAdapter(cmd))
+                {
+                    var dt = new DataTable();
+                    adapter.Fill(dt);
+                    var rowTodos = dt.NewRow();
+                    rowTodos["cliente_id"] = DBNull.Value;
+                    rowTodos["nome"]       = "(Todos os clientes)";
+                    dt.Rows.InsertAt(rowTodos, 0);
+                    cmbFiltroCliente.DataSource    = dt;
+                    cmbFiltroCliente.DisplayMember = "nome";
+                    cmbFiltroCliente.ValueMember   = "cliente_id";
+                    cmbFiltroCliente.SelectedIndex = 0;
+                }
+            }
+            catch { /* filter combo is optional */ }
         }
 
         private void LoadRecursos()
@@ -406,10 +477,18 @@ namespace CoworkingApp.Controls
         {
             try
             {
-                string filtro = cmbFiltro.Text;
-                string whereClause = filtro != "(Todos)"
-                    ? "WHERE r.estado = @e"
-                    : "";
+                var whereParts = new System.Collections.Generic.List<string>();
+                whereParts.Add("r.data_reserva BETWEEN @de AND @ate");
+
+                string estadoFiltro = cmbFiltro?.SelectedIndex > 0 ? cmbFiltro.Text : null;
+                if (estadoFiltro != null) whereParts.Add("r.estado = @e");
+
+                bool filtraPorCliente = cmbFiltroCliente?.SelectedValue != null
+                    && !(cmbFiltroCliente.SelectedValue is System.DBNull)
+                    && cmbFiltroCliente.SelectedIndex > 0;
+                if (filtraPorCliente) whereParts.Add("r.cliente_id = @c");
+
+                string where = "WHERE " + string.Join(" AND ", whereParts);
 
                 string sql = $@"
                     SELECT r.reserva_id AS ID,
@@ -425,14 +504,16 @@ namespace CoworkingApp.Controls
                     JOIN cliente c ON r.cliente_id = c.cliente_id
                     LEFT JOIN sala s ON r.sala_id = s.sala_id
                     LEFT JOIN posto_trabalho p ON r.posto_id = p.posto_id
-                    {whereClause}
+                    {where}
                     ORDER BY r.data_reserva DESC, r.hora_inicio";
 
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(sql, conn))
                 {
-                    if (filtro != "(Todos)")
-                        cmd.Parameters.AddWithValue("@e", filtro);
+                    cmd.Parameters.AddWithValue("@de",  dtpFiltroDE?.Value.Date  ?? new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1));
+                    cmd.Parameters.AddWithValue("@ate", dtpFiltroAte?.Value.Date ?? DateTime.Today);
+                    if (estadoFiltro != null)    cmd.Parameters.AddWithValue("@e", estadoFiltro);
+                    if (filtraPorCliente)        cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbFiltroCliente.SelectedValue));
 
                     using (var adapter = new SqlDataAdapter(cmd))
                     {
@@ -444,7 +525,7 @@ namespace CoworkingApp.Controls
             }
             catch (SqlException ex)
             {
-                MessageBox.Show("Erro: " + ex.Message, "Erro BD",
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
