@@ -3,6 +3,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
 
 namespace CoworkingApp.Controls
 {
@@ -37,6 +38,8 @@ namespace CoworkingApp.Controls
         private Button btnPesquisarRec;
         private Label lblTotalReceita;
         private DataGridView dgvReceita;
+        private Chart _chartReceita;
+        private Chart _chartMetodosPag;
 
         public UcRelatorios()
         {
@@ -365,8 +368,20 @@ WHERE r.cliente_id=@c ORDER BY r.data_reserva DESC";
                 }
             };
 
-            tab.Controls.Add(dgvHistPag);  // Fill
-            tab.Controls.Add(flw);         // Top — added last = visually topmost
+            // ── Pie chart: métodos de pagamento por cliente (Dock=Bottom, Height=160)
+            _chartMetodosPag = new Chart { Dock = DockStyle.Bottom, Height = 160, Visible = false, BackColor = Color.White };
+            var areaMet = new ChartArea("main") { BackColor = Color.White };
+            _chartMetodosPag.ChartAreas.Add(areaMet);
+            var serMet = new Series("met") { ChartType = SeriesChartType.Pie };
+            _chartMetodosPag.Series.Add(serMet);
+            var legendMet = new Legend("leg") { Docking = Docking.Right, Font = new Font("Segoe UI", 8f), BackColor = Color.Transparent };
+            _chartMetodosPag.Legends.Add(legendMet);
+            serMet.Legend = "leg";
+            _chartMetodosPag.Palette = ChartColorPalette.Bright;
+
+            tab.Controls.Add(dgvHistPag);         // Fill
+            tab.Controls.Add(_chartMetodosPag);   // Bottom
+            tab.Controls.Add(flw);                // Top — added last = visually topmost
             return tab;
         }
 
@@ -375,7 +390,7 @@ WHERE r.cliente_id=@c ORDER BY r.data_reserva DESC";
             if (cmbClientePag.SelectedValue == null) return;
             int clienteId = Convert.ToInt32(cmbClientePag.SelectedValue);
 
-            string sql = @"
+            string sqlHist = @"
 SELECT CONVERT(varchar,p.data_pagamento,103) AS Data,
   p.valor AS Valor, p.metodo_pagamento AS Método, p.estado AS Estado,
   CASE WHEN p.reserva_id IS NOT NULL THEN 'Reserva #'+CAST(p.reserva_id AS varchar)
@@ -385,15 +400,30 @@ FROM pagamento p WHERE p.cliente_id=@c ORDER BY p.data_pagamento DESC";
             try
             {
                 using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@c", clienteId);
-                    using (var da = new SqlDataAdapter(cmd))
+                    using (var cmd = new SqlCommand(sqlHist, conn))
                     {
-                        var dt = new DataTable();
-                        da.Fill(dt);
-                        dgvHistPag.DataSource = dt;
+                        cmd.Parameters.AddWithValue("@c", clienteId);
+                        using (var da = new SqlDataAdapter(cmd))
+                        {
+                            var dt = new DataTable();
+                            da.Fill(dt);
+                            dgvHistPag.DataSource = dt;
+                        }
                     }
+
+                    _chartMetodosPag.Series["met"].Points.Clear();
+                    string sqlPie = "SELECT metodo_pagamento, COUNT(*) FROM pagamento WHERE cliente_id=@c GROUP BY metodo_pagamento";
+                    using (var cmdPie = new SqlCommand(sqlPie, conn))
+                    {
+                        cmdPie.Parameters.AddWithValue("@c", clienteId);
+                        using (var rdr = cmdPie.ExecuteReader())
+                        {
+                            while (rdr.Read())
+                                _chartMetodosPag.Series["met"].Points.AddXY(rdr.GetString(0), rdr.GetInt32(1));
+                        }
+                    }
+                    _chartMetodosPag.Visible = _chartMetodosPag.Series["met"].Points.Count > 0;
                 }
             }
             catch (SqlException ex)
@@ -552,8 +582,21 @@ FROM pagamento p WHERE p.cliente_id=@c ORDER BY p.data_pagamento DESC";
                 }
             };
 
+            // ── Receita mensal chart (Dock=Top, Height=160) ──────────────
+            _chartReceita = new Chart { Dock = DockStyle.Top, Height = 160, BackColor = Color.White };
+            var areaRec = new ChartArea("main");
+            areaRec.AxisX.MajorGrid.Enabled   = false;
+            areaRec.AxisY.LabelStyle.Format   = "€ #,##0";
+            areaRec.AxisY.MajorGrid.LineColor = ColorTranslator.FromHtml("#e2e8f0");
+            areaRec.BackColor = Color.White;
+            _chartReceita.ChartAreas.Add(areaRec);
+            var serRec = new Series("rec") { ChartType = SeriesChartType.Column, Color = ColorTranslator.FromHtml("#10b981"), BorderWidth = 0 };
+            _chartReceita.Series.Add(serRec);
+            _chartReceita.Titles.Add(new Title("Receita Mensal") { Font = new Font("Segoe UI", 8.5f, FontStyle.Bold), ForeColor = ColorTranslator.FromHtml("#0c4a6e"), Docking = Docking.Top });
+
             pnl.Controls.Add(dgvReceita);      // Fill
             pnl.Controls.Add(lblRecHeader);    // Top
+            pnl.Controls.Add(_chartReceita);   // Top
             pnl.Controls.Add(flw);             // Top — added last = visually topmost
         }
 
@@ -627,6 +670,28 @@ SELECT ISNULL(SUM(valor),0) FROM pagamento WHERE estado='Pago' AND data_pagament
                         cmdTotal.Parameters.AddWithValue("@fim", dtpRecFim.Value.Date);
                         decimal total = (decimal)cmdTotal.ExecuteScalar();
                         lblTotalReceita.Text = "Total: " + Theme.FormatEuro(total);
+                    }
+
+                    // Update bar chart
+                    _chartReceita.Series["rec"].Points.Clear();
+                    string sqlMensal = @"
+SELECT CAST(YEAR(data_pagamento) AS varchar) + '/' +
+       RIGHT('0' + CAST(MONTH(data_pagamento) AS varchar), 2) AS Mes,
+       SUM(valor) AS Total
+FROM pagamento
+WHERE estado='Pago' AND data_pagamento BETWEEN @ini AND @fim
+GROUP BY YEAR(data_pagamento), MONTH(data_pagamento)
+ORDER BY YEAR(data_pagamento), MONTH(data_pagamento)";
+                    using (var cmdMensal = new SqlCommand(sqlMensal, conn))
+                    {
+                        cmdMensal.Parameters.AddWithValue("@ini", dtpRecIni.Value.Date);
+                        cmdMensal.Parameters.AddWithValue("@fim", dtpRecFim.Value.Date);
+                        using (var rdr = cmdMensal.ExecuteReader())
+                        {
+                            while (rdr.Read())
+                                _chartReceita.Series["rec"].Points.AddXY(
+                                    rdr.GetString(0), Convert.ToDouble(rdr.GetDecimal(1)));
+                        }
                     }
                 }
             }

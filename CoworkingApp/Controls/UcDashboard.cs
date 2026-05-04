@@ -3,6 +3,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
 
 namespace CoworkingApp.Controls
 {
@@ -13,6 +14,8 @@ namespace CoworkingApp.Controls
         private Label lblAdesoes, lblAdoesSub;
         private Label lblReceita, lblReceitaSub;
         private DataGridView dgvRecent;
+        private Chart _chartReservas;
+        private Chart _chartMetodos;
 
         public UcDashboard()
         {
@@ -215,10 +218,36 @@ namespace CoworkingApp.Controls
             dgvRecent.CellFormatting += DgvRecent_CellFormatting;
             pnlGrid.Controls.Add(dgvRecent);
 
+            // ── Charts panel (Dock=Top, Height=180) ─────────────────────────
+            var pnlCharts = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = 180,
+                BackColor = Theme.ContentBg,
+                Padding   = new Padding(20, 8, 20, 0)
+            };
+            var tblCharts = new TableLayoutPanel
+            {
+                Dock        = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount    = 1,
+                BackColor   = Color.Transparent
+            };
+            tblCharts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60f));
+            tblCharts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40f));
+            tblCharts.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+
+            _chartReservas = BuildBarChart("Reservas por Mês", ColorTranslator.FromHtml("#1d4ed8"));
+            _chartMetodos  = BuildPieChart("Pagamentos por Método");
+            tblCharts.Controls.Add(_chartReservas, 0, 0);
+            tblCharts.Controls.Add(_chartMetodos,  1, 0);
+            pnlCharts.Controls.Add(tblCharts);
+
             // ── Add controls in reverse dock order ───────────────────────────
             // Fill must be added before Top panels so it occupies remaining space.
             this.Controls.Add(pnlGrid);
             this.Controls.Add(pnlRecentHeader);
+            this.Controls.Add(pnlCharts);
             this.Controls.Add(pnlCards);
             this.Controls.Add(pnlHeader);
         }
@@ -256,6 +285,60 @@ namespace CoworkingApp.Controls
             card.Controls.Add(lblCardTitle);
 
             return card;
+        }
+
+        private Chart BuildBarChart(string title, Color color)
+        {
+            var chart = new Chart { Dock = DockStyle.Fill, BackColor = Color.White };
+            var area  = new ChartArea("main");
+            area.AxisX.MajorGrid.Enabled   = false;
+            area.AxisY.MajorGrid.LineColor = ColorTranslator.FromHtml("#e2e8f0");
+            area.AxisY.LabelStyle.Format   = "#,##0";
+            area.BackColor = Color.White;
+            chart.ChartAreas.Add(area);
+
+            var series = new Series("data")
+            {
+                ChartType   = SeriesChartType.Column,
+                Color       = color,
+                BorderWidth = 0
+            };
+            chart.Series.Add(series);
+
+            chart.Titles.Add(new Title(title)
+            {
+                Font      = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
+                Docking   = Docking.Top
+            });
+            return chart;
+        }
+
+        private Chart BuildPieChart(string title)
+        {
+            var chart = new Chart { Dock = DockStyle.Fill, BackColor = Color.White };
+            chart.ChartAreas.Add(new ChartArea("main") { BackColor = Color.White });
+
+            var series = new Series("data") { ChartType = SeriesChartType.Pie };
+            chart.Series.Add(series);
+
+            var legend = new Legend("leg")
+            {
+                Docking   = Docking.Right,
+                Font      = new Font("Segoe UI", 8f),
+                BackColor = Color.Transparent
+            };
+            chart.Legends.Add(legend);
+            series.Legend = "leg";
+
+            chart.Titles.Add(new Title(title)
+            {
+                Font      = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
+                Docking   = Docking.Top
+            });
+            chart.Palette = ChartColorPalette.Bright;
+            return chart;
         }
 
         private void DgvRecent_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
@@ -328,6 +411,40 @@ namespace CoworkingApp.Controls
                         var dt = new DataTable();
                         adapter.Fill(dt);
                         dgvRecent.DataSource = dt;
+                    }
+
+                    // ── Bar chart: reservas por mês (últimos 6 meses) ────────
+                    var sqlBar = @"
+                        SELECT CAST(YEAR(data_reserva) AS varchar) + '/' +
+                               RIGHT('0' + CAST(MONTH(data_reserva) AS varchar), 2) AS Mes,
+                               COUNT(*) AS Total
+                        FROM reserva
+                        WHERE data_reserva >= DATEADD(MONTH, -5, GETDATE())
+                        GROUP BY YEAR(data_reserva), MONTH(data_reserva)
+                        ORDER BY YEAR(data_reserva), MONTH(data_reserva)";
+
+                    _chartReservas.Series["data"].Points.Clear();
+                    using (var cmdBar = new SqlCommand(sqlBar, conn))
+                    using (var rdrBar = cmdBar.ExecuteReader())
+                    {
+                        while (rdrBar.Read())
+                            _chartReservas.Series["data"].Points.AddXY(
+                                rdrBar.GetString(0), rdrBar.GetInt32(1));
+                    }
+
+                    // ── Pie chart: pagamentos por método ─────────────────────
+                    var sqlPie = @"
+                        SELECT metodo_pagamento, COUNT(*)
+                        FROM pagamento WHERE estado='Pago'
+                        GROUP BY metodo_pagamento";
+
+                    _chartMetodos.Series["data"].Points.Clear();
+                    using (var cmdPie = new SqlCommand(sqlPie, conn))
+                    using (var rdrPie = cmdPie.ExecuteReader())
+                    {
+                        while (rdrPie.Read())
+                            _chartMetodos.Series["data"].Points.AddXY(
+                                rdrPie.GetString(0), rdrPie.GetInt32(1));
                     }
                 }
             }
