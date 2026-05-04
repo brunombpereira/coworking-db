@@ -11,6 +11,8 @@ namespace CoworkingApp
         private Panel pnlContent;
         private Button _activeBtn;
         private readonly List<Button> _navBtns = new List<Button>();
+        private ToolStripStatusLabel _lblModule;
+        private System.Windows.Forms.Timer _clockTimer;
 
         public FormMain()
         {
@@ -27,6 +29,33 @@ namespace CoworkingApp
             this.Font = Theme.FontBase;
             this.BackColor = Theme.ContentBg;
 
+            // StatusStrip (Dock=Bottom — must be added to Controls last / after content)
+            var statusStrip = new StatusStrip
+            {
+                BackColor = Color.White,
+                SizingGrip = false
+            };
+            _lblModule = new ToolStripStatusLabel
+            {
+                Text      = "Dashboard",
+                Spring    = true,
+                TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = ColorTranslator.FromHtml("#475569")
+            };
+            var lblClock = new ToolStripStatusLabel
+            {
+                ForeColor = ColorTranslator.FromHtml("#475569"),
+                TextAlign = ContentAlignment.MiddleRight
+            };
+            statusStrip.Items.Add(_lblModule);
+            statusStrip.Items.Add(new ToolStripStatusLabel { Spring = true });
+            statusStrip.Items.Add(lblClock);
+
+            _clockTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+            _clockTimer.Tick += (s, e) => lblClock.Text = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
+            _clockTimer.Start();
+            lblClock.Text = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
+
             pnlContent = new Panel
             {
                 Dock = DockStyle.Fill,
@@ -42,9 +71,10 @@ namespace CoworkingApp
 
             BuildSidebar(pnlSidebar);
 
-            // Fill must be added before Left so docking works
+            // Fill must be added before Left so docking works; Bottom last
             this.Controls.Add(pnlContent);
             this.Controls.Add(pnlSidebar);
+            this.Controls.Add(statusStrip);
         }
 
         private void BuildSidebar(Panel sidebar)
@@ -179,6 +209,20 @@ namespace CoworkingApp
             pnlContent.Controls.Clear();
             var uc = new T { Dock = DockStyle.Fill };
             pnlContent.Controls.Add(uc);
+
+            var names = new System.Collections.Generic.Dictionary<Type, string>
+            {
+                { typeof(UcDashboard),  "Dashboard"  },
+                { typeof(UcClientes),   "Clientes"   },
+                { typeof(UcPlanos),     "Planos"     },
+                { typeof(UcEspacos),    "Espaços"    },
+                { typeof(UcReservas),   "Reservas"   },
+                { typeof(UcAdesoes),    "Adesões"    },
+                { typeof(UcPagamentos), "Pagamentos" },
+                { typeof(UcRelatorios), "Relatórios" }
+            };
+            if (names.TryGetValue(typeof(T), out string name))
+                _lblModule.Text = name;
         }
     }
 }

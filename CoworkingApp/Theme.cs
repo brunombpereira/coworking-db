@@ -185,5 +185,48 @@ namespace CoworkingApp
                 Format = DateTimePickerFormat.Short
             };
         }
+
+        public static void ApplyStatusColor(DataGridViewCellFormattingEventArgs e, string colName, DataGridView dgv)
+        {
+            if (e.ColumnIndex < 0 || e.Value == null) return;
+            if (dgv.Columns[e.ColumnIndex].Name != colName) return;
+            switch (e.Value.ToString())
+            {
+                case "Confirmada":
+                case "Ativa":
+                case "Pago":
+                    e.CellStyle.BackColor = ColorTranslator.FromHtml("#dcfce7");
+                    e.CellStyle.ForeColor = ColorTranslator.FromHtml("#15803d");
+                    break;
+                case "Pendente":
+                    e.CellStyle.BackColor = ColorTranslator.FromHtml("#fef9c3");
+                    e.CellStyle.ForeColor = ColorTranslator.FromHtml("#854d0e");
+                    break;
+                case "Cancelada":
+                case "Cancelado":
+                    e.CellStyle.BackColor = ColorTranslator.FromHtml("#fee2e2");
+                    e.CellStyle.ForeColor = ColorTranslator.FromHtml("#b91c1c");
+                    break;
+                case "Concluida":
+                case "Terminada":
+                    e.CellStyle.BackColor = ColorTranslator.FromHtml("#f1f5f9");
+                    e.CellStyle.ForeColor = ColorTranslator.FromHtml("#475569");
+                    break;
+                case "Suspensa":
+                    e.CellStyle.BackColor = ColorTranslator.FromHtml("#fef3c7");
+                    e.CellStyle.ForeColor = ColorTranslator.FromHtml("#92400e");
+                    break;
+            }
+        }
+
+        public static void ShowSuccess(Label lbl, string msg = "Guardado com sucesso.")
+        {
+            lbl.Text      = msg;
+            lbl.ForeColor = ColorTranslator.FromHtml("#15803d");
+            lbl.Visible   = true;
+            var t = new System.Windows.Forms.Timer { Interval = 2500 };
+            t.Tick += (s, e2) => { lbl.Visible = false; t.Stop(); t.Dispose(); };
+            t.Start();
+        }
     }
 }
