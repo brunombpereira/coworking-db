@@ -12,6 +12,7 @@ namespace CoworkingApp.Controls
         private Panel pnlForm;
         private Button btnNovo, btnEditar, btnEliminar, btnGuardar, btnCancelar;
         private TextBox txtNome, txtPreco, txtDuracao, txtDescricao;
+        private ComboBox cmbTipoPlano;
         private int _editId = -1;
         private Label _lblStatus;
 
@@ -80,14 +81,14 @@ namespace CoworkingApp.Controls
             dgv.CellFormatting    += Dgv_CellFormatting;
 
             // ── Form panel ───────────────────────────────────────────────────
-            pnlForm = Theme.FormPanel(140);
+            pnlForm = Theme.FormPanel(164);
 
             // 4-column TableLayoutPanel for fields
             var tbl = new TableLayoutPanel
             {
                 Dock        = DockStyle.Fill,
                 ColumnCount = 4,
-                RowCount    = 2,
+                RowCount    = 3,
                 AutoSize    = false
             };
             tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
@@ -95,15 +96,22 @@ namespace CoworkingApp.Controls
             tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
             tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 58f));
+            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 58f));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
 
-            // Field cells — each is a small Panel (Dock=Fill) with label+field stacked
-            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Nome *"),          txtNome     = Theme.Field()), 0, 0);
-            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Preço/Mês *"),     txtPreco    = Theme.Field()), 1, 0);
-            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Duração (meses) *"), txtDuracao = Theme.Field()), 2, 0);
-            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Descrição"),        txtDescricao = Theme.Field()), 3, 0);
+            // Row 0: Nome, Preço/Mês, Duração, Descrição
+            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Nome *"),            txtNome      = Theme.Field()), 0, 0);
+            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Preço/Mês *"),       txtPreco     = Theme.Field()), 1, 0);
+            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Duração (meses) *"), txtDuracao   = Theme.Field()), 2, 0);
+            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Descrição"),         txtDescricao = Theme.Field()), 3, 0);
 
-            // Row 1: buttons FlowPanel spans all 4 columns
+            // Row 1: Tipo
+            cmbTipoPlano = Theme.Combo();
+            cmbTipoPlano.Items.AddRange(new object[] { "Flex", "Fixo", "Privado" });
+            cmbTipoPlano.SelectedIndex = 0;
+            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Tipo *"), cmbTipoPlano), 0, 1);
+
+            // Row 2: buttons FlowPanel spans all 4 columns
             var flowBtns = new FlowLayoutPanel
             {
                 Dock          = DockStyle.Fill,
@@ -118,7 +126,7 @@ namespace CoworkingApp.Controls
             flowBtns.Controls.Add(btnSave);
             flowBtns.Controls.Add(btnCancel);
             tbl.SetColumnSpan(flowBtns, 4);
-            tbl.Controls.Add(flowBtns, 0, 1);
+            tbl.Controls.Add(flowBtns, 0, 2);
 
             pnlForm.Controls.Add(tbl);
 
@@ -154,7 +162,7 @@ namespace CoworkingApp.Controls
             {
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(
-                    @"SELECT plano_id AS ID, nome_plano AS Nome,
+                    @"SELECT plano_id AS ID, nome_plano AS Nome, tipo_plano AS Tipo,
                              preco_mensal AS [Preço/Mês],
                              duracao_meses AS [Duração (meses)],
                              descricao AS Descrição
@@ -183,10 +191,14 @@ namespace CoworkingApp.Controls
             var row = dgv.SelectedRows[0];
             _editId = Convert.ToInt32(row.Cells["ID"].Value);
 
-            txtNome.Text     = row.Cells["Nome"].Value?.ToString() ?? "";
-            txtPreco.Text    = row.Cells["Preço/Mês"].Value?.ToString() ?? "";
-            txtDuracao.Text  = row.Cells["Duração (meses)"].Value?.ToString() ?? "";
+            txtNome.Text      = row.Cells["Nome"].Value?.ToString() ?? "";
+            txtPreco.Text     = row.Cells["Preço/Mês"].Value?.ToString() ?? "";
+            txtDuracao.Text   = row.Cells["Duração (meses)"].Value?.ToString() ?? "";
             txtDescricao.Text = row.Cells["Descrição"].Value?.ToString() ?? "";
+
+            var tipo = row.Cells["Tipo"].Value?.ToString() ?? "Flex";
+            var idx  = cmbTipoPlano.Items.IndexOf(tipo);
+            cmbTipoPlano.SelectedIndex = idx >= 0 ? idx : 0;
 
             btnEditar.Enabled   = true;
             btnEliminar.Enabled = true;
@@ -212,6 +224,7 @@ namespace CoworkingApp.Controls
             txtPreco.Text     = "";
             txtDuracao.Text   = "";
             txtDescricao.Text = "";
+            cmbTipoPlano.SelectedIndex = 0;  // Flex
             SetEditMode(true);
             txtNome.Focus();
         }
@@ -272,6 +285,12 @@ namespace CoworkingApp.Controls
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+            if (cmbTipoPlano.SelectedItem == null)
+            {
+                MessageBox.Show("Tipo é obrigatório.", "Validação",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
             object descricaoVal = string.IsNullOrWhiteSpace(txtDescricao.Text)
                 ? (object)DBNull.Value
@@ -285,18 +304,19 @@ namespace CoworkingApp.Controls
                     if (_editId < 0)
                     {
                         cmd = new SqlCommand(
-                            "INSERT INTO plano (nome_plano,preco_mensal,duracao_meses,descricao) " +
-                            "VALUES (@n,@p,@d,@desc)", conn);
+                            "INSERT INTO plano (nome_plano,tipo_plano,preco_mensal,duracao_meses,descricao) " +
+                            "VALUES (@n,@tp,@p,@d,@desc)", conn);
                     }
                     else
                     {
                         cmd = new SqlCommand(
-                            "UPDATE plano SET nome_plano=@n,preco_mensal=@p," +
+                            "UPDATE plano SET nome_plano=@n,tipo_plano=@tp,preco_mensal=@p," +
                             "duracao_meses=@d,descricao=@desc WHERE plano_id=@id", conn);
                         cmd.Parameters.AddWithValue("@id", _editId);
                     }
 
                     cmd.Parameters.AddWithValue("@n",    txtNome.Text.Trim());
+                    cmd.Parameters.AddWithValue("@tp",   cmbTipoPlano.SelectedItem.ToString());
                     cmd.Parameters.AddWithValue("@p",    preco);
                     cmd.Parameters.AddWithValue("@d",    dur);
                     cmd.Parameters.AddWithValue("@desc", descricaoVal);
