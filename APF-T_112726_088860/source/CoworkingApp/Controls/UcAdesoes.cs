@@ -246,8 +246,12 @@ namespace CoworkingApp.Controls
             }
             else
             {
-                // Trigger SelectedIndexChanged to populate posto / preco
-                if (cmbPlano.Items.Count > 0) cmbPlano.SelectedIndex = 0;
+                // Force SelectedIndexChanged to fire even if SelectedIndex was already 0
+                if (cmbPlano.Items.Count > 0)
+                {
+                    cmbPlano.SelectedIndex = -1;
+                    cmbPlano.SelectedIndex = 0;
+                }
             }
 
             using (var dlg = new FormDialog(id.HasValue ? "Editar Adesão" : "Nova Adesão", tbl, 460, () =>
