@@ -125,24 +125,18 @@ namespace CoworkingApp.Controls
                 if (!Regex.IsMatch(txtNif.Text.Trim(), @"^\d{9}$")) throw new ApplicationException("NIF inválido (9 dígitos).");
                 try { _ = new MailAddress(txtEmail.Text.Trim()); } catch { throw new ApplicationException("Email inválido."); }
 
+                var sql = id.HasValue
+                    ? "UPDATE cliente SET nome=@n, nif=@nif, email=@e, telefone=@t WHERE cliente_id=@id"
+                    : "INSERT INTO cliente (nome, nif, email, telefone) VALUES (@n,@nif,@e,@t)";
                 using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand(sql, conn))
                 {
-                    SqlCommand cmd;
-                    if (id.HasValue)
-                    {
-                        cmd = new SqlCommand("UPDATE cliente SET nome=@n, nif=@nif, email=@e, telefone=@t WHERE cliente_id=@id", conn);
-                        cmd.Parameters.AddWithValue("@id", id.Value);
-                    }
-                    else
-                    {
-                        cmd = new SqlCommand("INSERT INTO cliente (nome, nif, email, telefone) VALUES (@n,@nif,@e,@t)", conn);
-                    }
+                    if (id.HasValue) cmd.Parameters.AddWithValue("@id", id.Value);
                     cmd.Parameters.AddWithValue("@n", txtNome.Text.Trim());
                     cmd.Parameters.AddWithValue("@nif", txtNif.Text.Trim());
                     cmd.Parameters.AddWithValue("@e", txtEmail.Text.Trim());
                     cmd.Parameters.AddWithValue("@t", string.IsNullOrWhiteSpace(txtTelefone.Text) ? (object)DBNull.Value : txtTelefone.Text.Trim());
                     cmd.ExecuteNonQuery();
-                    cmd.Dispose();
                 }
             }))
             {
@@ -151,6 +145,10 @@ namespace CoworkingApp.Controls
         }
 
         // ── Form helpers (template para Tasks 9-13) ──────────────────────────
+        // Cada helper cria um Panel Dock=Top com label+control e devolve o controlo.
+        // Para acesso ao Panel wrapper (ex: esconder a row inteira), usar control.Parent:
+        //   var cmb = AddCombo(tbl, "Opcional", new[]{"A","B"});
+        //   cmb.Parent.Visible = false;
         internal static TextBox AddField(TableLayoutPanel tbl, string label)
         {
             var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 10) };
@@ -176,9 +174,10 @@ namespace CoworkingApp.Controls
         {
             var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 10) };
             var cmb = Theme.Combo();
+            // Order matters: assign DisplayMember/ValueMember before DataSource to avoid late binding races.
             cmb.DisplayMember = display;
-            cmb.ValueMember = value;
-            cmb.DataSource = dataSource;
+            cmb.ValueMember   = value;
+            cmb.DataSource    = dataSource;
             pnl.Controls.Add(cmb);
             pnl.Controls.Add(Theme.FieldLabel(label));
             tbl.Controls.Add(pnl);
