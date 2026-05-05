@@ -161,7 +161,8 @@ namespace CoworkingApp.Controls
             Theme.StyleGrid(dgvDisponibilidade);
             dgvDisponibilidade.CellFormatting += (s, e) =>
             {
-                if (e.ColumnIndex >= 0 && dgvDisponibilidade.Columns[e.ColumnIndex].HeaderText == "€/Hora" &&
+                if (e.ColumnIndex >= 0 && (dgvDisponibilidade.Columns[e.ColumnIndex].HeaderText == "€/Hora" ||
+                    dgvDisponibilidade.Columns[e.ColumnIndex].HeaderText == "€/Dia") &&
                     e.Value != null && e.Value != DBNull.Value)
                 {
                     try { e.Value = Theme.FormatEuro(Convert.ToDecimal(e.Value)); e.FormattingApplied = true; }
@@ -204,13 +205,12 @@ ORDER BY e.nome, s.nome";
             {
                 sql = @"
 SELECT p.recurso_id AS ID, e.nome AS Espaço, p.codigo AS Código,
-  p.tipo_posto AS Tipo, p.preco_hora AS [€/Hora]
-FROM posto_trabalho p JOIN espaco e ON p.espaco_id=e.espaco_id
+  p.tipo_posto AS Tipo, p.preco_dia AS [€/Dia]
+FROM posto p JOIN espaco e ON p.espaco_id=e.espaco_id
 WHERE p.estado='Disponivel'
 AND NOT EXISTS (
   SELECT 1 FROM reserva r WHERE r.recurso_id=p.recurso_id
-  AND r.data_reserva=@d AND r.estado<>'Cancelada'
-  AND r.hora_inicio < @hf AND r.hora_fim > @hi)
+  AND r.data_reserva=@d AND r.estado<>'Cancelada')
 ORDER BY e.nome, p.codigo";
             }
 
@@ -305,7 +305,7 @@ SELECT ISNULL(s.nome, p.codigo) AS Recurso,
 FROM reserva r
 JOIN recurso rc ON r.recurso_id = rc.recurso_id
 LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
-LEFT JOIN posto_trabalho p ON rc.recurso_id = p.recurso_id
+LEFT JOIN posto p ON rc.recurso_id = p.recurso_id
 WHERE r.cliente_id=@c ORDER BY r.data_reserva DESC";
 
             try
@@ -618,14 +618,14 @@ FROM pagamento p WHERE p.cliente_id=@c ORDER BY p.data_pagamento DESC";
             string sql = @"
 SELECT e.nome AS Espaço,
   (SELECT COUNT(*) FROM sala         WHERE espaco_id = e.espaco_id) AS Salas,
-  (SELECT COUNT(*) FROM posto_trabalho WHERE espaco_id = e.espaco_id) AS Postos,
+  (SELECT COUNT(*) FROM posto WHERE espaco_id = e.espaco_id) AS Postos,
   (SELECT COUNT(*) FROM reserva r
      JOIN sala s ON r.recurso_id = s.recurso_id
      WHERE s.espaco_id = e.espaco_id
        AND r.estado <> 'Cancelada'
        AND r.data_reserva BETWEEN @ini AND @fim) AS [Reservas Sala],
   (SELECT COUNT(*) FROM reserva r
-     JOIN posto_trabalho p ON r.recurso_id = p.recurso_id
+     JOIN posto p ON r.recurso_id = p.recurso_id
      WHERE p.espaco_id = e.espaco_id
        AND r.estado <> 'Cancelada'
        AND r.data_reserva BETWEEN @ini AND @fim) AS [Reservas Posto]
