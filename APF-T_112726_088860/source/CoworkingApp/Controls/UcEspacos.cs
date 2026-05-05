@@ -453,7 +453,7 @@ namespace CoworkingApp.Controls
 
             // Row 1 — Estado combo (col 0), rest empty
             cmbSalaEstado = Theme.Combo();
-            cmbSalaEstado.Items.AddRange(new object[] { "Disponivel", "Indisponivel", "Manutencao", "Inativa" });
+            cmbSalaEstado.Items.AddRange(new object[] { "Disponivel", "Indisponivel", "Manutencao", "Inativo" });
             tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Estado *"), cmbSalaEstado), 0, 1);
 
             // Row 2: buttons
@@ -791,7 +791,7 @@ namespace CoworkingApp.Controls
             tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Espaço *"),      cmbPostosEspaco),       0, 0);
             tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Código *"),       txtPostoCodigo = Theme.Field()), 1, 0);
             tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Tipo *"),         cmbPostoTipo),          2, 0);
-            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Preço/Hora *"),   txtPostoPreco  = Theme.Field()), 3, 0);
+            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Preço/Dia *"),    txtPostoPreco  = Theme.Field()), 3, 0);
 
             // Row 1 — Estado combo (col 0)
             cmbPostoEstado = Theme.Combo();
@@ -864,8 +864,8 @@ namespace CoworkingApp.Controls
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(
                     @"SELECT p.recurso_id AS ID, e.nome AS Espaço, p.codigo AS Código,
-                             p.tipo_posto AS Tipo, p.preco_hora AS [Preço/Hora], p.estado AS Estado
-                      FROM posto_trabalho p
+                             p.tipo_posto AS Tipo, p.preco_dia AS [Preço/Dia], p.estado AS Estado
+                      FROM posto p
                       JOIN espaco e ON p.espaco_id=e.espaco_id
                       ORDER BY e.nome, p.codigo", conn))
                 using (var adapter = new SqlDataAdapter(cmd))
@@ -891,7 +891,7 @@ namespace CoworkingApp.Controls
             _editIdPosto = Convert.ToInt32(row.Cells["ID"].Value);
 
             txtPostoCodigo.Text = row.Cells["Código"].Value?.ToString() ?? "";
-            txtPostoPreco.Text  = row.Cells["Preço/Hora"].Value?.ToString() ?? "";
+            txtPostoPreco.Text  = row.Cells["Preço/Dia"].Value?.ToString() ?? "";
 
             var tipo = row.Cells["Tipo"].Value?.ToString() ?? "";
             var tipoIdx = cmbPostoTipo.Items.IndexOf(tipo);
@@ -908,7 +908,7 @@ namespace CoworkingApp.Controls
         private void DgvPostos_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
         {
             if (dgvPostos.Columns.Count == 0 || e.Value == null) return;
-            if (dgvPostos.Columns[e.ColumnIndex].Name == "Preço/Hora")
+            if (dgvPostos.Columns[e.ColumnIndex].Name == "Preço/Dia")
             {
                 if (decimal.TryParse(e.Value.ToString(), out decimal val))
                 {
@@ -1030,7 +1030,7 @@ namespace CoworkingApp.Controls
                             "INSERT INTO recurso (tipo) VALUES ('Posto'); SELECT SCOPE_IDENTITY()", conn))
                             newRecursoId = Convert.ToInt32(ins.ExecuteScalar());
                         cmd = new SqlCommand(
-                            "INSERT INTO posto_trabalho (recurso_id,codigo,tipo_posto,preco_hora,estado,espaco_id) " +
+                            "INSERT INTO posto (recurso_id,codigo,tipo_posto,preco_dia,estado,espaco_id) " +
                             "VALUES (@rid,@c,@t,@p,@e,@eid)", conn);
                         cmd.Parameters.AddWithValue("@rid", newRecursoId);
                         cmd.Parameters.AddWithValue("@eid", espacoId);
@@ -1038,7 +1038,7 @@ namespace CoworkingApp.Controls
                     else
                     {
                         cmd = new SqlCommand(
-                            "UPDATE posto_trabalho SET codigo=@c,tipo_posto=@t,preco_hora=@p,estado=@e " +
+                            "UPDATE posto SET codigo=@c,tipo_posto=@t,preco_dia=@p,estado=@e " +
                             "WHERE recurso_id=@id", conn);
                         cmd.Parameters.AddWithValue("@id", _editIdPosto);
                     }
