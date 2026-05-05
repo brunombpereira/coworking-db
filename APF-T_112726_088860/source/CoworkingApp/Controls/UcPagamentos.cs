@@ -2,503 +2,313 @@ using System;
 using System.Data;
 using System.Data.SqlClient;
 using System.Drawing;
+using System.Globalization;
 using System.Windows.Forms;
 
 namespace CoworkingApp.Controls
 {
     public class UcPagamentos : UserControl
     {
-        private ComboBox cmbCliente;
-        private ComboBox cmbItem;
-        private ComboBox cmbMetodo;
-        private Label lblValor;
-        private Button btnRegistar;
-        private Button btnAtualizar;
-        private DataGridView dgvPagamentos;
-        private DataTable _itensTable;
-        private DateTimePicker dtpHistDE, dtpHistAte;
-        private ComboBox cmbHistCliente, cmbHistMetodo;
+        private DataGridView dgv;
+        private Button btnNovo, btnEditar, btnEliminar;
+        private ComboBox cmbFiltroCliente, cmbFiltroEstado;
+        private int _selectedId = -1;
 
         public UcPagamentos()
         {
-            _itensTable = new DataTable();
-            _itensTable.Columns.Add("id", typeof(int));
-            _itensTable.Columns.Add("tipo", typeof(string));
-            _itensTable.Columns.Add("descricao", typeof(string));
-            _itensTable.Columns.Add("valor", typeof(decimal));
-            _itensTable.Columns.Add("reserva_id", typeof(object));
-            _itensTable.Columns.Add("adesao_id", typeof(object));
-
-            InitUI();
-            LoadClientes();
-            LoadPagamentos();
+            this.BackColor = Theme.PageBg;
+            this.Dock = DockStyle.Fill;
+            BuildUI();
+            LoadFiltroClientes();
+            LoadData();
         }
 
-        private void InitUI()
+        private void BuildUI()
         {
-            this.Dock = DockStyle.Fill;
-            this.BackColor = Theme.ContentBg;
+            var pnlTitle = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.PageBg, Padding = new Padding(20, 14, 20, 0) };
+            pnlTitle.Controls.Add(new Label { Text = "Pagamentos", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary, Dock = DockStyle.Fill, AutoSize = false });
 
-            // --- dgvPagamentos (Dock=Fill) ---
-            dgvPagamentos = new DataGridView();
-            dgvPagamentos.Dock = DockStyle.Fill;
-            Theme.StyleGrid(dgvPagamentos);
-            dgvPagamentos.CellFormatting += (s, e) =>
+            var pnlToolbar = Theme.Toolbar();
+            var flow = Theme.ToolbarFlow();
+            btnNovo = Theme.BtnPrim("+ Novo");
+            btnEditar = Theme.BtnGray("Editar");
+            btnEliminar = Theme.BtnRed("Eliminar");
+            btnEditar.Enabled = false;
+            btnEliminar.Enabled = false;
+            btnNovo.Click += (s, e) => OpenEditor(null);
+            btnEditar.Click += (s, e) => OpenEditor(_selectedId);
+            btnEliminar.Click += BtnEliminar_Click;
+
+            cmbFiltroCliente = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Margin = new Padding(8, 4, 0, 0), BackColor = Theme.FieldBg, ForeColor = Theme.TextPrimary };
+            cmbFiltroEstado = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Margin = new Padding(4, 4, 0, 0), BackColor = Theme.FieldBg, ForeColor = Theme.TextPrimary };
+            cmbFiltroEstado.Items.AddRange(new object[] { "(Todos)", "Pendente", "Pago", "Cancelado", "Reembolsado" });
+            cmbFiltroEstado.SelectedIndex = 0;
+            cmbFiltroCliente.SelectedIndexChanged += (s, e) => LoadData();
+            cmbFiltroEstado.SelectedIndexChanged += (s, e) => LoadData();
+
+            flow.Controls.Add(btnNovo);
+            flow.Controls.Add(btnEditar);
+            flow.Controls.Add(btnEliminar);
+            flow.Controls.Add(cmbFiltroCliente);
+            flow.Controls.Add(cmbFiltroEstado);
+            pnlToolbar.Controls.Add(flow);
+
+            dgv = new DataGridView { Dock = DockStyle.Fill };
+            Theme.StyleGrid(dgv);
+            dgv.SelectionChanged += (s, e) =>
             {
-                if (dgvPagamentos.Columns.Count > 0 &&
-                    e.ColumnIndex >= 0 &&
-                    dgvPagamentos.Columns[e.ColumnIndex].HeaderText == "Valor" &&
-                    e.Value != null && e.Value != DBNull.Value)
+                if (dgv.SelectedRows.Count == 0) { _selectedId = -1; btnEditar.Enabled = btnEliminar.Enabled = false; return; }
+                _selectedId = Convert.ToInt32(dgv.SelectedRows[0].Cells["ID"].Value);
+                btnEditar.Enabled = btnEliminar.Enabled = true;
+            };
+            dgv.CellFormatting += (s, e) =>
+            {
+                if (dgv.Columns.Count == 0 || e.Value == null) return;
+                Theme.ApplyStatusColor(e, "Estado", dgv);
+                if (dgv.Columns[e.ColumnIndex].Name == "Valor")
                 {
-                    try { e.Value = Theme.FormatEuro(Convert.ToDecimal(e.Value)); e.FormattingApplied = true; }
-                    catch { }
+                    if (decimal.TryParse(e.Value.ToString(), out decimal val))
+                    {
+                        e.Value = Theme.FormatEuro(val);
+                        e.FormattingApplied = true;
+                    }
                 }
             };
 
-            // --- pnlRecentHeader (Dock=Top) ---
-            var pnlRecentHeader = new Panel();
-            pnlRecentHeader.Dock = DockStyle.Top;
-            pnlRecentHeader.Height = 34;
-            pnlRecentHeader.BackColor = Color.White;
-            pnlRecentHeader.Padding = new Padding(14, 6, 0, 0);
-            var lblHistorico = new Label();
-            lblHistorico.Text = "Histórico de Pagamentos";
-            lblHistorico.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
-            lblHistorico.ForeColor = Color.FromArgb(0x0c, 0x4a, 0x6e);
-            lblHistorico.AutoSize = true;
-            lblHistorico.Location = new Point(14, 8);
-            pnlRecentHeader.Controls.Add(lblHistorico);
-
-            // --- pnlSeparator (Dock=Top) ---
-            var pnlSeparator = new Panel();
-            pnlSeparator.Dock = DockStyle.Top;
-            pnlSeparator.Height = 1;
-            pnlSeparator.BackColor = Color.FromArgb(0xe2, 0xe8, 0xf0);
-
-            // --- pnlRegisto (Dock=Top) ---
-            var pnlRegisto = new Panel();
-            pnlRegisto.Dock = DockStyle.Top;
-            pnlRegisto.Height = 190;
-            pnlRegisto.BackColor = Color.White;
-            pnlRegisto.Padding = new Padding(14, 10, 14, 10);
-
-            var lblRegistarHeader = new Label();
-            lblRegistarHeader.Text = "REGISTAR PAGAMENTO";
-            lblRegistarHeader.ForeColor = Color.FromArgb(0x1d, 0x4e, 0xd8);
-            lblRegistarHeader.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
-            lblRegistarHeader.AutoSize = true;
-            lblRegistarHeader.Location = new Point(14, 10);
-
-            var tlp = new TableLayoutPanel();
-            tlp.ColumnCount = 4;
-            tlp.RowCount = 2;
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
-            tlp.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 80f));
-            tlp.RowStyles.Add(new RowStyle(SizeType.Absolute, 50f));
-            tlp.Location = new Point(14, 34);
-            tlp.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-            tlp.Height = 130;
-
-            // Col 0: Cliente
-            var pnlCliente = new Panel();
-            pnlCliente.Dock = DockStyle.Fill;
-            var lblCliente = Theme.FieldLabel("Cliente *");
-            cmbCliente = Theme.Combo();
-            pnlCliente.Controls.Add(cmbCliente);
-            pnlCliente.Controls.Add(lblCliente);
-            tlp.Controls.Add(pnlCliente, 0, 0);
-
-            // Col 1: Item
-            var pnlItem = new Panel();
-            pnlItem.Dock = DockStyle.Fill;
-            var lblItem = Theme.FieldLabel("Item a Pagar *");
-            cmbItem = Theme.Combo();
-            pnlItem.Controls.Add(cmbItem);
-            pnlItem.Controls.Add(lblItem);
-            tlp.Controls.Add(pnlItem, 1, 0);
-
-            // Col 2: Método
-            var pnlMetodo = new Panel();
-            pnlMetodo.Dock = DockStyle.Fill;
-            var lblMetodo = Theme.FieldLabel("Método *");
-            cmbMetodo = Theme.Combo();
-            cmbMetodo.Items.AddRange(new object[] { "Dinheiro", "Cartao", "Transferencia", "MBWay", "PayPal" });
-            pnlMetodo.Controls.Add(cmbMetodo);
-            pnlMetodo.Controls.Add(lblMetodo);
-            tlp.Controls.Add(pnlMetodo, 2, 0);
-
-            // Col 3: Valor label
-            lblValor = new Label();
-            lblValor.Text = "Selecione um item";
-            lblValor.ForeColor = Color.FromArgb(0x0c, 0x4a, 0x6e);
-            lblValor.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
-            lblValor.Dock = DockStyle.Fill;
-            lblValor.TextAlign = ContentAlignment.MiddleLeft;
-            tlp.Controls.Add(lblValor, 3, 0);
-
-            // Row 1: buttons (span all 4 columns)
-            var flwButtons = new FlowLayoutPanel();
-            flwButtons.Dock = DockStyle.Fill;
-            flwButtons.WrapContents = false;
-            flwButtons.FlowDirection = FlowDirection.LeftToRight;
-            flwButtons.Padding = new Padding(0, 8, 0, 0);
-
-            btnRegistar = Theme.BtnPrim("Registar Pagamento");
-            btnAtualizar = Theme.BtnGray("⟳  Atualizar");
-            flwButtons.Controls.Add(btnRegistar);
-            flwButtons.Controls.Add(btnAtualizar);
-            tlp.Controls.Add(flwButtons, 0, 1);
-            tlp.SetColumnSpan(flwButtons, 4);
-
-            pnlRegisto.Controls.Add(tlp);
-            pnlRegisto.Controls.Add(lblRegistarHeader);
-
-            // Resize handler so tlp fills pnlRegisto width
-            pnlRegisto.Resize += (s, e) =>
-            {
-                tlp.Width = pnlRegisto.ClientSize.Width - 28;
-            };
-
-            // --- pnlTitle (Dock=Top) ---
-            var pnlTitle = new Panel();
-            pnlTitle.Dock = DockStyle.Top;
-            pnlTitle.Height = 56;
-            pnlTitle.BackColor = Theme.ContentBg;
-
-            var lblTitle = new Label();
-            lblTitle.Text = "Pagamentos";
-            lblTitle.Font = Theme.FontTitle;
-            lblTitle.ForeColor = Color.FromArgb(0x0c, 0x4a, 0x6e);
-            lblTitle.AutoSize = true;
-            lblTitle.Location = new Point(18, 14);
-            pnlTitle.Controls.Add(lblTitle);
-
-            // ── History filter panel (Dock=Top) ─────────────────────────────
-            var pnlHistFiltros = new Panel
-            {
-                Dock      = DockStyle.Top,
-                Height    = 44,
-                BackColor = Color.White,
-                Padding   = new Padding(12, 8, 12, 4)
-            };
-            var flpHistFiltros = new FlowLayoutPanel
-            {
-                Dock          = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents  = false
-            };
-
-            var lblDE = new Label { Text = "De:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
-            dtpHistDE = new DateTimePicker { Format = DateTimePickerFormat.Short, Width = 96, Value = DateTime.Today.AddDays(-30), Margin = new Padding(0, 3, 8, 0) };
-            var lblAte = new Label { Text = "Até:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
-            dtpHistAte = new DateTimePicker { Format = DateTimePickerFormat.Short, Width = 96, Value = DateTime.Today, Margin = new Padding(0, 3, 8, 0) };
-            var lblCli = new Label { Text = "Cliente:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
-            cmbHistCliente = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160, Font = Theme.FontBase, Margin = new Padding(0, 3, 8, 0) };
-            var lblMet = new Label { Text = "Método:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
-            cmbHistMetodo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110, Font = Theme.FontBase, Margin = new Padding(0, 3, 8, 0) };
-            cmbHistMetodo.Items.AddRange(new object[] { "(Todos)", "Dinheiro", "Cartao", "Transferencia", "MBWay", "PayPal" });
-            cmbHistMetodo.SelectedIndex = 0;
-
-            var btnFiltrar = Theme.BtnPrim("Filtrar");
-            var btnLimpar  = Theme.BtnGray("Limpar");
-            btnFiltrar.Margin = new Padding(0, 3, 4, 0);
-            btnLimpar.Margin  = new Padding(0, 3, 0, 0);
-            btnFiltrar.Click += (s, e) => LoadPagamentos();
-            btnLimpar.Click  += (s, e) =>
-            {
-                dtpHistDE.Value            = DateTime.Today.AddDays(-30);
-                dtpHistAte.Value           = DateTime.Today;
-                cmbHistCliente.SelectedIndex = 0;
-                cmbHistMetodo.SelectedIndex  = 0;
-                LoadPagamentos();
-            };
-
-            flpHistFiltros.Controls.AddRange(new Control[] { lblDE, dtpHistDE, lblAte, dtpHistAte, lblCli, cmbHistCliente, lblMet, cmbHistMetodo, btnFiltrar, btnLimpar });
-            pnlHistFiltros.Controls.Add(flpHistFiltros);
-
-            // Add order: Fill first, then Top panels in reverse visual order, title last
-            this.Controls.Add(dgvPagamentos);      // Dock=Fill
-            this.Controls.Add(pnlRecentHeader);    // Dock=Top
-            this.Controls.Add(pnlHistFiltros);     // Dock=Top
-            this.Controls.Add(pnlSeparator);       // Dock=Top
-            this.Controls.Add(pnlRegisto);         // Dock=Top
-            this.Controls.Add(pnlTitle);           // Dock=Top — added last = visually topmost
-
-            // Wire events
-            cmbCliente.SelectedIndexChanged += (s, e) => LoadItens();
-            cmbItem.SelectedIndexChanged += (s, e) => UpdateValorLabel();
-            btnRegistar.Click += BtnRegistar_Click;
-            btnAtualizar.Click += (s, e) => { LoadItens(); LoadPagamentos(); };
+            this.Controls.Add(dgv);
+            this.Controls.Add(pnlToolbar);
+            this.Controls.Add(pnlTitle);
         }
 
-        private void LoadClientes()
+        private void LoadFiltroClientes()
         {
             try
             {
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn))
-                using (var da = new SqlDataAdapter(cmd))
+                using (var adapter = new SqlDataAdapter(cmd))
                 {
                     var dt = new DataTable();
-                    da.Fill(dt);
-                    cmbCliente.DisplayMember = "nome";
-                    cmbCliente.ValueMember = "cliente_id";
-                    cmbCliente.DataSource = dt;
-                }
-            }
-            catch (SqlException ex)
-            {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-
-            // Populate history filter client combo
-            try
-            {
-                using (var conn2 = Database.GetConnection())
-                using (var cmd2 = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn2))
-                using (var da2 = new SqlDataAdapter(cmd2))
-                {
-                    var dt2 = new DataTable();
-                    da2.Fill(dt2);
-                    var rowTodos = dt2.NewRow();
+                    adapter.Fill(dt);
+                    var rowTodos = dt.NewRow();
                     rowTodos["cliente_id"] = DBNull.Value;
-                    rowTodos["nome"]       = "(Todos)";
-                    dt2.Rows.InsertAt(rowTodos, 0);
-                    cmbHistCliente.DataSource    = dt2;
-                    cmbHistCliente.DisplayMember = "nome";
-                    cmbHistCliente.ValueMember   = "cliente_id";
-                    cmbHistCliente.SelectedIndex = 0;
+                    rowTodos["nome"] = "(Todos)";
+                    dt.Rows.InsertAt(rowTodos, 0);
+                    cmbFiltroCliente.DataSource = dt;
+                    cmbFiltroCliente.DisplayMember = "nome";
+                    cmbFiltroCliente.ValueMember = "cliente_id";
+                    cmbFiltroCliente.SelectedIndex = 0;
                 }
             }
-            catch (SqlException ex) { System.Diagnostics.Debug.WriteLine("LoadFiltroClientes: " + ex.Message); }
+            catch (SqlException) { /* ignore */ }
         }
 
-        private void LoadItens()
-        {
-            _itensTable.Rows.Clear();
-
-            if (cmbCliente.SelectedValue == null) return;
-
-            int clienteId;
-            try { clienteId = Convert.ToInt32(cmbCliente.SelectedValue); }
-            catch { return; }
-
-            try
-            {
-                using (var conn = Database.GetConnection())
-                {
-                    // Reservas pendentes sem pagamento
-                    string sqlReservas = @"
-SELECT r.reserva_id,
-  ISNULL(s.nome, p.codigo) + ' — ' + CONVERT(varchar,r.data_reserva,103) + ' ' +
-  CASE WHEN r.hora_inicio IS NULL
-       THEN 'Day pass'
-       ELSE CONVERT(varchar,r.hora_inicio,108) + '-' + CONVERT(varchar,r.hora_fim,108)
-  END AS descricao,
-  r.valor
-FROM reserva r
-JOIN recurso rc ON r.recurso_id = rc.recurso_id
-LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
-LEFT JOIN posto p ON rc.recurso_id = p.recurso_id
-WHERE r.cliente_id=@c AND r.estado IN ('Pendente','Confirmada')
-AND NOT EXISTS (SELECT 1 FROM pagamento pg WHERE pg.reserva_id=r.reserva_id AND pg.estado='Pago')";
-
-                    using (var cmd = new SqlCommand(sqlReservas, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@c", clienteId);
-                        using (var rdr = cmd.ExecuteReader())
-                        {
-                            while (rdr.Read())
-                            {
-                                int reservaId = rdr.GetInt32(0);
-                                string descricao = rdr.GetString(1);
-                                decimal valor = rdr.GetDecimal(2);
-                                _itensTable.Rows.Add(reservaId, "Reserva", "Reserva: " + descricao, valor, reservaId, DBNull.Value);
-                            }
-                        }
-                    }
-
-                    // Adesões pendentes sem pagamento
-                    string sqlAdesoes = @"
-SELECT a.adesao_id, p.nome_plano, a.preco_acordado AS preco_mensal
-FROM adesao a JOIN plano p ON a.plano_id=p.plano_id
-WHERE a.cliente_id=@c AND a.estado='Pendente'
-AND NOT EXISTS (SELECT 1 FROM pagamento pg WHERE pg.adesao_id=a.adesao_id AND pg.estado='Pago')";
-
-                    using (var cmd = new SqlCommand(sqlAdesoes, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@c", clienteId);
-                        using (var rdr = cmd.ExecuteReader())
-                        {
-                            while (rdr.Read())
-                            {
-                                int adesaoId = rdr.GetInt32(0);
-                                string nomePlano = rdr.GetString(1);
-                                decimal preco = rdr.GetDecimal(2);
-                                _itensTable.Rows.Add(adesaoId, "Adesão", "Adesão: " + nomePlano, preco, DBNull.Value, adesaoId);
-                            }
-                        }
-                    }
-                }
-            }
-            catch (SqlException ex)
-            {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-
-            cmbItem.DataSource = null;
-            cmbItem.DataSource = _itensTable;
-            cmbItem.DisplayMember = "descricao";
-            cmbItem.ValueMember = "id";
-
-            if (_itensTable.Rows.Count == 0)
-                lblValor.Text = "Sem itens pendentes";
-            else
-                UpdateValorLabel();
-        }
-
-        private void UpdateValorLabel()
-        {
-            if (cmbItem.SelectedIndex < 0 || _itensTable.Rows.Count == 0) return;
-            try
-            {
-                decimal valor = (decimal)_itensTable.Rows[cmbItem.SelectedIndex]["valor"];
-                lblValor.Text = "Valor: " + Theme.FormatEuro(valor);
-            }
-            catch { }
-        }
-
-        private void LoadPagamentos()
+        private void LoadData()
         {
             try
             {
                 var whereParts = new System.Collections.Generic.List<string>();
-                whereParts.Add("p.data_pagamento BETWEEN @de AND @ate");
-
-                bool filtraPorCliente = cmbHistCliente?.SelectedValue != null
-                    && !(cmbHistCliente.SelectedValue is System.DBNull)
-                    && cmbHistCliente.SelectedIndex > 0;
-                if (filtraPorCliente) whereParts.Add("p.cliente_id = @c");
-
-                bool filtraPorMetodo = cmbHistMetodo?.SelectedIndex > 0;
-                if (filtraPorMetodo) whereParts.Add("p.metodo_pagamento = @m");
-
-                string where = "WHERE " + string.Join(" AND ", whereParts);
+                string estadoFiltro = cmbFiltroEstado?.SelectedIndex > 0 ? cmbFiltroEstado.Text : null;
+                if (estadoFiltro != null) whereParts.Add("pg.estado = @e");
+                bool filtraCliente = cmbFiltroCliente?.SelectedIndex > 0
+                    && cmbFiltroCliente.SelectedValue != null
+                    && !(cmbFiltroCliente.SelectedValue is DBNull);
+                if (filtraCliente) whereParts.Add("pg.cliente_id = @c");
+                string where = whereParts.Count > 0 ? "WHERE " + string.Join(" AND ", whereParts) : "";
 
                 string sql = $@"
-SELECT p.pagamento_id AS ID, c.nome AS Cliente,
-  CONVERT(varchar,p.data_pagamento,103) AS Data,
-  p.valor AS Valor, p.metodo_pagamento AS Método, p.estado AS Estado,
-  CASE WHEN p.reserva_id IS NOT NULL THEN 'Reserva #' + CAST(p.reserva_id AS varchar)
-       ELSE 'Adesão #' + CAST(p.adesao_id AS varchar) END AS Referência
-FROM pagamento p JOIN cliente c ON p.cliente_id=c.cliente_id
-{where}
-ORDER BY p.data_pagamento DESC";
+                    SELECT pg.pagamento_id AS ID, c.nome AS Cliente,
+                           CASE
+                               WHEN pg.adesao_id IS NOT NULL THEN 'Adesão #' + CAST(pg.adesao_id AS varchar) + ' (' + pl.nome_plano + ')'
+                               ELSE 'Reserva #' + CAST(pg.reserva_id AS varchar)
+                           END AS Serviço,
+                           CONVERT(varchar,pg.data_pagamento,103) AS Data,
+                           pg.valor AS Valor, pg.metodo_pagamento AS Método, pg.estado AS Estado
+                    FROM pagamento pg
+                    JOIN cliente c ON pg.cliente_id=c.cliente_id
+                    LEFT JOIN adesao a ON pg.adesao_id=a.adesao_id
+                    LEFT JOIN plano pl ON a.plano_id=pl.plano_id
+                    {where}
+                    ORDER BY pg.data_pagamento DESC, pg.pagamento_id DESC";
 
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@de",  dtpHistDE?.Value.Date  ?? DateTime.Today.AddDays(-30));
-                    cmd.Parameters.AddWithValue("@ate", dtpHistAte?.Value.Date ?? DateTime.Today);
-                    if (filtraPorCliente) cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbHistCliente.SelectedValue));
-                    if (filtraPorMetodo)  cmd.Parameters.AddWithValue("@m", cmbHistMetodo.Text);
-
-                    using (var da = new SqlDataAdapter(cmd))
+                    if (estadoFiltro != null) cmd.Parameters.AddWithValue("@e", estadoFiltro);
+                    if (filtraCliente) cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbFiltroCliente.SelectedValue));
+                    using (var adapter = new SqlDataAdapter(cmd))
                     {
                         var dt = new DataTable();
-                        da.Fill(dt);
-                        dgvPagamentos.DataSource = dt;
+                        adapter.Fill(dt);
+                        dgv.DataSource = dt;
+                        if (dgv.Columns.Contains("ID")) dgv.Columns["ID"].Visible = false;
                     }
                 }
-
-                if (dgvPagamentos.Columns.Contains("ID"))
-                    dgvPagamentos.Columns["ID"].Visible = false;
             }
             catch (SqlException ex)
             {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void BtnRegistar_Click(object sender, EventArgs e)
+        private DataTable LoadServicosPorCliente(int clienteId)
         {
-            if (cmbCliente.SelectedValue == null || cmbItem.SelectedIndex < 0 || _itensTable.Rows.Count == 0)
-            {
-                MessageBox.Show("Seleciona um cliente e um item.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var itemRow = _itensTable.Rows[cmbItem.SelectedIndex];
-            int clienteId = Convert.ToInt32(cmbCliente.SelectedValue);
-            decimal valor = (decimal)itemRow["valor"];
-            object reservaId = itemRow["reserva_id"];
-            object adesaoId = itemRow["adesao_id"];
+            // Adesões + reservas pendentes do cliente, formato "A:1" / "R:4"
+            const string sql = @"
+                SELECT 'A:' + CAST(a.adesao_id AS varchar) AS value,
+                       'Adesão #' + CAST(a.adesao_id AS varchar) + ' — ' + pl.nome_plano +
+                            ' (' + FORMAT(a.preco_acordado, '0.00') + ' €)' AS label,
+                       a.preco_acordado AS preco
+                FROM adesao a JOIN plano pl ON a.plano_id=pl.plano_id
+                WHERE a.cliente_id=@c
+                UNION ALL
+                SELECT 'R:' + CAST(r.reserva_id AS varchar),
+                       'Reserva #' + CAST(r.reserva_id AS varchar) + ' — ' +
+                            CONVERT(varchar,r.data_reserva,103) +
+                            ' (' + FORMAT(r.valor, '0.00') + ' €)',
+                       r.valor
+                FROM reserva r WHERE r.cliente_id=@c
+                ORDER BY value";
 
             using (var conn = Database.GetConnection())
-            using (var tran = conn.BeginTransaction())
+            using (var cmd = new SqlCommand(sql, conn))
+            using (var adapter = new SqlDataAdapter(cmd))
             {
-                try
+                cmd.Parameters.AddWithValue("@c", clienteId);
+                var dt = new DataTable();
+                adapter.Fill(dt);
+                return dt;
+            }
+        }
+
+        private void OpenEditor(int? id)
+        {
+            DataTable dsClientes;
+            using (var conn = Database.GetConnection())
+            using (var cmd = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn))
+            using (var adapter = new SqlDataAdapter(cmd))
+            {
+                dsClientes = new DataTable();
+                adapter.Fill(dsClientes);
+            }
+
+            var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+            var cmbCliente = UcClientes.AddComboDataSource(tbl, "Cliente *", dsClientes, "nome", "cliente_id");
+            var cmbServico = UcClientes.AddCombo(tbl, "Serviço *", new string[0]);
+            cmbServico.DisplayMember = "label";
+            cmbServico.ValueMember = "value";
+            var dtData     = UcClientes.AddDate(tbl, "Data pagamento *");
+            var txtValor   = UcClientes.AddField(tbl, "Valor *");
+            var cmbMetodo  = UcClientes.AddCombo(tbl, "Método *", new[] { "Dinheiro", "Cartao", "Transferencia", "MBWay", "PayPal" });
+            var cmbEstado  = UcClientes.AddCombo(tbl, "Estado *", new[] { "Pendente", "Pago", "Cancelado", "Reembolsado" });
+
+            cmbCliente.SelectedIndexChanged += (s, e) =>
+            {
+                if (cmbCliente.SelectedValue == null || cmbCliente.SelectedValue is DBNull) { cmbServico.DataSource = null; return; }
+                cmbServico.DataSource = LoadServicosPorCliente(Convert.ToInt32(cmbCliente.SelectedValue));
+            };
+            cmbServico.SelectedIndexChanged += (s, e) =>
+            {
+                if (cmbServico.SelectedItem is DataRowView rv)
                 {
-                    using (var cmd = new SqlCommand(
-                        "INSERT INTO pagamento (cliente_id,valor,metodo_pagamento,estado,reserva_id,adesao_id) VALUES (@c,@v,@m,'Pago',@rid,@aid)",
-                        conn, tran))
-                    {
-                        cmd.Parameters.AddWithValue("@c", clienteId);
-                        cmd.Parameters.AddWithValue("@v", valor);
-                        cmd.Parameters.AddWithValue("@m", cmbMetodo.Text);
-                        cmd.Parameters.AddWithValue("@rid", reservaId is DBNull ? (object)DBNull.Value : Convert.ToInt32(reservaId));
-                        cmd.Parameters.AddWithValue("@aid", adesaoId is DBNull ? (object)DBNull.Value : Convert.ToInt32(adesaoId));
-                        cmd.ExecuteNonQuery();
-                    }
-
-                    if (!(reservaId is DBNull))
-                    {
-                        using (var cmd = new SqlCommand("UPDATE reserva SET estado='Confirmada' WHERE reserva_id=@id", conn, tran))
-                        {
-                            cmd.Parameters.AddWithValue("@id", Convert.ToInt32(reservaId));
-                            cmd.ExecuteNonQuery();
-                        }
-                    }
-                    else
-                    {
-                        // terminate any existing active adesão before activating the new one
-                        // (trigger trg_adesao_ativa_unica blocks having two simultaneous active adesões)
-                        using (var cmd = new SqlCommand(
-                            "UPDATE adesao SET estado='Terminada' WHERE cliente_id=@c AND estado='Ativa' AND adesao_id<>@id",
-                            conn, tran))
-                        {
-                            cmd.Parameters.AddWithValue("@c", clienteId);
-                            cmd.Parameters.AddWithValue("@id", Convert.ToInt32(adesaoId));
-                            cmd.ExecuteNonQuery();
-                        }
-
-                        using (var cmd = new SqlCommand("UPDATE adesao SET estado='Ativa' WHERE adesao_id=@id", conn, tran))
-                        {
-                            cmd.Parameters.AddWithValue("@id", Convert.ToInt32(adesaoId));
-                            cmd.ExecuteNonQuery();
-                        }
-                    }
-
-                    tran.Commit();
-                    MessageBox.Show("Pagamento registado com sucesso!", "Sucesso",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    LoadItens();
-                    LoadPagamentos();
+                    txtValor.Text = Convert.ToDecimal(rv["preco"]).ToString(CultureInfo.InvariantCulture);
                 }
-                catch (SqlException ex)
+            };
+
+            // Pre-load se editing
+            if (id.HasValue)
+            {
+                using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand(
+                    @"SELECT cliente_id, adesao_id, reserva_id, data_pagamento, valor, metodo_pagamento, estado
+                      FROM pagamento WHERE pagamento_id=@id", conn))
                 {
-                    tran.Rollback();
-                    MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    cmd.Parameters.AddWithValue("@id", id.Value);
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        if (r.Read())
+                        {
+                            cmbCliente.SelectedValue = r["cliente_id"];
+                            // SelectedIndexChanged carregou serviços; agora seleciona o correto
+                            string svcKey = r["adesao_id"] != DBNull.Value
+                                ? "A:" + Convert.ToInt32(r["adesao_id"])
+                                : "R:" + Convert.ToInt32(r["reserva_id"]);
+                            cmbServico.SelectedValue = svcKey;
+                            dtData.Value = Convert.ToDateTime(r["data_pagamento"]);
+                            txtValor.Text = Convert.ToDecimal(r["valor"]).ToString(CultureInfo.InvariantCulture);
+                            var met = r["metodo_pagamento"].ToString();
+                            var idxM = cmbMetodo.Items.IndexOf(met);
+                            cmbMetodo.SelectedIndex = idxM >= 0 ? idxM : 0;
+                            var est = r["estado"].ToString();
+                            var idxE = cmbEstado.Items.IndexOf(est);
+                            cmbEstado.SelectedIndex = idxE >= 0 ? idxE : 0;
+                        }
+                    }
                 }
+            }
+            else
+            {
+                cmbMetodo.SelectedIndex = 0;
+                cmbEstado.SelectedIndex = 1; // Pago default
+                if (cmbCliente.Items.Count > 0)
+                {
+                    cmbCliente.SelectedIndex = -1;
+                    cmbCliente.SelectedIndex = 0;
+                }
+            }
+
+            using (var dlg = new FormDialog(id.HasValue ? "Editar Pagamento" : "Novo Pagamento", tbl, 460, () =>
+            {
+                if (cmbCliente.SelectedValue == null || cmbCliente.SelectedValue is DBNull) throw new ApplicationException("Cliente é obrigatório.");
+                if (cmbServico.SelectedValue == null) throw new ApplicationException("Serviço é obrigatório.");
+                if (!decimal.TryParse(txtValor.Text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal valor) || valor <= 0)
+                    throw new ApplicationException("Valor inválido (> 0).");
+
+                string svc = cmbServico.SelectedValue.ToString();
+                object adesaoVal = DBNull.Value, reservaVal = DBNull.Value;
+                if (svc.StartsWith("A:")) adesaoVal = int.Parse(svc.Substring(2));
+                else if (svc.StartsWith("R:")) reservaVal = int.Parse(svc.Substring(2));
+
+                var sql = id.HasValue
+                    ? "UPDATE pagamento SET cliente_id=@c, adesao_id=@a, reserva_id=@r, data_pagamento=@d, valor=@v, metodo_pagamento=@m, estado=@e WHERE pagamento_id=@id"
+                    : "INSERT INTO pagamento (cliente_id, adesao_id, reserva_id, data_pagamento, valor, metodo_pagamento, estado) VALUES (@c,@a,@r,@d,@v,@m,@e)";
+
+                using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand(sql, conn))
+                {
+                    if (id.HasValue) cmd.Parameters.AddWithValue("@id", id.Value);
+                    cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbCliente.SelectedValue));
+                    cmd.Parameters.AddWithValue("@a", adesaoVal);
+                    cmd.Parameters.AddWithValue("@r", reservaVal);
+                    cmd.Parameters.AddWithValue("@d", dtData.Value.Date);
+                    cmd.Parameters.AddWithValue("@v", valor);
+                    cmd.Parameters.AddWithValue("@m", cmbMetodo.SelectedItem.ToString());
+                    cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedItem.ToString());
+                    cmd.ExecuteNonQuery();
+                }
+            }))
+            {
+                if (dlg.ShowDialog(this.FindForm()) == DialogResult.OK) LoadData();
+            }
+        }
+
+        private void BtnEliminar_Click(object sender, EventArgs e)
+        {
+            if (_selectedId < 0) return;
+            if (MessageBox.Show("Eliminar pagamento?", "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            try
+            {
+                using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand("DELETE FROM pagamento WHERE pagamento_id=@id", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", _selectedId);
+                    cmd.ExecuteNonQuery();
+                }
+                LoadData();
+            }
+            catch (SqlException ex)
+            {
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
