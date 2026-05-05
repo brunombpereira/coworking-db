@@ -66,7 +66,6 @@ namespace CoworkingApp
             var pnlSidebar = new Panel
             {
                 Dock = DockStyle.Left,
-                Width = 184,
                 BackColor = Theme.SidebarBg
             };
 
