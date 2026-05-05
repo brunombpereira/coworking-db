@@ -2,6 +2,7 @@ using System;
 using System.Data;
 using System.Data.SqlClient;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
 
@@ -9,450 +10,320 @@ namespace CoworkingApp.Controls
 {
     public class UcDashboard : UserControl
     {
-        private Label lblClientes, lblClientesSub;
-        private Label lblReservas, lblReservasSub;
-        private Label lblAdesoes, lblAdoesSub;
-        private Label lblReceita, lblReceitaSub;
-        private DataGridView dgvRecent;
-        private Chart _chartReservas;
+        private Label _lblHeroValue, _lblHeroDelta;
+        private Label _lblKpi1Value, _lblKpi1Delta;
+        private Label _lblKpi2Value, _lblKpi2Delta;
+        private FlowLayoutPanel _flpProximas;
         private Chart _chartMetodos;
+        private Chart _heroSparkline;
 
         public UcDashboard()
         {
-            this.BackColor = Theme.ContentBg;
+            this.BackColor = Theme.PageBg;
             this.Dock = DockStyle.Fill;
-            this.Padding = new Padding(0);
-
             BuildUI();
             LoadData();
         }
 
         private void BuildUI()
         {
-            // ── Header panel (Dock=Top) ──────────────────────────────────────
-            var pnlHeader = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 72,
-                BackColor = Theme.ContentBg,
-                Padding = new Padding(20, 16, 20, 0)
-            };
+            var pnlTitle = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = Theme.PageBg, Padding = new Padding(20, 14, 20, 0) };
+            var lblTitle = new Label { Text = "Dashboard", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary, Dock = DockStyle.Top, Height = 28, AutoSize = false };
+            var lblSub   = new Label { Text = "Visão geral · " + DateTime.Now.ToString("dd 'de' MMMM yyyy"), Font = Theme.FontLabel, ForeColor = Theme.TextSecondary, Dock = DockStyle.Top, Height = 18, AutoSize = false };
+            pnlTitle.Controls.Add(lblSub);
+            pnlTitle.Controls.Add(lblTitle);
 
-            var btnAtualizar = Theme.BtnGray("⟳  Atualizar");
-            btnAtualizar.Dock = DockStyle.Right;
-            btnAtualizar.AutoSize = true;
-            btnAtualizar.Click += (s, e) => LoadData();
-
-            var lblSub = new Label
-            {
-                Text = "Resumo do sistema de coworking",
-                Font = new Font("Segoe UI", 9f),
-                ForeColor = ColorTranslator.FromHtml("#64748b"),
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 22
-            };
-
-            var lblTitle = new Label
-            {
-                Text = "Dashboard",
-                Font = Theme.FontTitle,
-                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 36
-            };
-
-            pnlHeader.Controls.Add(btnAtualizar);
-            pnlHeader.Controls.Add(lblSub);
-            pnlHeader.Controls.Add(lblTitle);
-
-            // ── Stat cards panel (Dock=Top) ──────────────────────────────────
-            var pnlCards = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 110,
-                BackColor = Theme.ContentBg,
-                Padding = new Padding(20, 12, 20, 0)
-            };
-
-            var tbl = new TableLayoutPanel
+            var content = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
-                ColumnCount = 4,
-                RowCount = 1,
-                BackColor = Color.Transparent
+                ColumnCount = 1,
+                RowCount = 2,
+                BackColor = Theme.PageBg,
+                Padding = new Padding(20, 8, 20, 20)
             };
-            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
-            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
-            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
-            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
-            tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 150f));
+            content.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
 
-            // Card 1 — Clientes (#1d4ed8 blue)
-            lblClientes = new Label
-            {
-                Text = "—",
-                Font = new Font("Segoe UI", 20f, FontStyle.Bold),
-                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 34
-            };
-            lblClientesSub = new Label
-            {
-                Text = "",
-                Font = new Font("Segoe UI", 8f),
-                ForeColor = ColorTranslator.FromHtml("#64748b"),
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 18
-            };
-            tbl.Controls.Add(
-                MakeCard("CLIENTES", ColorTranslator.FromHtml("#1d4ed8"),
-                         lblClientes, lblClientesSub),
-                0, 0);
+            // ── Row 1: Hero + 2 KPIs ─────────────────────────────────────────
+            var row1 = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Theme.PageBg };
+            row1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 1.6f));
+            row1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 1.0f));
+            row1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 1.0f));
 
-            // Card 2 — Reservas Ativas (#0ea5e9 sky)
-            lblReservas = new Label
-            {
-                Text = "—",
-                Font = new Font("Segoe UI", 20f, FontStyle.Bold),
-                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 34
-            };
-            lblReservasSub = new Label
-            {
-                Text = "salas + postos",
-                Font = new Font("Segoe UI", 8f),
-                ForeColor = ColorTranslator.FromHtml("#64748b"),
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 18
-            };
-            tbl.Controls.Add(
-                MakeCard("RESERVAS ATIVAS", ColorTranslator.FromHtml("#0ea5e9"),
-                         lblReservas, lblReservasSub),
-                1, 0);
+            row1.Controls.Add(BuildHeroCard(), 0, 0);
+            row1.Controls.Add(BuildKpiCard("Reservas hoje", out _lblKpi1Value, out _lblKpi1Delta), 1, 0);
+            row1.Controls.Add(BuildKpiCard("Adesões ativas", out _lblKpi2Value, out _lblKpi2Delta), 2, 0);
 
-            // Card 3 — Adesões Ativas (#8b5cf6 violet)
-            lblAdesoes = new Label
-            {
-                Text = "—",
-                Font = new Font("Segoe UI", 20f, FontStyle.Bold),
-                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 34
-            };
-            lblAdoesSub = new Label
-            {
-                Text = "planos ativos",
-                Font = new Font("Segoe UI", 8f),
-                ForeColor = ColorTranslator.FromHtml("#64748b"),
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 18
-            };
-            tbl.Controls.Add(
-                MakeCard("ADESÕES ATIVAS", ColorTranslator.FromHtml("#8b5cf6"),
-                         lblAdesoes, lblAdoesSub),
-                2, 0);
+            // ── Row 2: Próximas + Pie ────────────────────────────────────────
+            var row2 = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Theme.PageBg };
+            row2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            row2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
 
-            // Card 4 — Receita Mês (#22c55e green)
-            lblReceita = new Label
-            {
-                Text = "—",
-                Font = new Font("Segoe UI", 20f, FontStyle.Bold),
-                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 34
-            };
-            lblReceitaSub = new Label
-            {
-                Text = "",
-                Font = new Font("Segoe UI", 8f),
-                ForeColor = ColorTranslator.FromHtml("#22c55e"),
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 18
-            };
-            tbl.Controls.Add(
-                MakeCard("RECEITA MÊS", ColorTranslator.FromHtml("#22c55e"),
-                         lblReceita, lblReceitaSub),
-                3, 0);
+            row2.Controls.Add(BuildProximasCard(), 0, 0);
+            row2.Controls.Add(BuildMetodosCard(),  1, 0);
 
-            pnlCards.Controls.Add(tbl);
+            content.Controls.Add(row1, 0, 0);
+            content.Controls.Add(row2, 0, 1);
 
-            // ── "Pagamentos Recentes" header (Dock=Top) ──────────────────────
-            var pnlRecentHeader = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 36,
-                BackColor = Theme.ContentBg,
-                Padding = new Padding(20, 8, 0, 0)
-            };
-            var lblRecentTitle = new Label
-            {
-                Text = "Pagamentos Recentes",
-                Font = new Font("Segoe UI", 10f, FontStyle.Bold),
-                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
-                Dock = DockStyle.Fill,
-                AutoSize = false
-            };
-            pnlRecentHeader.Controls.Add(lblRecentTitle);
-
-            // ── Grid panel (Dock=Fill) ────────────────────────────────────────
-            var pnlGrid = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Theme.ContentBg,
-                Padding = new Padding(20, 4, 20, 16)
-            };
-
-            dgvRecent = new DataGridView { Dock = DockStyle.Fill };
-            Theme.StyleGrid(dgvRecent);
-            dgvRecent.CellFormatting += DgvRecent_CellFormatting;
-            pnlGrid.Controls.Add(dgvRecent);
-
-            // ── Charts panel (Dock=Top, Height=180) ─────────────────────────
-            var pnlCharts = new Panel
-            {
-                Dock      = DockStyle.Top,
-                Height    = 180,
-                BackColor = Theme.ContentBg,
-                Padding   = new Padding(20, 8, 20, 0)
-            };
-            var tblCharts = new TableLayoutPanel
-            {
-                Dock        = DockStyle.Fill,
-                ColumnCount = 2,
-                RowCount    = 1,
-                BackColor   = Color.Transparent
-            };
-            tblCharts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60f));
-            tblCharts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40f));
-            tblCharts.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-
-            _chartReservas = BuildBarChart("Reservas por Mês", ColorTranslator.FromHtml("#1d4ed8"));
-            _chartMetodos  = BuildPieChart("Pagamentos por Método");
-            tblCharts.Controls.Add(_chartReservas, 0, 0);
-            tblCharts.Controls.Add(_chartMetodos,  1, 0);
-            pnlCharts.Controls.Add(tblCharts);
-
-            // ── Add controls in reverse dock order ───────────────────────────
-            // Fill must be added before Top panels so it occupies remaining space.
-            this.Controls.Add(pnlGrid);
-            this.Controls.Add(pnlRecentHeader);
-            this.Controls.Add(pnlCharts);
-            this.Controls.Add(pnlCards);
-            this.Controls.Add(pnlHeader);
+            this.Controls.Add(content);
+            this.Controls.Add(pnlTitle);
         }
 
-        private Panel MakeCard(string title, Color borderColor, Label lblValue, Label lblSub)
+        private Panel BuildHeroCard()
         {
-            var card = new Panel
-            {
-                BackColor = Color.White,
-                Dock = DockStyle.Fill,
-                Margin = new Padding(0, 0, 8, 0),
-                Padding = new Padding(12, 14, 12, 8)
-            };
-
-            var localBorder = borderColor; // capture for lambda
+            var card = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Accent, Margin = new Padding(0, 0, 8, 0), Padding = new Padding(16) };
             card.Paint += (s, e) =>
             {
-                using (var pen = new Pen(localBorder, 3))
-                    e.Graphics.DrawLine(pen, 0, 0, card.Width, 0);
+                using (var brush = new LinearGradientBrush(card.ClientRectangle, Theme.Accent, Theme.AccentHover, 135f))
+                    e.Graphics.FillRectangle(brush, card.ClientRectangle);
             };
 
-            var lblCardTitle = new Label
-            {
-                Text = title,
-                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
-                ForeColor = ColorTranslator.FromHtml("#64748b"),
-                Dock = DockStyle.Top,
-                AutoSize = false,
-                Height = 18
-            };
+            var lbl = new Label { Text = "RECEITA DO MÊS", Font = Theme.FontMicro, ForeColor = Color.FromArgb(220, 255, 255, 255), Dock = DockStyle.Top, AutoSize = false, Height = 18 };
+            _lblHeroValue = new Label { Text = "—", Font = Theme.FontHero, ForeColor = Color.White, Dock = DockStyle.Top, AutoSize = false, Height = 44 };
+            _lblHeroDelta = new Label { Text = "", Font = Theme.FontLabel, ForeColor = Color.FromArgb(220, 255, 255, 255), Dock = DockStyle.Top, AutoSize = false, Height = 18 };
 
-            // Add in reverse (Dock=Top: last added appears at bottom)
-            card.Controls.Add(lblSub);
-            card.Controls.Add(lblValue);
-            card.Controls.Add(lblCardTitle);
+            _heroSparkline = BuildChart(transparent: true);
+            _heroSparkline.Dock = DockStyle.Bottom;
+            _heroSparkline.Height = 50;
 
+            card.Controls.Add(_heroSparkline);
+            card.Controls.Add(_lblHeroDelta);
+            card.Controls.Add(_lblHeroValue);
+            card.Controls.Add(lbl);
             return card;
         }
 
-        private Chart BuildBarChart(string title, Color color)
+        private Panel BuildKpiCard(string title, out Label valueLbl, out Label deltaLbl)
         {
-            var chart = new Chart { Dock = DockStyle.Fill, BackColor = Color.White };
-            var area  = new ChartArea("main");
-            area.AxisX.MajorGrid.Enabled   = false;
-            area.AxisY.MajorGrid.LineColor = ColorTranslator.FromHtml("#e2e8f0");
-            area.AxisY.LabelStyle.Format   = "#,##0";
-            area.BackColor = Color.White;
-            chart.ChartAreas.Add(area);
-
-            var series = new Series("data")
+            var card = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Margin = new Padding(8, 0, 0, 0), Padding = new Padding(14) };
+            card.Paint += (s, e) =>
             {
-                ChartType   = SeriesChartType.Column,
-                Color       = color,
-                BorderWidth = 0
+                using (var pen = new Pen(Theme.CardBorder, 1))
+                    e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
             };
-            chart.Series.Add(series);
-
-            chart.Titles.Add(new Title(title)
-            {
-                Font      = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
-                Docking   = Docking.Top
-            });
-            return chart;
+            var lblTitle = new Label { Text = title.ToUpperInvariant(), Font = Theme.FontMicro, ForeColor = Theme.TextSecondary, Dock = DockStyle.Top, AutoSize = false, Height = 18 };
+            valueLbl = new Label { Text = "—", Font = new Font(Theme.FontBase.FontFamily, 22f, FontStyle.Bold), ForeColor = Theme.TextPrimary, Dock = DockStyle.Top, AutoSize = false, Height = 36 };
+            deltaLbl = new Label { Text = "", Font = Theme.FontLabel, ForeColor = Theme.TextSecondary, Dock = DockStyle.Top, AutoSize = false, Height = 18 };
+            card.Controls.Add(deltaLbl);
+            card.Controls.Add(valueLbl);
+            card.Controls.Add(lblTitle);
+            return card;
         }
 
-        private Chart BuildPieChart(string title)
+        private Panel BuildProximasCard()
         {
-            var chart = new Chart { Dock = DockStyle.Fill, BackColor = Color.White };
-            chart.ChartAreas.Add(new ChartArea("main") { BackColor = Color.White });
-
-            var series = new Series("data") { ChartType = SeriesChartType.Pie };
-            chart.Series.Add(series);
-
-            var legend = new Legend("leg")
+            var card = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Margin = new Padding(0, 8, 8, 0), Padding = new Padding(14) };
+            card.Paint += (s, e) =>
             {
-                Docking   = Docking.Right,
-                Font      = new Font("Segoe UI", 8f),
-                BackColor = Color.Transparent
+                using (var pen = new Pen(Theme.CardBorder, 1))
+                    e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
             };
-            chart.Legends.Add(legend);
-            series.Legend = "leg";
-
-            chart.Titles.Add(new Title(title)
-            {
-                Font      = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
-                Docking   = Docking.Top
-            });
-            chart.Palette = ChartColorPalette.Bright;
-            return chart;
+            var lbl = new Label { Text = "Próximas reservas", Font = Theme.FontSection, ForeColor = Theme.TextPrimary, Dock = DockStyle.Top, AutoSize = false, Height = 24 };
+            _flpProximas = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
+            card.Controls.Add(_flpProximas);
+            card.Controls.Add(lbl);
+            return card;
         }
 
-        private void DgvRecent_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        private Panel BuildMetodosCard()
         {
-            if (dgvRecent.Columns.Count == 0) return;
-            Theme.ApplyStatusColor(e, "Estado", dgvRecent);
-            if (dgvRecent.Columns[e.ColumnIndex].Name == "Valor" && e.Value != null)
+            var card = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Margin = new Padding(8, 8, 0, 0), Padding = new Padding(14) };
+            card.Paint += (s, e) =>
             {
-                if (decimal.TryParse(e.Value.ToString(), out decimal val))
-                {
-                    e.Value = Theme.FormatEuro(val);
-                    e.FormattingApplied = true;
-                }
-            }
+                using (var pen = new Pen(Theme.CardBorder, 1))
+                    e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+            };
+            var lbl = new Label { Text = "Métodos de pagamento", Font = Theme.FontSection, ForeColor = Theme.TextPrimary, Dock = DockStyle.Top, AutoSize = false, Height = 24 };
+            _chartMetodos = BuildChart(transparent: false);
+            _chartMetodos.Dock = DockStyle.Fill;
+            card.Controls.Add(_chartMetodos);
+            card.Controls.Add(lbl);
+            return card;
         }
 
-        public void LoadData()
+        private static Chart BuildChart(bool transparent)
+        {
+            var c = new Chart { BackColor = transparent ? Color.Transparent : Theme.CardBg };
+            var area = new ChartArea { BackColor = Color.Transparent };
+            area.AxisX.LineColor = Theme.CardBorder;
+            area.AxisY.LineColor = Theme.CardBorder;
+            area.AxisX.LabelStyle.ForeColor = Theme.TextMuted;
+            area.AxisY.LabelStyle.ForeColor = Theme.TextMuted;
+            area.AxisX.MajorGrid.LineColor = Color.Transparent;
+            area.AxisY.MajorGrid.LineColor = Theme.CardBorder;
+            c.ChartAreas.Add(area);
+            return c;
+        }
+
+        private void LoadData()
         {
             try
             {
                 using (var conn = Database.GetConnection())
                 {
-                    // ── Clients count ────────────────────────────────────────
-                    int clientes = 0;
-                    using (var cmd = new SqlCommand("SELECT COUNT(*) FROM cliente", conn))
-                        clientes = (int)cmd.ExecuteScalar();
-                    lblClientes.Text = clientes.ToString();
-                    lblClientesSub.Text = clientes + " registado" + (clientes != 1 ? "s" : "");
-
-                    // ── Active reservations ──────────────────────────────────
-                    int reservas = 0;
-                    using (var cmd = new SqlCommand(
-                        "SELECT COUNT(*) FROM reserva WHERE estado IN ('Pendente','Confirmada')", conn))
-                        reservas = (int)cmd.ExecuteScalar();
-                    lblReservas.Text = reservas.ToString();
-                    // lblReservasSub is static ("salas + postos"), already set
-
-                    // ── Active memberships ───────────────────────────────────
-                    int adesoes = 0;
-                    using (var cmd = new SqlCommand(
-                        "SELECT COUNT(*) FROM adesao WHERE estado='Ativa'", conn))
-                        adesoes = (int)cmd.ExecuteScalar();
-                    lblAdesoes.Text = adesoes.ToString();
-                    // lblAdoesSub is static ("planos ativos"), already set
-
-                    // ── Revenue this month ───────────────────────────────────
-                    decimal receita = 0;
+                    // Hero — receita do mês corrente
                     using (var cmd = new SqlCommand(
                         @"SELECT ISNULL(SUM(valor),0) FROM pagamento
                           WHERE estado='Pago'
-                            AND MONTH(data_pagamento)=MONTH(GETDATE())
-                            AND YEAR(data_pagamento)=YEAR(GETDATE())", conn))
-                        receita = (decimal)cmd.ExecuteScalar();
-                    lblReceita.Text = Theme.FormatEuro(receita);
-                    lblReceitaSub.Text = "mês atual";
-
-                    // ── Recent payments TOP 10 ───────────────────────────────
-                    var sql = @"SELECT TOP 10
-                                  c.nome AS Cliente,
-                                  CASE WHEN p.reserva_id IS NOT NULL THEN 'Reserva' ELSE 'Adesão' END AS Tipo,
-                                  p.valor AS Valor,
-                                  p.estado AS Estado,
-                                  CONVERT(varchar,p.data_pagamento,103) AS Data
-                                FROM pagamento p
-                                JOIN cliente c ON p.cliente_id=c.cliente_id
-                                ORDER BY p.data_pagamento DESC";
-                    using (var cmd = new SqlCommand(sql, conn))
-                    using (var adapter = new SqlDataAdapter(cmd))
+                            AND YEAR(data_pagamento)=YEAR(GETDATE())
+                            AND MONTH(data_pagamento)=MONTH(GETDATE())", conn))
                     {
-                        var dt = new DataTable();
-                        adapter.Fill(dt);
-                        dgvRecent.DataSource = dt;
+                        var v = Convert.ToDecimal(cmd.ExecuteScalar());
+                        _lblHeroValue.Text = Theme.FormatEuro(v);
+                    }
+                    using (var cmd = new SqlCommand(
+                        @"SELECT ISNULL(SUM(valor),0) FROM pagamento
+                          WHERE estado='Pago'
+                            AND data_pagamento >= DATEADD(MONTH,-1,DATEADD(DAY,1-DAY(GETDATE()),CAST(GETDATE() AS date)))
+                            AND data_pagamento <  DATEADD(DAY,1-DAY(GETDATE()),CAST(GETDATE() AS date))", conn))
+                    {
+                        var prev = Convert.ToDecimal(cmd.ExecuteScalar());
+                        var curr = decimal.Parse(_lblHeroValue.Text.Replace(" €",""), new System.Globalization.CultureInfo("pt-PT"));
+                        _lblHeroDelta.Text = prev > 0
+                            ? $"{(curr-prev)/prev:+0%;-0%;0%} vs mês anterior"
+                            : "sem histórico";
                     }
 
-                    // ── Bar chart: reservas por mês (últimos 6 meses) ────────
-                    var sqlBar = @"
-                        SELECT CAST(YEAR(data_reserva) AS varchar) + '/' +
-                               RIGHT('0' + CAST(MONTH(data_reserva) AS varchar), 2) AS Mes,
-                               COUNT(*) AS Total
-                        FROM reserva
-                        WHERE data_reserva >= DATEADD(MONTH, -5, GETDATE())
-                        GROUP BY YEAR(data_reserva), MONTH(data_reserva)
-                        ORDER BY YEAR(data_reserva), MONTH(data_reserva)";
+                    // Sparkline — receita por mês últimos 6
+                    LoadSparkline(conn);
 
-                    _chartReservas.Series["data"].Points.Clear();
-                    using (var cmdBar = new SqlCommand(sqlBar, conn))
-                    using (var rdrBar = cmdBar.ExecuteReader())
+                    // KPI 1 — reservas hoje
+                    using (var cmd = new SqlCommand(
+                        @"SELECT COUNT(*) FROM reserva
+                          WHERE data_reserva = CAST(GETDATE() AS date)
+                            AND estado IN ('Confirmada','Pendente')", conn))
                     {
-                        while (rdrBar.Read())
-                            _chartReservas.Series["data"].Points.AddXY(
-                                rdrBar.GetString(0), rdrBar.GetInt32(1));
+                        _lblKpi1Value.Text = cmd.ExecuteScalar().ToString();
+                        _lblKpi1Delta.Text = "para hoje";
                     }
 
-                    // ── Pie chart: pagamentos por método ─────────────────────
-                    var sqlPie = @"
-                        SELECT metodo_pagamento, COUNT(*)
-                        FROM pagamento WHERE estado='Pago'
-                        GROUP BY metodo_pagamento";
-
-                    _chartMetodos.Series["data"].Points.Clear();
-                    using (var cmdPie = new SqlCommand(sqlPie, conn))
-                    using (var rdrPie = cmdPie.ExecuteReader())
+                    // KPI 2 — adesões ativas
+                    using (var cmd = new SqlCommand(
+                        @"SELECT COUNT(*) FROM adesao WHERE estado='Ativa'", conn))
                     {
-                        while (rdrPie.Read())
-                            _chartMetodos.Series["data"].Points.AddXY(
-                                rdrPie.GetString(0), rdrPie.GetInt32(1));
+                        _lblKpi2Value.Text = cmd.ExecuteScalar().ToString();
                     }
+                    using (var cmd = new SqlCommand(@"SELECT COUNT(*) FROM cliente", conn))
+                    {
+                        _lblKpi2Delta.Text = "de " + cmd.ExecuteScalar() + " clientes";
+                    }
+
+                    LoadProximas(conn);
+                    LoadMetodos(conn);
                 }
             }
             catch (SqlException ex)
             {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void LoadSparkline(SqlConnection conn)
+        {
+            _heroSparkline.Series.Clear();
+            var s = new Series
+            {
+                ChartType = SeriesChartType.Column,
+                Color = Color.FromArgb(220, 255, 255, 255),
+                IsValueShownAsLabel = false,
+                BorderWidth = 0
+            };
+            using (var cmd = new SqlCommand(
+                @"SELECT TOP 6 FORMAT(data_pagamento,'yyyy-MM') AS Mes, SUM(valor) AS Total
+                  FROM pagamento
+                  WHERE estado='Pago' AND data_pagamento >= DATEADD(MONTH,-6,GETDATE())
+                  GROUP BY FORMAT(data_pagamento,'yyyy-MM')
+                  ORDER BY Mes", conn))
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                    s.Points.AddXY(reader.GetString(0), reader.GetDecimal(1));
+            }
+            _heroSparkline.Series.Add(s);
+            _heroSparkline.ChartAreas[0].AxisX.LabelStyle.Enabled = false;
+            _heroSparkline.ChartAreas[0].AxisY.LabelStyle.Enabled = false;
+            _heroSparkline.ChartAreas[0].AxisX.LineColor = Color.Transparent;
+            _heroSparkline.ChartAreas[0].AxisY.LineColor = Color.Transparent;
+            _heroSparkline.ChartAreas[0].AxisX.MajorGrid.LineColor = Color.Transparent;
+            _heroSparkline.ChartAreas[0].AxisY.MajorGrid.LineColor = Color.Transparent;
+            _heroSparkline.ChartAreas[0].AxisX.MajorTickMark.LineColor = Color.Transparent;
+            _heroSparkline.ChartAreas[0].AxisY.MajorTickMark.LineColor = Color.Transparent;
+        }
+
+        private void LoadProximas(SqlConnection conn)
+        {
+            _flpProximas.Controls.Clear();
+            using (var cmd = new SqlCommand(
+                @"SELECT TOP 5
+                       c.nome AS Cliente,
+                       CASE WHEN s.recurso_id IS NOT NULL THEN s.nome ELSE p.codigo END AS Recurso,
+                       r.data_reserva,
+                       r.hora_inicio
+                  FROM reserva r
+                  JOIN cliente c ON r.cliente_id = c.cliente_id
+                  JOIN recurso rc ON r.recurso_id = rc.recurso_id
+                  LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
+                  LEFT JOIN posto p ON rc.recurso_id = p.recurso_id
+                  WHERE r.data_reserva >= CAST(GETDATE() AS date)
+                    AND r.estado IN ('Confirmada','Pendente')
+                  ORDER BY r.data_reserva, r.hora_inicio", conn))
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    var line = new Panel { Width = 380, Height = 26, BackColor = Color.Transparent, Margin = new Padding(0, 0, 0, 0) };
+                    var lblL = new Label
+                    {
+                        Text = reader["Cliente"] + " · " + reader["Recurso"],
+                        Font = Theme.FontBase, ForeColor = Theme.TextPrimary,
+                        Dock = DockStyle.Left, AutoSize = false, Width = 240, TextAlign = ContentAlignment.MiddleLeft
+                    };
+                    var hora = reader["hora_inicio"] == DBNull.Value
+                        ? "(dia)"
+                        : ((TimeSpan)reader["hora_inicio"]).ToString(@"hh\:mm");
+                    var lblR = new Label
+                    {
+                        Text = ((DateTime)reader["data_reserva"]).ToString("dd/MM") + "  " + hora,
+                        Font = Theme.FontBase, ForeColor = Theme.TextSecondary,
+                        Dock = DockStyle.Right, AutoSize = false, Width = 130, TextAlign = ContentAlignment.MiddleRight
+                    };
+                    line.Controls.Add(lblL);
+                    line.Controls.Add(lblR);
+                    _flpProximas.Controls.Add(line);
+                }
+            }
+        }
+
+        private void LoadMetodos(SqlConnection conn)
+        {
+            _chartMetodos.Series.Clear();
+            _chartMetodos.Legends.Clear();
+            var s = new Series { ChartType = SeriesChartType.Doughnut, BorderWidth = 0 };
+            var palette = new[] {
+                ColorTranslator.FromHtml("#6366f1"),
+                ColorTranslator.FromHtml("#8b5cf6"),
+                ColorTranslator.FromHtml("#10b981"),
+                ColorTranslator.FromHtml("#f59e0b"),
+                ColorTranslator.FromHtml("#ef4444")
+            };
+            int i = 0;
+            using (var cmd = new SqlCommand(
+                @"SELECT metodo_pagamento, COUNT(*) FROM pagamento WHERE estado='Pago'
+                  GROUP BY metodo_pagamento", conn))
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    int idx = s.Points.AddXY(reader.GetString(0), reader.GetInt32(1));
+                    s.Points[idx].Color = palette[i % palette.Length];
+                    s.Points[idx].Label = "#PERCENT{P0}";
+                    s.Points[idx].LegendText = reader.GetString(0);
+                    i++;
+                }
+            }
+            _chartMetodos.Series.Add(s);
+            var legend = new Legend { Docking = Docking.Bottom, Alignment = StringAlignment.Center, BackColor = Color.Transparent, ForeColor = Theme.TextSecondary };
+            _chartMetodos.Legends.Add(legend);
         }
     }
 }
