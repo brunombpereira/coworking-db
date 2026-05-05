@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using CoworkingApp.Controls;
+using FontAwesome.Sharp;
 
 namespace CoworkingApp
 {
@@ -79,110 +80,96 @@ namespace CoworkingApp
 
         private void BuildSidebar(Panel sidebar)
         {
+            sidebar.Width = 200;
+
             // Header
             var pnlHeader = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 72,
+                Height = 64,
                 BackColor = Theme.SidebarBg,
-                Padding = new Padding(16, 16, 8, 0)
-            };
-            var lblSub = new Label
-            {
-                Text = "PAINEL DE GESTÃO",
-                ForeColor = Theme.SidebarText,
-                Font = new Font("Segoe UI", 7.5f),
-                AutoSize = false,
-                Dock = DockStyle.Bottom,
-                Height = 18,
-                TextAlign = ContentAlignment.MiddleLeft
+                Padding = new Padding(14, 14, 8, 0)
             };
             var lblTitle = new Label
             {
-                Text = "COWORKING",
+                Text = "Coworking",
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 13f, FontStyle.Bold),
+                Font = new Font(Theme.FontBase.FontFamily, 13f, FontStyle.Bold),
                 AutoSize = false,
                 Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.BottomLeft
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(34, 0, 0, 0)
             };
+            // Logo box
+            var logoBox = new Panel
+            {
+                BackColor = Theme.Accent,
+                Size = new Size(24, 24),
+                Location = new Point(14, 20)
+            };
+            pnlHeader.Controls.Add(logoBox);
             pnlHeader.Controls.Add(lblTitle);
-            pnlHeader.Controls.Add(lblSub);
 
-            // Footer
+            // Footer com toggle theme
             var pnlFooter = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 36,
-                BackColor = Theme.SidebarActive,
-                Padding = new Padding(16, 0, 0, 0)
+                Height = 44,
+                BackColor = Theme.SidebarBg,
+                Padding = new Padding(8, 4, 8, 4)
             };
-            pnlFooter.Controls.Add(new Label
+            var btnTheme = new IconButton
             {
-                Text = "v1.0 — APF-T 2026",
-                ForeColor = Theme.SidebarText,
-                Font = new Font("Segoe UI", 7.5f),
-                AutoSize = true,
-                Top = 10,
-                Left = 16
-            });
+                IconChar = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun,
+                IconColor = Color.White,
+                IconSize = 16,
+                ImageAlign = ContentAlignment.MiddleLeft,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Text = ThemeManager.Current == ThemeMode.Light ? "  Modo escuro" : "  Modo claro",
+                Font = new Font(Theme.FontBase.FontFamily, 9f),
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                FlatStyle = FlatStyle.Flat,
+                Dock = DockStyle.Fill,
+                Cursor = Cursors.Hand,
+                Padding = new Padding(8, 0, 0, 0)
+            };
+            btnTheme.FlatAppearance.BorderSize = 0;
+            btnTheme.Click += (s, e) =>
+            {
+                ThemeManager.Toggle();
+                btnTheme.IconChar = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun;
+                btnTheme.Text = ThemeManager.Current == ThemeMode.Light ? "  Modo escuro" : "  Modo claro";
+            };
+            pnlFooter.Controls.Add(btnTheme);
 
             // Nav area
             var pnlNav = new Panel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Theme.SidebarBg,
-                Padding = new Padding(8, 8, 8, 0)
+                Padding = new Padding(8, 8, 8, 0),
+                AutoScroll = true
             };
             var flp = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.TopDown,
-                WrapContents = false
+                WrapContents = false,
+                AutoSize = false
             };
 
-            var sections = new (string Label, Action Navigate)[]
-            {
-                ("▦  Dashboard",  () => Navigate<UcDashboard>()),
-                ("◎  Clientes",   () => Navigate<UcClientes>()),
-                ("☰  Planos",     () => Navigate<UcPlanos>()),
-                ("⊞  Espaços",    () => Navigate<UcEspacos>()),
-                ("◷  Reservas",   () => Navigate<UcReservas>()),
-                ("★  Adesões",    () => Navigate<UcAdesoes>()),
-                ("€  Pagamentos", () => Navigate<UcPagamentos>()),
-                ("◈  Relatórios", () => Navigate<UcRelatorios>())
-            };
+            AddSectionLabel(flp, "OPERACIONAL");
+            AddNavItem(flp, "Dashboard",  IconChar.ThLarge,        () => Navigate<UcDashboard>());
+            AddNavItem(flp, "Clientes",   IconChar.Users,          () => Navigate<UcClientes>());
+            AddNavItem(flp, "Planos",     IconChar.ClipboardList,  () => Navigate<UcPlanos>());
+            AddNavItem(flp, "Espaços",    IconChar.Building,       () => Navigate<UcEspacos>());
+            AddNavItem(flp, "Reservas",   IconChar.CalendarAlt,    () => Navigate<UcReservas>());
 
-            foreach (var (label, nav) in sections)
-            {
-                var btn = new Button
-                {
-                    Text = label,
-                    FlatStyle = FlatStyle.Flat,
-                    TextAlign = ContentAlignment.MiddleLeft,
-                    ForeColor = Theme.SidebarText,
-                    BackColor = Color.Transparent,
-                    Font = new Font("Segoe UI", 9.5f),
-                    Height = 38,
-                    Width = 168,
-                    Padding = new Padding(8, 0, 0, 0),
-                    Margin = new Padding(0, 0, 0, 2),
-                    Cursor = Cursors.Hand,
-                    UseVisualStyleBackColor = false
-                };
-                btn.FlatAppearance.BorderSize = 0;
-                btn.FlatAppearance.MouseOverBackColor = ColorTranslator.FromHtml("#1e3a8a");
-
-                var capture = nav;
-                btn.Click += (s, e) =>
-                {
-                    SetActive((Button)s);
-                    capture();
-                };
-
-                _navBtns.Add(btn);
-                flp.Controls.Add(btn);
-            }
+            AddSectionLabel(flp, "FINANCEIRO");
+            AddNavItem(flp, "Adesões",    IconChar.Star,           () => Navigate<UcAdesoes>());
+            AddNavItem(flp, "Pagamentos", IconChar.CreditCard,     () => Navigate<UcPagamentos>());
+            AddNavItem(flp, "Relatórios", IconChar.ChartLine,      () => Navigate<UcRelatorios>());
 
             pnlNav.Controls.Add(flp);
             sidebar.Controls.Add(pnlNav);
@@ -190,18 +177,70 @@ namespace CoworkingApp
             sidebar.Controls.Add(pnlHeader);
         }
 
+        private void AddSectionLabel(FlowLayoutPanel container, string text)
+        {
+            container.Controls.Add(new Label
+            {
+                Text = text,
+                Font = Theme.FontMicro,
+                ForeColor = Theme.SidebarSectionLbl,
+                AutoSize = false,
+                Width = 180,
+                Height = 22,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(8, 0, 0, 0),
+                Margin = new Padding(0, 6, 0, 4)
+            });
+        }
+
+        private void AddNavItem(FlowLayoutPanel container, string label, IconChar icon, Action onClick)
+        {
+            var btn = new IconButton
+            {
+                Text = "  " + label,
+                IconChar = icon,
+                IconColor = Theme.SidebarText,
+                IconSize = 16,
+                ImageAlign = ContentAlignment.MiddleLeft,
+                TextAlign = ContentAlignment.MiddleLeft,
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = Theme.SidebarText,
+                BackColor = Color.Transparent,
+                Font = new Font(Theme.FontBase.FontFamily, 9.5f),
+                Height = 36,
+                Width = 180,
+                Padding = new Padding(10, 0, 0, 0),
+                Margin = new Padding(0, 0, 0, 2),
+                Cursor = Cursors.Hand,
+                UseVisualStyleBackColor = false
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.FlatAppearance.MouseOverBackColor = Theme.SidebarBgActive;
+
+            btn.Click += (s, e) =>
+            {
+                SetActive(btn);
+                onClick();
+            };
+
+            _navBtns.Add(btn);
+            container.Controls.Add(btn);
+        }
+
         private void SetActive(Button btn)
         {
-            if (_activeBtn != null)
+            if (_activeBtn != null && _activeBtn is IconButton oldBtn)
             {
                 _activeBtn.BackColor = Color.Transparent;
                 _activeBtn.ForeColor = Theme.SidebarText;
-                _activeBtn.Font = new Font("Segoe UI", 9.5f);
+                oldBtn.IconColor = Theme.SidebarText;
+                _activeBtn.Font = new Font(Theme.FontBase.FontFamily, 9.5f);
             }
             _activeBtn = btn;
-            btn.BackColor = Theme.SidebarActive;
-            btn.ForeColor = Color.White;
-            btn.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btn.BackColor = Theme.SidebarBgActive;
+            btn.ForeColor = Theme.SidebarTextActive;
+            if (btn is IconButton newBtn) newBtn.IconColor = Theme.SidebarTextActive;
+            btn.Font = new Font(Theme.FontBase.FontFamily, 9.5f, FontStyle.Bold);
         }
 
         private void Navigate<T>() where T : Control, new()
