@@ -71,8 +71,8 @@ namespace CoworkingApp
             };
             btnClose.FlatAppearance.BorderSize = 0;
             btnClose.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
-            pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Controls.Add(btnClose);
+            pnlHeader.Controls.Add(lblTitle);
 
             // Body
             _body = new Panel
