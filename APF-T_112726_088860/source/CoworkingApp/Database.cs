@@ -25,6 +25,7 @@ namespace CoworkingApp
                     return "Não é possível eliminar — registo em uso noutro lado.";
                 case 50001: case 50002: case 50003: case 50004:
                 case 50005: case 50006: case 50007: case 50008:
+                case 50009: case 50011: case 50012:
                     return ex.Message;
                 default:
                     return "Erro ao comunicar com a base de dados.";
