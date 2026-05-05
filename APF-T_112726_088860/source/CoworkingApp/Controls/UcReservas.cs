@@ -1,411 +1,98 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using System.Drawing;
+using System.Globalization;
 using System.Windows.Forms;
 
 namespace CoworkingApp.Controls
 {
     public class UcReservas : UserControl
     {
-        // ── Grid ─────────────────────────────────────────────────────────────
         private DataGridView dgv;
-
-        // ── Toolbar controls ─────────────────────────────────────────────────
-        private Button btnNova, btnCancelarRes, btnAtualizar;
-        private ComboBox cmbFiltro;
+        private Button btnNova, btnCancelar;
         private DateTimePicker dtpFiltroDE, dtpFiltroAte;
-        private ComboBox cmbFiltroCliente;
+        private ComboBox cmbFiltroCliente, cmbFiltroEstado;
+        private int _selectedId = -1;
+        private string _selectedEstado = "";
 
-        // ── Nova reserva panel ───────────────────────────────────────────────
-        private Panel pnlNovaReserva;
-
-        // ── Nova reserva form fields ─────────────────────────────────────────
-        private ComboBox cmbNovaCliente, cmbNovaRecursoTipo, cmbNovaRecurso;
-        private DateTimePicker dtpNovaData, dtpHoraInicio, dtpHoraFim;
-        private TextBox txtParticipantes, txtNotas;
-        private Label lblValorCalc;
-        private Button btnCalcular, btnConfirmar, btnFecharForm;
-
-        // ── Hora/participantes cell panels (toggled by recurso tipo) ─────────
-        private Panel _cellHoraInicio, _cellHoraFim, _cellParticipantes;
-
-        // ── State ────────────────────────────────────────────────────────────
-        private decimal _valorCalculado = 0;
-
-        // ────────────────────────────────────────────────────────────────────
         public UcReservas()
         {
-            this.BackColor = Theme.ContentBg;
+            this.BackColor = Theme.PageBg;
             this.Dock = DockStyle.Fill;
-
-            InitUI();
-            LoadClientes();
-            LoadRecursos();
+            BuildUI();
+            LoadFiltroClientes();
             LoadData();
         }
 
-        // ────────────────────────────────────────────────────────────────────
-        // UI construction
-        // ────────────────────────────────────────────────────────────────────
-
-        private void InitUI()
+        private void BuildUI()
         {
-            // ── Title panel (Dock=Top) ───────────────────────────────────────
-            var pnlTitle = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 56,
-                BackColor = Theme.ContentBg,
-                Padding = new Padding(20, 8, 0, 0)
-            };
-            var lblTitle = new Label
-            {
-                Text = "Reservas",
-                Font = Theme.FontTitle,
-                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
-                AutoSize = false,
-                Bounds = new Rectangle(0, 4, 200, 28)
-            };
-            var lblSubtitle = new Label
-            {
-                Text = "Gestão de reservas de salas e postos de trabalho",
-                Font = new Font("Segoe UI", 8.5f),
-                ForeColor = ColorTranslator.FromHtml("#64748b"),
-                AutoSize = false,
-                Bounds = new Rectangle(0, 32, 400, 18)
-            };
-            pnlTitle.Controls.Add(lblSubtitle);
-            pnlTitle.Controls.Add(lblTitle);
+            var pnlTitle = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.PageBg, Padding = new Padding(20, 14, 20, 0) };
+            pnlTitle.Controls.Add(new Label { Text = "Reservas", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary, Dock = DockStyle.Fill, AutoSize = false });
 
-            // ── Toolbar (Dock=Top) ───────────────────────────────────────────
             var pnlToolbar = Theme.Toolbar();
-            var flpToolbar = Theme.ToolbarFlow();
+            var flow = Theme.ToolbarFlow();
+            btnNova = Theme.BtnPrim("+ Nova");
+            btnCancelar = Theme.BtnRed("Cancelar reserva");
+            btnCancelar.Width = 160;
+            btnCancelar.Enabled = false;
+            btnNova.Click += (s, e) => OpenEditor();
+            btnCancelar.Click += BtnCancelar_Click;
 
-            btnNova       = Theme.BtnPrim("+ Nova Reserva");
-            btnCancelarRes = Theme.BtnGray("Cancelar Reserva");
-            btnAtualizar  = Theme.BtnGray("⟳  Atualizar");
+            // Filter row
+            dtpFiltroDE = new DateTimePicker { Width = 110, Format = DateTimePickerFormat.Short, Margin = new Padding(8, 4, 0, 0), Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1) };
+            dtpFiltroAte = new DateTimePicker { Width = 110, Format = DateTimePickerFormat.Short, Margin = new Padding(4, 4, 0, 0), Value = DateTime.Today.AddMonths(2) };
+            cmbFiltroCliente = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Margin = new Padding(8, 4, 0, 0), BackColor = Theme.FieldBg, ForeColor = Theme.TextPrimary };
+            cmbFiltroEstado = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Margin = new Padding(4, 4, 0, 0), BackColor = Theme.FieldBg, ForeColor = Theme.TextPrimary };
+            cmbFiltroEstado.Items.AddRange(new object[] { "(Todos)", "Pendente", "Confirmada", "Cancelada", "Concluida" });
+            cmbFiltroEstado.SelectedIndex = 0;
 
-            btnNova.Click       += BtnNova_Click;
-            btnCancelarRes.Click += BtnCancelarRes_Click;
-            btnAtualizar.Click  += (s, e) => LoadData();
+            dtpFiltroDE.ValueChanged += (s, e) => LoadData();
+            dtpFiltroAte.ValueChanged += (s, e) => LoadData();
+            cmbFiltroCliente.SelectedIndexChanged += (s, e) => LoadData();
+            cmbFiltroEstado.SelectedIndexChanged += (s, e) => LoadData();
 
-            flpToolbar.Controls.AddRange(new Control[]
-            {
-                btnNova, btnCancelarRes, btnAtualizar
-            });
-            pnlToolbar.Controls.Add(flpToolbar);
+            flow.Controls.Add(btnNova);
+            flow.Controls.Add(btnCancelar);
+            flow.Controls.Add(new Label { Text = "  De:", Font = Theme.FontLabel, ForeColor = Theme.TextSecondary, AutoSize = true, Margin = new Padding(8, 10, 0, 0) });
+            flow.Controls.Add(dtpFiltroDE);
+            flow.Controls.Add(new Label { Text = " até:", Font = Theme.FontLabel, ForeColor = Theme.TextSecondary, AutoSize = true, Margin = new Padding(2, 10, 0, 0) });
+            flow.Controls.Add(dtpFiltroAte);
+            flow.Controls.Add(cmbFiltroCliente);
+            flow.Controls.Add(cmbFiltroEstado);
+            pnlToolbar.Controls.Add(flow);
 
-            // ── DataGridView (Dock=Fill) ─────────────────────────────────────
-            dgv = new DataGridView
-            {
-                Dock = DockStyle.Fill,
-                AutoGenerateColumns = false
-            };
+            dgv = new DataGridView { Dock = DockStyle.Fill };
             Theme.StyleGrid(dgv);
-            dgv.SelectionChanged += Dgv_SelectionChanged;
-            dgv.CellFormatting   += Dgv_CellFormatting;
-
-            // Define columns explicitly
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID",       HeaderText = "ID",        DataPropertyName = "ID",       Visible = false });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Cliente",  HeaderText = "Cliente",   DataPropertyName = "Cliente" });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Recurso",  HeaderText = "Recurso",   DataPropertyName = "Recurso" });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Tipo",     HeaderText = "Tipo",      DataPropertyName = "Tipo",     FillWeight = 60 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Data",     HeaderText = "Data",      DataPropertyName = "Data",     FillWeight = 80 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "HInicio",  HeaderText = "H.Início",  DataPropertyName = "H.Início", FillWeight = 70 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "HFim",     HeaderText = "H.Fim",     DataPropertyName = "H.Fim",    FillWeight = 70 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Valor",    HeaderText = "Valor",     DataPropertyName = "Valor",    FillWeight = 80 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Estado",   HeaderText = "Estado",    DataPropertyName = "Estado",   FillWeight = 80 });
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "NPess",    HeaderText = "Nº Pess.",  DataPropertyName = "Nº Pess.", FillWeight = 60 });
-
-            // ── Nova Reserva panel (Dock=Bottom) ─────────────────────────────
-            pnlNovaReserva = BuildNovaReservaPanel();
-
-            // ── Filter panel (Dock=Top) ──────────────────────────────────────
-            var pnlFiltros = new Panel
+            dgv.SelectionChanged += (s, e) =>
             {
-                Dock      = DockStyle.Top,
-                Height    = 44,
-                BackColor = Color.White,
-                Padding   = new Padding(12, 8, 12, 4)
+                if (dgv.SelectedRows.Count == 0) { _selectedId = -1; btnCancelar.Enabled = false; return; }
+                _selectedId = Convert.ToInt32(dgv.SelectedRows[0].Cells["ID"].Value);
+                _selectedEstado = dgv.SelectedRows[0].Cells["Estado"].Value?.ToString() ?? "";
+                btnCancelar.Enabled = (_selectedEstado != "Cancelada" && _selectedEstado != "Concluida");
             };
-            var flpFiltros = new FlowLayoutPanel
+            dgv.CellFormatting += (s, e) =>
             {
-                Dock          = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents  = false
-            };
-
-            var lblDE = new Label { Text = "De:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
-            dtpFiltroDE = new DateTimePicker
-            {
-                Format = DateTimePickerFormat.Short,
-                Width  = 96,
-                Value  = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1),
-                Margin = new Padding(0, 3, 8, 0)
-            };
-            var lblAte = new Label { Text = "Até:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
-            dtpFiltroAte = new DateTimePicker
-            {
-                Format = DateTimePickerFormat.Short,
-                Width  = 96,
-                Value  = DateTime.Today,
-                Margin = new Padding(0, 3, 8, 0)
-            };
-            var lblCli = new Label { Text = "Cliente:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
-            cmbFiltroCliente = new ComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Width         = 160,
-                Font          = Theme.FontBase,
-                Margin        = new Padding(0, 3, 8, 0)
-            };
-            var lblEstado = new Label { Text = "Estado:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
-            cmbFiltro = new ComboBox
-            {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Width         = 110,
-                Font          = Theme.FontBase,
-                Margin        = new Padding(0, 3, 8, 0)
-            };
-            cmbFiltro.Items.AddRange(new object[] { "(Todos)", "Pendente", "Confirmada", "Cancelada", "Concluida" });
-            cmbFiltro.SelectedIndex = 0;
-
-            var btnFiltrar = Theme.BtnPrim("Filtrar");
-            var btnLimpar  = Theme.BtnGray("Limpar");
-            btnFiltrar.Margin = new Padding(0, 3, 4, 0);
-            btnLimpar.Margin  = new Padding(0, 3, 0, 0);
-            btnFiltrar.Click += (s, e) => LoadData();
-            btnLimpar.Click  += (s, e) =>
-            {
-                dtpFiltroDE.Value   = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
-                dtpFiltroAte.Value  = DateTime.Today;
-                cmbFiltroCliente.SelectedIndex = 0;
-                cmbFiltro.SelectedIndex        = 0;
-                LoadData();
-            };
-
-            flpFiltros.Controls.AddRange(new Control[]
-            {
-                lblDE, dtpFiltroDE, lblAte, dtpFiltroAte,
-                lblCli, cmbFiltroCliente, lblEstado, cmbFiltro,
-                btnFiltrar, btnLimpar
-            });
-            pnlFiltros.Controls.Add(flpFiltros);
-
-            this.Controls.Add(pnlNovaReserva);  // Dock=Bottom — added first
-            this.Controls.Add(dgv);              // Dock=Fill
-            this.Controls.Add(pnlFiltros);       // Dock=Top
-            this.Controls.Add(pnlToolbar);       // Dock=Top
-            this.Controls.Add(pnlTitle);         // Dock=Top — appears at very top
-        }
-
-        private Panel BuildNovaReservaPanel()
-        {
-            var pnl = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 220,
-                BackColor = Color.White,
-                Visible = false
-            };
-            // Top border paint
-            pnl.Paint += (s, e) =>
-            {
-                using (var pen = new System.Drawing.Pen(ColorTranslator.FromHtml("#bfdbfe"), 1))
-                    e.Graphics.DrawLine(pen, 0, 0, pnl.Width, 0);
-            };
-
-            // ── Header strip (Dock=Top, Height=24) ──────────────────────────
-            var pnlHeader = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 24,
-                BackColor = Color.White
-            };
-            var lblHeader = new Label
-            {
-                Text = "NOVA RESERVA",
-                ForeColor = ColorTranslator.FromHtml("#1d4ed8"),
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                Dock = DockStyle.Fill,
-                Padding = new Padding(14, 4, 0, 0)
-            };
-            pnlHeader.Controls.Add(lblHeader);
-
-            // ── Content panel (Dock=Fill) ────────────────────────────────────
-            var pnlContent = new Panel
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.White,
-                Padding = new Padding(14, 0, 14, 10)
-            };
-
-            // Row 1: 5-column TableLayoutPanel (height 80)
-            var tblRow1 = new TableLayoutPanel
-            {
-                Dock = DockStyle.Top,
-                Height = 80,
-                ColumnCount = 5,
-                RowCount = 1,
-                BackColor = Color.White
-            };
-            tblRow1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22f));
-            tblRow1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 14f));
-            tblRow1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24f));
-            tblRow1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18f));
-            tblRow1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22f));
-            tblRow1.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-
-            cmbNovaCliente = Theme.Combo();
-
-            cmbNovaRecursoTipo = Theme.Combo();
-            cmbNovaRecursoTipo.Items.AddRange(new object[] { "Sala", "Posto" });
-            cmbNovaRecursoTipo.SelectedIndex = 0;
-            cmbNovaRecursoTipo.SelectedIndexChanged += CmbNovaRecursoTipo_Changed;
-
-            cmbNovaRecurso = Theme.Combo();
-            cmbNovaRecurso.SelectedIndexChanged += CmbNovaRecurso_SelectedIndexChanged;
-
-            dtpNovaData = Theme.DatePicker();
-            dtpNovaData.Value = DateTime.Today;
-
-            dtpHoraInicio = new DateTimePicker
-            {
-                Format = DateTimePickerFormat.Time,
-                ShowUpDown = true,
-                Value = DateTime.Today.AddHours(9),
-                Font = new Font("Segoe UI", 9.5f),
-                Dock = DockStyle.Top
-            };
-
-            _cellHoraInicio = MakeFormCell(Theme.FieldLabel("H.Início"), dtpHoraInicio);
-
-            tblRow1.Controls.Add(MakeFormCell(Theme.FieldLabel("Cliente *"),      cmbNovaCliente),    0, 0);
-            tblRow1.Controls.Add(MakeFormCell(Theme.FieldLabel("Tipo"),           cmbNovaRecursoTipo), 1, 0);
-            tblRow1.Controls.Add(MakeFormCell(Theme.FieldLabel("Sala / Posto *"), cmbNovaRecurso),    2, 0);
-            tblRow1.Controls.Add(MakeFormCell(Theme.FieldLabel("Data *"),         dtpNovaData),       3, 0);
-            tblRow1.Controls.Add(_cellHoraInicio,                                                     4, 0);
-
-            // Row 2: 4-column TableLayoutPanel
-            var tblRow2 = new TableLayoutPanel
-            {
-                Dock = DockStyle.Top,
-                Height = 70,
-                ColumnCount = 4,
-                RowCount = 1,
-                BackColor = Color.White
-            };
-            tblRow2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18f));
-            tblRow2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18f));
-            tblRow2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32f));
-            tblRow2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32f));
-            tblRow2.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
-
-            dtpHoraFim = new DateTimePicker
-            {
-                Format = DateTimePickerFormat.Time,
-                ShowUpDown = true,
-                Value = DateTime.Today.AddHours(10),
-                Font = new Font("Segoe UI", 9.5f),
-                Dock = DockStyle.Top
-            };
-
-            txtParticipantes = Theme.Field();
-            txtNotas         = Theme.Field();
-
-            // Valor calc + Calcular button cell
-            lblValorCalc = new Label
-            {
-                Text = "Valor: —",
-                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                AutoSize = true,
-                Dock = DockStyle.Top
-            };
-            btnCalcular  = Theme.BtnGray("Calcular");
-            btnCalcular.Click += BtnCalcular_Click;
-
-            var pnlValor = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Padding = new Padding(0, 0, 6, 0) };
-            pnlValor.Controls.Add(btnCalcular);
-            pnlValor.Controls.Add(lblValorCalc);
-            pnlValor.Controls.Add(Theme.FieldLabel("Valor"));
-
-            _cellHoraFim       = MakeFormCell(Theme.FieldLabel("H.Fim"),         dtpHoraFim);
-            _cellParticipantes = MakeFormCell(Theme.FieldLabel("Participantes"), txtParticipantes);
-
-            tblRow2.Controls.Add(_cellHoraFim,                                                        0, 0);
-            tblRow2.Controls.Add(_cellParticipantes,                                                   1, 0);
-            tblRow2.Controls.Add(MakeFormCell(Theme.FieldLabel("Notas"),          txtNotas),           2, 0);
-            tblRow2.Controls.Add(pnlValor,                                                             3, 0);
-
-            // Bottom FlowLayoutPanel: Confirmar + Fechar
-            var flpBottom = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 36,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-                BackColor = Color.White,
-                Padding = new Padding(0, 4, 0, 0)
-            };
-            btnConfirmar   = Theme.BtnPrim("Confirmar");
-            btnFecharForm  = Theme.BtnGray("Fechar");
-            btnConfirmar.Enabled = false;
-            btnConfirmar.Click  += BtnConfirmar_Click;
-            btnFecharForm.Click += (s, e) => pnlNovaReserva.Visible = false;
-            flpBottom.Controls.Add(btnConfirmar);
-            flpBottom.Controls.Add(btnFecharForm);
-
-            // Add to content panel (dock order: bottom → top)
-            pnlContent.Controls.Add(flpBottom);
-            pnlContent.Controls.Add(tblRow2);
-            pnlContent.Controls.Add(tblRow1);
-
-            // Add to outer panel (dock order: bottom → top within pnl not needed here)
-            pnl.Controls.Add(pnlContent);
-            pnl.Controls.Add(pnlHeader);
-
-            return pnl;
-        }
-
-        // Helper: field cell with label stacked on top of control
-        private Panel MakeFormCell(Label lbl, Control field)
-        {
-            var p = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 0, 6, 0), BackColor = Color.White };
-            // Dock=Top: field added first (goes below), label added last (goes on top)
-            p.Controls.Add(field);
-            p.Controls.Add(lbl);
-            return p;
-        }
-
-        // ────────────────────────────────────────────────────────────────────
-        // Data loading
-        // ────────────────────────────────────────────────────────────────────
-
-        private void LoadClientes()
-        {
-            try
-            {
-                using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(
-                    "SELECT cliente_id, nome FROM cliente ORDER BY nome", conn))
-                using (var adapter = new SqlDataAdapter(cmd))
+                if (dgv.Columns.Count == 0 || e.Value == null) return;
+                Theme.ApplyStatusColor(e, "Estado", dgv);
+                if (dgv.Columns[e.ColumnIndex].Name == "Valor")
                 {
-                    var dt = new DataTable();
-                    adapter.Fill(dt);
-                    cmbNovaCliente.DataSource    = dt;
-                    cmbNovaCliente.DisplayMember = "nome";
-                    cmbNovaCliente.ValueMember   = "cliente_id";
+                    if (decimal.TryParse(e.Value.ToString(), out decimal val))
+                    {
+                        e.Value = Theme.FormatEuro(val);
+                        e.FormattingApplied = true;
+                    }
                 }
-            }
-            catch (SqlException ex)
-            {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            };
 
-            // Populate filter client combo (with "Todos os clientes" as first item)
+            this.Controls.Add(dgv);
+            this.Controls.Add(pnlToolbar);
+            this.Controls.Add(pnlTitle);
+        }
+
+        private void LoadFiltroClientes()
+        {
             try
             {
                 using (var conn = Database.GetConnection())
@@ -416,402 +103,232 @@ namespace CoworkingApp.Controls
                     adapter.Fill(dt);
                     var rowTodos = dt.NewRow();
                     rowTodos["cliente_id"] = DBNull.Value;
-                    rowTodos["nome"]       = "(Todos os clientes)";
+                    rowTodos["nome"] = "(Todos)";
                     dt.Rows.InsertAt(rowTodos, 0);
-                    cmbFiltroCliente.DataSource    = dt;
+                    cmbFiltroCliente.DataSource = dt;
                     cmbFiltroCliente.DisplayMember = "nome";
-                    cmbFiltroCliente.ValueMember   = "cliente_id";
+                    cmbFiltroCliente.ValueMember = "cliente_id";
                     cmbFiltroCliente.SelectedIndex = 0;
                 }
             }
-            catch (SqlException ex) { System.Diagnostics.Debug.WriteLine("LoadFiltroClientes: " + ex.Message); }
-        }
-
-        private void LoadRecursos()
-        {
-            const string sql = @"SELECT recurso_id, label, tipo, preco FROM (
-                SELECT s.recurso_id,
-                       e.nome + ' / Sala ' + s.nome AS label,
-                       'Sala' AS tipo,
-                       s.preco_hora AS preco
-                FROM sala s JOIN espaco e ON s.espaco_id = e.espaco_id
-                WHERE s.estado = 'Disponivel'
-                UNION ALL
-                SELECT p.recurso_id,
-                       e.nome + ' / Posto ' + p.codigo AS label,
-                       'Posto' AS tipo,
-                       p.preco_dia AS preco
-                FROM posto p JOIN espaco e ON p.espaco_id = e.espaco_id
-                WHERE p.estado = 'Disponivel'
-            ) x ORDER BY label";
-
-            try
-            {
-                using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(sql, conn))
-                using (var adapter = new SqlDataAdapter(cmd))
-                {
-                    var dt = new DataTable();
-                    adapter.Fill(dt);
-                    cmbNovaRecurso.DataSource    = dt;
-                    cmbNovaRecurso.DisplayMember = "label";
-                    cmbNovaRecurso.ValueMember   = "recurso_id";
-                }
-            }
-            catch (SqlException ex)
-            {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-
-            // Reset calculated value when resources are reloaded
-            _valorCalculado = 0;
-            if (lblValorCalc != null)  lblValorCalc.Text = "Valor: —";
-            if (btnConfirmar != null)  btnConfirmar.Enabled = false;
+            catch (SqlException) { /* ignore */ }
         }
 
         private void LoadData()
         {
-            if (dtpFiltroDE != null && dtpFiltroAte != null &&
-                dtpFiltroDE.Value.Date > dtpFiltroAte.Value.Date)
-            {
-                MessageBox.Show("A data 'de' não pode ser posterior à data 'até'.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+            if (dtpFiltroDE != null && dtpFiltroAte != null && dtpFiltroDE.Value.Date > dtpFiltroAte.Value.Date) return;
             try
             {
-                var whereParts = new System.Collections.Generic.List<string>();
-                whereParts.Add("r.data_reserva BETWEEN @de AND @ate");
-
-                string estadoFiltro = cmbFiltro?.SelectedIndex > 0 ? cmbFiltro.Text : null;
+                var whereParts = new List<string> { "r.data_reserva BETWEEN @de AND @ate" };
+                string estadoFiltro = cmbFiltroEstado?.SelectedIndex > 0 ? cmbFiltroEstado.Text : null;
                 if (estadoFiltro != null) whereParts.Add("r.estado = @e");
-
-                bool filtraPorCliente = cmbFiltroCliente?.SelectedValue != null
-                    && !(cmbFiltroCliente.SelectedValue is System.DBNull)
-                    && cmbFiltroCliente.SelectedIndex > 0;
-                if (filtraPorCliente) whereParts.Add("r.cliente_id = @c");
-
-                string where = "WHERE " + string.Join(" AND ", whereParts);
+                bool filtraCliente = cmbFiltroCliente?.SelectedIndex > 0
+                    && cmbFiltroCliente.SelectedValue != null
+                    && !(cmbFiltroCliente.SelectedValue is DBNull);
+                if (filtraCliente) whereParts.Add("r.cliente_id = @c");
 
                 string sql = $@"
-                    SELECT r.reserva_id AS ID,
-                           c.nome AS Cliente,
-                           CASE WHEN s.recurso_id IS NOT NULL THEN 'Sala ' + s.nome
-                                ELSE 'Posto ' + p.codigo END AS Recurso,
+                    SELECT r.reserva_id AS ID, c.nome AS Cliente,
+                           CASE WHEN s.recurso_id IS NOT NULL THEN 'Sala ' + s.nome ELSE 'Posto ' + p.codigo END AS Recurso,
                            rc.tipo AS Tipo,
                            CONVERT(varchar,r.data_reserva,103) AS Data,
                            CONVERT(varchar,r.hora_inicio,108) AS [H.Início],
                            CONVERT(varchar,r.hora_fim,108) AS [H.Fim],
-                           r.valor AS Valor,
-                           r.estado AS Estado,
+                           r.valor AS Valor, r.estado AS Estado,
                            r.num_participantes AS [Nº Pess.]
                     FROM reserva r
-                    JOIN cliente c   ON r.cliente_id = c.cliente_id
-                    JOIN recurso rc  ON r.recurso_id = rc.recurso_id
-                    LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
-                    LEFT JOIN posto p ON rc.recurso_id = p.recurso_id
-                    {where}
+                    JOIN cliente c ON r.cliente_id=c.cliente_id
+                    JOIN recurso rc ON r.recurso_id=rc.recurso_id
+                    LEFT JOIN sala s ON rc.recurso_id=s.recurso_id
+                    LEFT JOIN posto p ON rc.recurso_id=p.recurso_id
+                    WHERE {string.Join(" AND ", whereParts)}
                     ORDER BY r.data_reserva DESC, r.hora_inicio";
 
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(sql, conn))
                 {
-                    cmd.Parameters.AddWithValue("@de",  dtpFiltroDE?.Value.Date  ?? new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1));
-                    cmd.Parameters.AddWithValue("@ate", dtpFiltroAte?.Value.Date ?? DateTime.Today);
-                    if (estadoFiltro != null)    cmd.Parameters.AddWithValue("@e", estadoFiltro);
-                    if (filtraPorCliente)        cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbFiltroCliente.SelectedValue));
-
+                    cmd.Parameters.AddWithValue("@de", dtpFiltroDE.Value.Date);
+                    cmd.Parameters.AddWithValue("@ate", dtpFiltroAte.Value.Date);
+                    if (estadoFiltro != null) cmd.Parameters.AddWithValue("@e", estadoFiltro);
+                    if (filtraCliente) cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbFiltroCliente.SelectedValue));
                     using (var adapter = new SqlDataAdapter(cmd))
                     {
                         var dt = new DataTable();
                         adapter.Fill(dt);
                         dgv.DataSource = dt;
+                        if (dgv.Columns.Contains("ID")) dgv.Columns["ID"].Visible = false;
                     }
                 }
             }
             catch (SqlException ex)
             {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        // ────────────────────────────────────────────────────────────────────
-        // Grid events
-        // ────────────────────────────────────────────────────────────────────
-
-        private void Dgv_SelectionChanged(object sender, EventArgs e)
+        private void OpenEditor()
         {
-            // No form fill needed — reservas are read-only (only cancel allowed)
-        }
-
-        private void Dgv_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
-        {
-            if (dgv.Columns.Count == 0 || e.Value == null) return;
-            Theme.ApplyStatusColor(e, "Estado", dgv);
-            if (dgv.Columns[e.ColumnIndex].Name == "Valor")
+            // Carregar combos data
+            DataTable dsClientes, dsRecursos;
+            using (var conn = Database.GetConnection())
             {
-                if (decimal.TryParse(e.Value.ToString(), out decimal val))
+                using (var cmd = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn))
+                using (var adapter = new SqlDataAdapter(cmd))
                 {
-                    e.Value = Theme.FormatEuro(val);
-                    e.FormattingApplied = true;
+                    dsClientes = new DataTable();
+                    adapter.Fill(dsClientes);
+                }
+                const string recSql = @"
+                    SELECT recurso_id, label, tipo, preco FROM (
+                        SELECT s.recurso_id,
+                               e.nome + ' / Sala ' + s.nome AS label,
+                               'Sala' AS tipo, s.preco_hora AS preco
+                        FROM sala s JOIN espaco e ON s.espaco_id=e.espaco_id
+                        WHERE s.estado='Disponivel'
+                        UNION ALL
+                        SELECT p.recurso_id,
+                               e.nome + ' / Posto ' + p.codigo + ' (' + p.tipo_posto + ')' AS label,
+                               'Posto' AS tipo, p.preco_dia AS preco
+                        FROM posto p JOIN espaco e ON p.espaco_id=e.espaco_id
+                        WHERE p.estado='Disponivel'
+                    ) x ORDER BY label";
+                using (var cmd = new SqlCommand(recSql, conn))
+                using (var adapter = new SqlDataAdapter(cmd))
+                {
+                    dsRecursos = new DataTable();
+                    adapter.Fill(dsRecursos);
                 }
             }
-        }
 
-        // ────────────────────────────────────────────────────────────────────
-        // Toolbar button handlers
-        // ────────────────────────────────────────────────────────────────────
+            var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+            var cmbCliente = UcClientes.AddComboDataSource(tbl, "Cliente *", dsClientes, "nome", "cliente_id");
+            var cmbRecurso = UcClientes.AddComboDataSource(tbl, "Recurso *", dsRecursos, "label", "recurso_id");
+            var dtData     = UcClientes.AddDate(tbl, "Data *");
+            var txtHIni    = UcClientes.AddField(tbl, "Hora início (HH:MM)");
+            var txtHFim    = UcClientes.AddField(tbl, "Hora fim (HH:MM)");
+            var txtParts   = UcClientes.AddField(tbl, "Nº Participantes");
+            var txtNotas   = UcClientes.AddField(tbl, "Notas");
+            var lblValor   = new Label { Text = "Valor: —", Font = Theme.FontSection, ForeColor = Theme.TextPrimary, Dock = DockStyle.Top, AutoSize = true, Margin = new Padding(0, 8, 0, 8) };
+            tbl.Controls.Add(lblValor);
 
-        private void BtnNova_Click(object sender, EventArgs e)
-        {
-            // Toggle form visibility
-            pnlNovaReserva.Visible = !pnlNovaReserva.Visible;
+            txtHIni.Text = "09:00";
+            txtHFim.Text = "10:00";
+            dtData.Value = DateTime.Today;
 
-            if (pnlNovaReserva.Visible)
+            decimal valorCalc = 0;
+            string tipoSel = "";
+
+            // Helper to recalc valor
+            Action recalc = () =>
             {
-                // Reset the form state
-                _valorCalculado = 0;
-                lblValorCalc.Text = "Valor: —";
-                btnConfirmar.Enabled = false;
-                dtpNovaData.Value = DateTime.Today;
-                dtpHoraInicio.Value = DateTime.Today.AddHours(9);
-                dtpHoraFim.Value    = DateTime.Today.AddHours(10);
-                txtParticipantes.Text = "";
-                txtNotas.Text = "";
-                if (cmbNovaCliente.Items.Count > 0)  cmbNovaCliente.SelectedIndex  = 0;
-                if (cmbNovaRecurso.Items.Count > 0)   cmbNovaRecurso.SelectedIndex   = 0;
-                if (cmbNovaRecursoTipo.SelectedIndex < 0) cmbNovaRecursoTipo.SelectedIndex = 0;
-            }
-        }
-
-        private void BtnCancelarRes_Click(object sender, EventArgs e)
-        {
-            if (dgv.SelectedRows.Count == 0)
-            {
-                MessageBox.Show("Selecione uma reserva para cancelar.", "Aviso",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            var row = dgv.SelectedRows[0];
-            string estadoAtual = row.Cells["Estado"].Value?.ToString() ?? "";
-
-            if (estadoAtual == "Cancelada")
-            {
-                MessageBox.Show("Esta reserva já está cancelada.", "Aviso",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-            if (estadoAtual == "Concluida")
-            {
-                MessageBox.Show("Não é possível cancelar uma reserva concluída.", "Aviso",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            var res = MessageBox.Show(
-                "Cancelar a reserva selecionada?",
-                "Confirmar",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
-
-            if (res != DialogResult.Yes) return;
-
-            int id = Convert.ToInt32(row.Cells["ID"].Value);
-
-            try
-            {
-                using (var conn = Database.GetConnection())
-                using (var tran = conn.BeginTransaction())
+                if (cmbRecurso.SelectedValue == null || cmbRecurso.SelectedValue is DBNull) { lblValor.Text = "Valor: —"; valorCalc = 0; return; }
+                var rowView = (DataRowView)cmbRecurso.SelectedItem;
+                tipoSel = rowView["tipo"].ToString();
+                decimal preco = Convert.ToDecimal(rowView["preco"]);
+                if (tipoSel == "Sala")
                 {
-                    using (var cmd = new SqlCommand(
-                        "UPDATE reserva SET estado='Cancelada' WHERE reserva_id=@id", conn, tran))
+                    txtHIni.Parent.Visible = true;
+                    txtHFim.Parent.Visible = true;
+                    txtParts.Parent.Visible = true;
+                    if (TimeSpan.TryParse(txtHIni.Text.Trim(), out TimeSpan hi) &&
+                        TimeSpan.TryParse(txtHFim.Text.Trim(), out TimeSpan hf) &&
+                        hf > hi)
                     {
-                        cmd.Parameters.AddWithValue("@id", id);
-                        cmd.ExecuteNonQuery();
+                        valorCalc = (decimal)(hf - hi).TotalHours * preco;
                     }
+                    else valorCalc = 0;
+                }
+                else // Posto
+                {
+                    txtHIni.Parent.Visible = false;
+                    txtHFim.Parent.Visible = false;
+                    txtParts.Parent.Visible = false;
+                    valorCalc = preco;
+                }
+                lblValor.Text = "Valor: " + Theme.FormatEuro(valorCalc);
+            };
 
-                    using (var cmd = new SqlCommand(
-                        "UPDATE pagamento SET estado='Reembolsado' WHERE reserva_id=@id AND estado='Pago'",
-                        conn, tran))
+            cmbRecurso.SelectedIndexChanged += (s, e) => recalc();
+            txtHIni.TextChanged += (s, e) => recalc();
+            txtHFim.TextChanged += (s, e) => recalc();
+            recalc();
+
+            using (var dlg = new FormDialog("Nova Reserva", tbl, 460, () =>
+            {
+                if (cmbCliente.SelectedValue == null || cmbCliente.SelectedValue is DBNull) throw new ApplicationException("Cliente é obrigatório.");
+                if (cmbRecurso.SelectedValue == null || cmbRecurso.SelectedValue is DBNull) throw new ApplicationException("Recurso é obrigatório.");
+                if (dtData.Value.Date < DateTime.Today) throw new ApplicationException("Data não pode ser no passado.");
+
+                int recId = Convert.ToInt32(cmbRecurso.SelectedValue);
+                int cliId = Convert.ToInt32(cmbCliente.SelectedValue);
+                object pHIni = DBNull.Value, pHFim = DBNull.Value, pParts = DBNull.Value;
+                decimal valor;
+
+                if (tipoSel == "Sala")
+                {
+                    if (!TimeSpan.TryParse(txtHIni.Text.Trim(), out TimeSpan hi)) throw new ApplicationException("Hora início inválida (HH:MM).");
+                    if (!TimeSpan.TryParse(txtHFim.Text.Trim(), out TimeSpan hf)) throw new ApplicationException("Hora fim inválida (HH:MM).");
+                    if (hf <= hi) throw new ApplicationException("Hora fim deve ser depois de hora início.");
+                    pHIni = hi;
+                    pHFim = hf;
+                    if (!string.IsNullOrWhiteSpace(txtParts.Text))
                     {
-                        cmd.Parameters.AddWithValue("@id", id);
-                        cmd.ExecuteNonQuery();
+                        if (!int.TryParse(txtParts.Text, out int np) || np <= 0) throw new ApplicationException("Nº Participantes inválido.");
+                        pParts = np;
                     }
-
-                    tran.Commit();
+                    var rowView = (DataRowView)cmbRecurso.SelectedItem;
+                    decimal preco = Convert.ToDecimal(rowView["preco"]);
+                    valor = (decimal)(hf - hi).TotalHours * preco;
                 }
-                LoadData();
-            }
-            catch (SqlException ex)
-            {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        // ────────────────────────────────────────────────────────────────────
-        // Nova Reserva form handlers
-        // ────────────────────────────────────────────────────────────────────
-
-        private void CmbNovaRecursoTipo_Changed(object sender, EventArgs e)
-        {
-            // No longer drives LoadRecursos — unified combo shows all resources.
-            // Kept for backwards compatibility in case anything still references it.
-        }
-
-        private void CmbNovaRecurso_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            var dr = (cmbNovaRecurso.SelectedItem as DataRowView)?.Row;
-            if (dr == null) return;
-            string tipo = dr["tipo"].ToString();
-            bool isSala = tipo == "Sala";
-
-            if (_cellHoraInicio    != null) _cellHoraInicio.Visible    = isSala;
-            if (_cellHoraFim       != null) _cellHoraFim.Visible       = isSala;
-            if (_cellParticipantes != null) _cellParticipantes.Visible  = isSala;
-
-            // Reset calculated value when resource changes
-            _valorCalculado = 0;
-            if (lblValorCalc != null) lblValorCalc.Text = "Valor: —";
-            if (btnConfirmar != null) btnConfirmar.Enabled = false;
-        }
-
-        private void BtnCalcular_Click(object sender, EventArgs e)
-        {
-            if (cmbNovaRecurso.SelectedValue == null)
-            {
-                MessageBox.Show("Selecione um recurso.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var dr    = (cmbNovaRecurso.SelectedItem as DataRowView)?.Row;
-            string tipo  = dr?["tipo"].ToString() ?? "Sala";
-            decimal preco = Convert.ToDecimal(dr?["preco"] ?? 0);
-
-            if (tipo == "Sala")
-            {
-                var inicio = dtpHoraInicio.Value.TimeOfDay;
-                var fim    = dtpHoraFim.Value.TimeOfDay;
-
-                if (fim <= inicio)
+                else
                 {
-                    MessageBox.Show("Hora fim deve ser posterior à hora início.", "Validação",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
+                    var rowView = (DataRowView)cmbRecurso.SelectedItem;
+                    valor = Convert.ToDecimal(rowView["preco"]);
                 }
 
-                _valorCalculado = preco * Convert.ToDecimal((fim - inicio).TotalHours);
-            }
-            else
-            {
-                // Posto: day pass — price per day, no hours needed
-                _valorCalculado = preco;
-            }
-
-            lblValorCalc.Text    = "Valor: " + Theme.FormatEuro(_valorCalculado);
-            btnConfirmar.Enabled = true;
-        }
-
-        private void BtnConfirmar_Click(object sender, EventArgs e)
-        {
-            // Basic validation
-            if (cmbNovaCliente.SelectedValue == null)
-            {
-                MessageBox.Show("Selecione um cliente.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-            if (cmbNovaRecurso.SelectedValue == null)
-            {
-                MessageBox.Show("Selecione um recurso.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-            if (dtpNovaData.Value.Date < DateTime.Today)
-            {
-                MessageBox.Show("Não é possível criar reservas para datas passadas.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            var dr    = (cmbNovaRecurso.SelectedItem as DataRowView)?.Row;
-            string tipo  = dr?["tipo"].ToString() ?? "Sala";
-            bool isSala  = tipo == "Sala";
-
-            if (isSala)
-            {
-                var inicio = dtpHoraInicio.Value.TimeOfDay;
-                var fim    = dtpHoraFim.Value.TimeOfDay;
-                if (fim <= inicio)
-                {
-                    MessageBox.Show("Hora fim deve ser posterior à hora início.", "Validação",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-            }
-
-            int clienteId = Convert.ToInt32(cmbNovaCliente.SelectedValue);
-            int recursoId = Convert.ToInt32(cmbNovaRecurso.SelectedValue);
-
-            object hiVal = isSala
-                ? (object)dtpHoraInicio.Value.TimeOfDay.ToString(@"hh\:mm")
-                : DBNull.Value;
-            object hfVal = isSala
-                ? (object)dtpHoraFim.Value.TimeOfDay.ToString(@"hh\:mm")
-                : DBNull.Value;
-
-            object npVal = isSala && int.TryParse(txtParticipantes.Text.Trim(), out int np) && np > 0
-                ? (object)np
-                : DBNull.Value;
-
-            object notasVal = string.IsNullOrWhiteSpace(txtNotas.Text)
-                ? (object)DBNull.Value
-                : txtNotas.Text.Trim();
-
-            try
-            {
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(
-                    "INSERT INTO reserva " +
-                    "(cliente_id, recurso_id, data_reserva, hora_inicio, hora_fim, estado, valor, num_participantes, notas) " +
-                    "VALUES (@c, @r, @d, @hi, @hf, 'Pendente', @v, @np, @n)",
-                    conn))
+                    @"INSERT INTO reserva (cliente_id, recurso_id, data_reserva, hora_inicio, hora_fim, valor, estado, num_participantes, notas)
+                      VALUES (@c,@r,@d,@hi,@hf,@v,'Pendente',@np,@n)", conn))
                 {
-                    cmd.Parameters.AddWithValue("@c",  clienteId);
-                    cmd.Parameters.AddWithValue("@r",  recursoId);
-                    cmd.Parameters.AddWithValue("@d",  dtpNovaData.Value.Date);
-                    cmd.Parameters.Add("@hi", SqlDbType.VarChar).Value = hiVal;
-                    cmd.Parameters.Add("@hf", SqlDbType.VarChar).Value = hfVal;
-                    cmd.Parameters.AddWithValue("@v",  _valorCalculado);
-                    cmd.Parameters.Add("@np", SqlDbType.Int).Value = npVal;
-                    cmd.Parameters.AddWithValue("@n",  notasVal);
+                    cmd.Parameters.AddWithValue("@c", cliId);
+                    cmd.Parameters.AddWithValue("@r", recId);
+                    cmd.Parameters.AddWithValue("@d", dtData.Value.Date);
+                    cmd.Parameters.AddWithValue("@hi", pHIni);
+                    cmd.Parameters.AddWithValue("@hf", pHFim);
+                    cmd.Parameters.AddWithValue("@v", valor);
+                    cmd.Parameters.AddWithValue("@np", pParts);
+                    cmd.Parameters.AddWithValue("@n", string.IsNullOrWhiteSpace(txtNotas.Text) ? (object)DBNull.Value : txtNotas.Text.Trim());
                     cmd.ExecuteNonQuery();
                 }
+            }))
+            {
+                if (dlg.ShowDialog(this.FindForm()) == DialogResult.OK) LoadData();
+            }
+        }
 
-                MessageBox.Show("Reserva criada com sucesso!", "Sucesso",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                // Reset form
-                _valorCalculado = 0;
-                lblValorCalc.Text    = "Valor: —";
-                btnConfirmar.Enabled = false;
-                txtParticipantes.Text = "";
-                txtNotas.Text = "";
-                dtpNovaData.Value   = DateTime.Today;
-                dtpHoraInicio.Value = DateTime.Today.AddHours(9);
-                dtpHoraFim.Value    = DateTime.Today.AddHours(10);
-
-                pnlNovaReserva.Visible = false;
+        private void BtnCancelar_Click(object sender, EventArgs e)
+        {
+            if (_selectedId < 0) return;
+            if (_selectedEstado == "Cancelada" || _selectedEstado == "Concluida")
+            {
+                MessageBox.Show("Esta reserva não pode ser cancelada.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            if (MessageBox.Show("Cancelar a reserva selecionada?", "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            try
+            {
+                using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand("UPDATE reserva SET estado='Cancelada' WHERE reserva_id=@id", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", _selectedId);
+                    cmd.ExecuteNonQuery();
+                }
                 LoadData();
             }
             catch (SqlException ex)
             {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
