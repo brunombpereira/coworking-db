@@ -2,299 +2,105 @@ using System;
 using System.Data;
 using System.Data.SqlClient;
 using System.Drawing;
+using System.Globalization;
 using System.Windows.Forms;
 
 namespace CoworkingApp.Controls
 {
     public class UcAdesoes : UserControl
     {
-        // ── Grid & form panel ────────────────────────────────────────────────
         private DataGridView dgv;
-        private Panel pnlForm;
-
-        // ── Toolbar buttons ──────────────────────────────────────────────────
-        private Button btnNovo, btnEditar, btnEliminar, btnGuardar, btnCancelar;
-
-        // ── Form fields ──────────────────────────────────────────────────────
-        private ComboBox cmbCliente, cmbPlano, cmbEstado;
-        private ComboBox cmbAdesaoPosto;
-        private Label lblAdesaoPosto;
-        private DateTimePicker dtpDataInicio;
-        private Label lblDataFimInfo;
-
-        // ── State ────────────────────────────────────────────────────────────
-        private int _editId = -1;
+        private Button btnNovo, btnEditar, btnEliminar;
         private ComboBox cmbFiltroCliente, cmbFiltroEstado;
-        private Label _lblStatus;
+        private int _selectedId = -1;
 
-        // ────────────────────────────────────────────────────────────────────
         public UcAdesoes()
         {
-            this.BackColor = Theme.ContentBg;
+            this.BackColor = Theme.PageBg;
             this.Dock = DockStyle.Fill;
-
-            InitUI();
-            LoadCombos();
+            BuildUI();
+            LoadFiltroClientes();
             LoadData();
         }
 
-        // ────────────────────────────────────────────────────────────────────
-        // UI construction
-        // ────────────────────────────────────────────────────────────────────
-
-        private void InitUI()
+        private void BuildUI()
         {
-            // ── Title panel (Dock=Top) ───────────────────────────────────────
-            var pnlTitle = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 56,
-                BackColor = Theme.ContentBg,
-                Padding = new Padding(20, 12, 0, 0)
-            };
-            var lblTitle = new Label
-            {
-                Text = "Adesões",
-                Font = Theme.FontTitle,
-                ForeColor = ColorTranslator.FromHtml("#0c4a6e"),
-                Dock = DockStyle.Fill,
-                AutoSize = false
-            };
-            pnlTitle.Controls.Add(lblTitle);
+            var pnlTitle = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.PageBg, Padding = new Padding(20, 14, 20, 0) };
+            pnlTitle.Controls.Add(new Label { Text = "Adesões", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary, Dock = DockStyle.Fill, AutoSize = false });
 
-            // ── Toolbar (Dock=Top) ───────────────────────────────────────────
             var pnlToolbar = Theme.Toolbar();
-            var flpToolbar = Theme.ToolbarFlow();
-
-            btnNovo     = Theme.BtnPrim("+ Novo");
-            btnEditar   = Theme.BtnGray("Editar");
+            var flow = Theme.ToolbarFlow();
+            btnNovo = Theme.BtnPrim("+ Novo");
+            btnEditar = Theme.BtnGray("Editar");
             btnEliminar = Theme.BtnRed("Eliminar");
-            btnGuardar  = Theme.BtnPrim("Guardar");
-            btnCancelar = Theme.BtnGray("Cancelar");
-
-            btnEditar.Enabled   = false;
+            btnEditar.Enabled = false;
             btnEliminar.Enabled = false;
-            btnGuardar.Visible  = false;
-            btnCancelar.Visible = false;
-
-            btnNovo.Click     += BtnNovo_Click;
-            btnEditar.Click   += BtnEditar_Click;
+            btnNovo.Click += (s, e) => OpenEditor(null);
+            btnEditar.Click += (s, e) => OpenEditor(_selectedId);
             btnEliminar.Click += BtnEliminar_Click;
-            btnGuardar.Click  += BtnGuardar_Click;
-            btnCancelar.Click += BtnCancelar_Click;
 
-            _lblStatus = new Label { AutoSize = true, Visible = false, Margin = new Padding(16, 8, 0, 0), Font = Theme.FontSub };
-            flpToolbar.Controls.AddRange(new Control[]
-            {
-                btnNovo, btnEditar, btnEliminar, btnGuardar, btnCancelar, _lblStatus
-            });
-            pnlToolbar.Controls.Add(flpToolbar);
-
-            // ── DataGridView (Dock=Fill) ─────────────────────────────────────
-            dgv = new DataGridView { Dock = DockStyle.Fill };
-            Theme.StyleGrid(dgv);
-            dgv.SelectionChanged += Dgv_SelectionChanged;
-            dgv.CellFormatting   += (s, e) => Theme.ApplyStatusColor(e, "Estado", dgv);
-
-            // ── Form panel (Dock=Bottom, height=220) ─────────────────────────
-            pnlForm = Theme.FormPanel(220);
-
-            // TableLayoutPanel: 4 rows x 3 columns
-            var tbl = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 3,
-                RowCount = 4,       // row0: fields, row1: estado+info, row2: posto, row3: buttons
-                BackColor = Color.White
-            };
-            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
-            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
-            tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
-            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 58f));   // row 0: combos
-            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 50f));   // row 1: estado + info
-            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 58f));   // row 2: posto (conditional)
-            tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));   // row 3: buttons
-
-            // ── Row 0: Cliente | Plano | Data Início ────────────────────────
-            cmbCliente    = Theme.Combo();
-            cmbPlano      = Theme.Combo();
-            dtpDataInicio = Theme.DatePicker();
-
-            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Cliente *"),    cmbCliente),    0, 0);
-            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Plano *"),      cmbPlano),      1, 0);
-            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Data Início *"), dtpDataInicio), 2, 0);
-
-            // ── Row 1: Estado | Data Fim info (spanning 2 cols) ──────────────
-            cmbEstado = Theme.Combo();
-            cmbEstado.Items.AddRange(new object[]
-            {
-                "Pendente", "Ativa", "Suspensa", "Cancelada", "Terminada"
-            });
-
-            lblDataFimInfo = new Label
-            {
-                ForeColor = ColorTranslator.FromHtml("#64748b"),
-                Font = new Font("Segoe UI", 9f),
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Text = "Data fim calculada: —"
-            };
-
-            var pnlDataFim = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Padding = new Padding(0, 20, 0, 0) };
-            pnlDataFim.Controls.Add(lblDataFimInfo);
-
-            tbl.Controls.Add(MakeFieldCell(Theme.FieldLabel("Estado *"), cmbEstado), 0, 1);
-            tbl.Controls.Add(pnlDataFim, 1, 1);
-            tbl.SetColumnSpan(pnlDataFim, 2);
-
-            // ── Row 2: Posto atribuído (conditional) ────────────────────────
-            cmbAdesaoPosto = Theme.Combo();
-            cmbAdesaoPosto.DropDownStyle = ComboBoxStyle.DropDownList;
-            lblAdesaoPosto = Theme.FieldLabel("Posto atribuído *");
-            lblAdesaoPosto.Visible    = false;
-            cmbAdesaoPosto.Visible    = false;
-            var pnlPosto = MakeFieldCell(lblAdesaoPosto, cmbAdesaoPosto);
-            tbl.Controls.Add(pnlPosto, 0, 2);
-            tbl.SetColumnSpan(pnlPosto, 3);
-
-            // ── Row 3: Guardar / Cancelar ────────────────────────────────────
-            var flpForm = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
-                Padding = new Padding(0, 4, 0, 0),
-                BackColor = Color.White
-            };
-            var btnSave   = Theme.BtnPrim("Guardar");
-            var btnCancel = Theme.BtnGray("Cancelar");
-            btnSave.Click   += BtnGuardar_Click;
-            btnCancel.Click += BtnCancelar_Click;
-            flpForm.Controls.Add(btnSave);
-            flpForm.Controls.Add(btnCancel);
-            tbl.SetColumnSpan(flpForm, 3);
-            tbl.Controls.Add(flpForm, 0, 3);
-
-            pnlForm.Controls.Add(tbl);
-
-            // ── Filter panel (Dock=Top) ──────────────────────────────────────
-            var pnlFiltros = new Panel
-            {
-                Dock      = DockStyle.Top,
-                Height    = 44,
-                BackColor = Color.White,
-                Padding   = new Padding(12, 8, 12, 4)
-            };
-            var flpFiltros = new FlowLayoutPanel
-            {
-                Dock          = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents  = false
-            };
-
-            var lblCli = new Label { Text = "Cliente:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
-            cmbFiltroCliente = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180, Font = Theme.FontBase, Margin = new Padding(0, 3, 8, 0) };
-            var lblEst = new Label { Text = "Estado:", AutoSize = true, Margin = new Padding(0, 6, 4, 0), Font = Theme.FontLabel, ForeColor = ColorTranslator.FromHtml("#64748b") };
-            cmbFiltroEstado = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120, Font = Theme.FontBase, Margin = new Padding(0, 3, 8, 0) };
+            cmbFiltroCliente = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Margin = new Padding(8, 4, 0, 0), BackColor = Theme.FieldBg, ForeColor = Theme.TextPrimary };
+            cmbFiltroEstado = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Margin = new Padding(4, 4, 0, 0), BackColor = Theme.FieldBg, ForeColor = Theme.TextPrimary };
             cmbFiltroEstado.Items.AddRange(new object[] { "(Todos)", "Pendente", "Ativa", "Suspensa", "Cancelada", "Terminada" });
             cmbFiltroEstado.SelectedIndex = 0;
+            cmbFiltroCliente.SelectedIndexChanged += (s, e) => LoadData();
+            cmbFiltroEstado.SelectedIndexChanged += (s, e) => LoadData();
 
-            var btnFiltrar = Theme.BtnPrim("Filtrar");
-            var btnLimpar  = Theme.BtnGray("Limpar");
-            btnFiltrar.Margin = new Padding(0, 3, 4, 0);
-            btnLimpar.Margin  = new Padding(0, 3, 0, 0);
-            btnFiltrar.Click += (s, e) => LoadData();
-            btnLimpar.Click  += (s, e) =>
+            flow.Controls.Add(btnNovo);
+            flow.Controls.Add(btnEditar);
+            flow.Controls.Add(btnEliminar);
+            flow.Controls.Add(cmbFiltroCliente);
+            flow.Controls.Add(cmbFiltroEstado);
+            pnlToolbar.Controls.Add(flow);
+
+            dgv = new DataGridView { Dock = DockStyle.Fill };
+            Theme.StyleGrid(dgv);
+            dgv.SelectionChanged += (s, e) =>
             {
-                cmbFiltroCliente.SelectedIndex = 0;
-                cmbFiltroEstado.SelectedIndex  = 0;
-                LoadData();
+                if (dgv.SelectedRows.Count == 0) { _selectedId = -1; btnEditar.Enabled = btnEliminar.Enabled = false; return; }
+                _selectedId = Convert.ToInt32(dgv.SelectedRows[0].Cells["ID"].Value);
+                btnEditar.Enabled = btnEliminar.Enabled = true;
+            };
+            dgv.CellFormatting += (s, e) =>
+            {
+                if (dgv.Columns.Count == 0 || e.Value == null) return;
+                Theme.ApplyStatusColor(e, "Estado", dgv);
+                if (dgv.Columns[e.ColumnIndex].Name == "Preço Acordado")
+                {
+                    if (decimal.TryParse(e.Value.ToString(), out decimal val))
+                    {
+                        e.Value = Theme.FormatEuro(val);
+                        e.FormattingApplied = true;
+                    }
+                }
             };
 
-            flpFiltros.Controls.AddRange(new Control[] { lblCli, cmbFiltroCliente, lblEst, cmbFiltroEstado, btnFiltrar, btnLimpar });
-            pnlFiltros.Controls.Add(flpFiltros);
-
-            this.Controls.Add(pnlForm);     // Dock=Bottom  — added first
-            this.Controls.Add(dgv);         // Dock=Fill
-            this.Controls.Add(pnlFiltros);  // Dock=Top
-            this.Controls.Add(pnlToolbar);  // Dock=Top
-            this.Controls.Add(pnlTitle);    // Dock=Top — added last → appears at very top
+            this.Controls.Add(dgv);
+            this.Controls.Add(pnlToolbar);
+            this.Controls.Add(pnlTitle);
         }
 
-        // Helper: wraps a label + control in a fill panel (label on top)
-        private Panel MakeFieldCell(Label lbl, Control field)
-        {
-            var p = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 0, 6, 0), BackColor = Color.White };
-            // Controls added in reverse dock order: field (Top) first, then label (Top)
-            p.Controls.Add(field);
-            p.Controls.Add(lbl);
-            return p;
-        }
-
-        // ────────────────────────────────────────────────────────────────────
-        // Data loading
-        // ────────────────────────────────────────────────────────────────────
-
-        private void LoadCombos()
+        private void LoadFiltroClientes()
         {
             try
             {
                 using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn))
+                using (var adapter = new SqlDataAdapter(cmd))
                 {
-                    // Load clientes
-                    using (var cmd = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn))
-                    using (var adapter = new SqlDataAdapter(cmd))
-                    {
-                        var dt = new DataTable();
-                        adapter.Fill(dt);
-                        cmbCliente.DataSource    = dt;
-                        cmbCliente.DisplayMember = "nome";
-                        cmbCliente.ValueMember   = "cliente_id";
-                    }
-
-                    // Load planos
-                    using (var cmd = new SqlCommand("SELECT plano_id, nome_plano FROM plano ORDER BY nome_plano", conn))
-                    using (var adapter = new SqlDataAdapter(cmd))
-                    {
-                        var dt = new DataTable();
-                        adapter.Fill(dt);
-                        cmbPlano.DataSource    = dt;
-                        cmbPlano.DisplayMember = "nome_plano";
-                        cmbPlano.ValueMember   = "plano_id";
-                    }
-                }
-            }
-            catch (SqlException ex)
-            {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-
-            // Wire up live data-fim preview after datasource is set
-            cmbPlano.SelectedIndexChanged      += (s, e) => UpdateDataFimLabel();
-            cmbPlano.SelectedIndexChanged      += CmbPlano_SelectedIndexChanged;
-            dtpDataInicio.ValueChanged         += (s, e) => UpdateDataFimLabel();
-
-            // Populate filter client combo
-            try
-            {
-                using (var conn2 = Database.GetConnection())
-                using (var cmdFilt = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn2))
-                using (var adFilt = new SqlDataAdapter(cmdFilt))
-                {
-                    var dtFilt = new DataTable();
-                    adFilt.Fill(dtFilt);
-                    var rowTodos = dtFilt.NewRow();
+                    var dt = new DataTable();
+                    adapter.Fill(dt);
+                    var rowTodos = dt.NewRow();
                     rowTodos["cliente_id"] = DBNull.Value;
-                    rowTodos["nome"]       = "(Todos)";
-                    dtFilt.Rows.InsertAt(rowTodos, 0);
-                    cmbFiltroCliente.DataSource    = dtFilt;
+                    rowTodos["nome"] = "(Todos)";
+                    dt.Rows.InsertAt(rowTodos, 0);
+                    cmbFiltroCliente.DataSource = dt;
                     cmbFiltroCliente.DisplayMember = "nome";
-                    cmbFiltroCliente.ValueMember   = "cliente_id";
+                    cmbFiltroCliente.ValueMember = "cliente_id";
                     cmbFiltroCliente.SelectedIndex = 0;
                 }
             }
-            catch (SqlException ex) { System.Diagnostics.Debug.WriteLine("LoadFiltroClientes: " + ex.Message); }
+            catch (SqlException) { /* ignore */ }
         }
 
         private void LoadData()
@@ -302,396 +108,214 @@ namespace CoworkingApp.Controls
             try
             {
                 var whereParts = new System.Collections.Generic.List<string>();
-
-                bool filtraPorCliente = cmbFiltroCliente?.SelectedValue != null
-                    && !(cmbFiltroCliente.SelectedValue is System.DBNull)
-                    && cmbFiltroCliente.SelectedIndex > 0;
-                if (filtraPorCliente) whereParts.Add("a.cliente_id = @c");
-
-                bool filtraPorEstado = cmbFiltroEstado?.SelectedIndex > 0;
-                if (filtraPorEstado) whereParts.Add("a.estado = @e");
-
-                string where = whereParts.Count > 0
-                    ? "WHERE " + string.Join(" AND ", whereParts)
-                    : "";
+                string estadoFiltro = cmbFiltroEstado?.SelectedIndex > 0 ? cmbFiltroEstado.Text : null;
+                if (estadoFiltro != null) whereParts.Add("a.estado = @e");
+                bool filtraCliente = cmbFiltroCliente?.SelectedIndex > 0
+                    && cmbFiltroCliente.SelectedValue != null
+                    && !(cmbFiltroCliente.SelectedValue is DBNull);
+                if (filtraCliente) whereParts.Add("a.cliente_id = @c");
+                string where = whereParts.Count > 0 ? "WHERE " + string.Join(" AND ", whereParts) : "";
 
                 string sql = $@"
-                    SELECT a.adesao_id AS ID,
-                           c.nome AS Cliente,
-                           p.nome_plano AS Plano,
+                    SELECT a.adesao_id AS ID, c.nome AS Cliente, p.nome_plano AS Plano,
                            p.tipo_plano AS Tipo,
-                           CASE WHEN po.recurso_id IS NULL THEN ''
-                                ELSE esp.nome + ' / ' + po.codigo END AS Posto,
-                           CONVERT(varchar,a.data_inicio,103) AS [Início],
-                           CONVERT(varchar,a.data_fim,103) AS [Fim],
+                           CASE WHEN a.recurso_id IS NULL THEN '—' ELSE COALESCE(po.codigo, 'Sala '+s.nome) END AS Posto,
+                           CONVERT(varchar,a.data_inicio,103) AS [Data Início],
+                           CONVERT(varchar,a.data_fim,103) AS [Data Fim],
                            a.preco_acordado AS [Preço Acordado],
                            a.estado AS Estado
                     FROM adesao a
-                    JOIN cliente c ON a.cliente_id = c.cliente_id
-                    JOIN plano   p ON a.plano_id   = p.plano_id
-                    LEFT JOIN posto po  ON a.recurso_id = po.recurso_id
-                    LEFT JOIN espaco esp ON po.espaco_id = esp.espaco_id
+                    JOIN cliente c ON a.cliente_id=c.cliente_id
+                    JOIN plano p ON a.plano_id=p.plano_id
+                    LEFT JOIN posto po ON a.recurso_id=po.recurso_id
+                    LEFT JOIN sala s ON a.recurso_id=s.recurso_id
                     {where}
                     ORDER BY a.data_inicio DESC";
 
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(sql, conn))
                 {
-                    if (filtraPorCliente) cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbFiltroCliente.SelectedValue));
-                    if (filtraPorEstado)  cmd.Parameters.AddWithValue("@e", cmbFiltroEstado.Text);
-
+                    if (estadoFiltro != null) cmd.Parameters.AddWithValue("@e", estadoFiltro);
+                    if (filtraCliente) cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbFiltroCliente.SelectedValue));
                     using (var adapter = new SqlDataAdapter(cmd))
                     {
                         var dt = new DataTable();
                         adapter.Fill(dt);
                         dgv.DataSource = dt;
+                        if (dgv.Columns.Contains("ID")) dgv.Columns["ID"].Visible = false;
                     }
                 }
-
-                if (dgv.Columns.Contains("ID"))
-                    dgv.Columns["ID"].Visible = false;
-                if (dgv.Columns.Contains("Tipo"))
-                    dgv.Columns["Tipo"].Visible = false;
-
-                UpdateButtonState();
             }
             catch (SqlException ex)
             {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        // ────────────────────────────────────────────────────────────────────
-        // Live data-fim calculation
-        // ────────────────────────────────────────────────────────────────────
-
-        private void UpdateDataFimLabel()
+        private void OpenEditor(int? id)
         {
-            if (!pnlForm.Visible) return;
-            if (cmbPlano.SelectedValue == null) return;
-
-            try
+            // Carregar combos data
+            DataTable dsClientes, dsPlanos;
+            using (var conn = Database.GetConnection())
             {
-                int planoId = Convert.ToInt32(cmbPlano.SelectedValue);
-                using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(
-                    "SELECT duracao_meses FROM plano WHERE plano_id=@id", conn))
-                {
-                    cmd.Parameters.AddWithValue("@id", planoId);
-                    var result = cmd.ExecuteScalar();
-                    if (result == null || result == DBNull.Value) return;
-
-                    int dur = Convert.ToInt32(result);
-                    DateTime dataFim = dtpDataInicio.Value.AddMonths(dur);
-                    lblDataFimInfo.Text = "Data fim calculada: " + dataFim.ToString("dd/MM/yyyy");
-                }
+                using (var c = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn))
+                using (var a = new SqlDataAdapter(c)) { dsClientes = new DataTable(); a.Fill(dsClientes); }
+                using (var c = new SqlCommand("SELECT plano_id, nome_plano, tipo_plano, preco_mensal FROM plano ORDER BY nome_plano", conn))
+                using (var a = new SqlDataAdapter(c)) { dsPlanos = new DataTable(); a.Fill(dsPlanos); }
             }
-            catch
-            {
-                // Silent — live preview only
-            }
-        }
 
-        // ────────────────────────────────────────────────────────────────────
-        // Plano-type driven posto visibility
-        // ────────────────────────────────────────────────────────────────────
+            var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+            var cmbCliente = UcClientes.AddComboDataSource(tbl, "Cliente *", dsClientes, "nome", "cliente_id");
+            var cmbPlano   = UcClientes.AddComboDataSource(tbl, "Plano *", dsPlanos, "nome_plano", "plano_id");
+            var dtInicio   = UcClientes.AddDate(tbl, "Data início *");
+            var cmbPosto   = UcClientes.AddCombo(tbl, "Posto atribuído *", new string[0]);
+            var txtPreco   = UcClientes.AddField(tbl, "Preço acordado *");
+            var cmbEstado  = UcClientes.AddCombo(tbl, "Estado *", new[] { "Pendente", "Ativa", "Suspensa", "Cancelada", "Terminada" });
+            cmbEstado.SelectedIndex = 0;
 
-        private void CmbPlano_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            if (cmbPlano.SelectedValue == null) return;
-            int planoId = Convert.ToInt32(cmbPlano.SelectedValue);
-            string tipoPlano = ObterTipoPlano(planoId);
-            bool precisaPosto = tipoPlano == "Fixo" || tipoPlano == "Privado";
-            lblAdesaoPosto.Visible  = precisaPosto;
-            cmbAdesaoPosto.Visible  = precisaPosto;
-            if (precisaPosto) CarregarPostosDisponiveis(tipoPlano);
-            else cmbAdesaoPosto.DataSource = null;
-        }
+            // ValueMember para cmbPosto
+            cmbPosto.DisplayMember = "label";
+            cmbPosto.ValueMember = "recurso_id";
 
-        private string ObterTipoPlano(int planoId)
-        {
-            try
+            // Helper para carregar postos de um tipo
+            Action<string> loadPostos = (tipo) =>
             {
                 using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand("SELECT tipo_plano FROM plano WHERE plano_id=@id", conn))
+                using (var c = new SqlCommand(
+                    "SELECT p.recurso_id, e.nome + ' / ' + p.codigo AS label FROM posto p JOIN espaco e ON p.espaco_id=e.espaco_id WHERE p.tipo_posto=@t AND p.estado='Disponivel' ORDER BY label", conn))
+                using (var a = new SqlDataAdapter(c))
                 {
-                    cmd.Parameters.AddWithValue("@id", planoId);
-                    var o = cmd.ExecuteScalar();
-                    return o?.ToString() ?? "Flex";
-                }
-            }
-            catch { return "Flex"; }
-        }
-
-        private void CarregarPostosDisponiveis(string tipoPosto)
-        {
-            try
-            {
-                using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(
-                    @"SELECT p.recurso_id, e.nome + ' / ' + p.codigo AS label
-                      FROM posto p
-                      JOIN espaco e ON p.espaco_id = e.espaco_id
-                      WHERE p.tipo_posto = @t AND p.estado = 'Disponivel'
-                      ORDER BY e.nome, p.codigo", conn))
-                using (var adapter = new SqlDataAdapter(cmd))
-                {
-                    cmd.Parameters.AddWithValue("@t", tipoPosto);
+                    c.Parameters.AddWithValue("@t", tipo);
                     var dt = new DataTable();
-                    adapter.Fill(dt);
-                    cmbAdesaoPosto.DisplayMember = "label";
-                    cmbAdesaoPosto.ValueMember   = "recurso_id";
-                    cmbAdesaoPosto.DataSource    = dt;
+                    a.Fill(dt);
+                    cmbPosto.DataSource = dt;
                 }
-            }
-            catch (SqlException ex)
+            };
+
+            string tipoPlanoSel = "Flex";
+            decimal precoMensalSel = 0;
+
+            cmbPlano.SelectedIndexChanged += (s, e) =>
             {
-                System.Diagnostics.Debug.WriteLine("CarregarPostosDisponiveis: " + ex.Message);
-            }
-        }
+                if (cmbPlano.SelectedItem == null) return;
+                var rv = (DataRowView)cmbPlano.SelectedItem;
+                tipoPlanoSel = rv["tipo_plano"].ToString();
+                precoMensalSel = Convert.ToDecimal(rv["preco_mensal"]);
+                txtPreco.Text = precoMensalSel.ToString(CultureInfo.InvariantCulture);
+                if (tipoPlanoSel == "Flex")
+                {
+                    cmbPosto.Parent.Visible = false;
+                    cmbPosto.DataSource = null;
+                }
+                else
+                {
+                    cmbPosto.Parent.Visible = true;
+                    loadPostos(tipoPlanoSel);
+                }
+            };
 
-        // ────────────────────────────────────────────────────────────────────
-        // Edit mode
-        // ────────────────────────────────────────────────────────────────────
-
-        private void SetEditMode(bool editing)
-        {
-            btnNovo.Visible     = btnEditar.Visible     = btnEliminar.Visible = !editing;
-            btnGuardar.Visible  = btnCancelar.Visible   = editing;
-            dgv.Enabled         = !editing;
-            pnlForm.Visible     = editing;
-
-            if (!editing)
-                btnEditar.Enabled = btnEliminar.Enabled = dgv.SelectedRows.Count > 0;
-        }
-
-        private void UpdateButtonState()
-        {
-            bool hasRow = dgv.SelectedRows.Count > 0 && dgv.Enabled;
-            btnEditar.Enabled   = hasRow;
-            btnEliminar.Enabled = hasRow;
-        }
-
-        // ────────────────────────────────────────────────────────────────────
-        // Grid events
-        // ────────────────────────────────────────────────────────────────────
-
-        private void Dgv_SelectionChanged(object sender, EventArgs e)
-        {
-            UpdateButtonState();
-
-            if (dgv.SelectedRows.Count == 0) return;
-
-            var row = dgv.SelectedRows[0];
-            _editId = Convert.ToInt32(row.Cells["ID"].Value);
-
-            // Reflect estado from grid
-            string estado = row.Cells["Estado"].Value?.ToString() ?? "";
-            int idx = cmbEstado.Items.IndexOf(estado);
-            if (idx >= 0)
-                cmbEstado.SelectedIndex = idx;
-
-            // Load posto combo if applicable and select current recurso_id
-            CmbPlano_SelectedIndexChanged(null, null);
-            if (row.Cells["Posto"].Value != null && !string.IsNullOrWhiteSpace(row.Cells["Posto"].Value.ToString()))
+            // Pre-load se editing
+            if (id.HasValue)
             {
                 using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand("SELECT recurso_id FROM adesao WHERE adesao_id=@id", conn))
+                using (var cmd = new SqlCommand(
+                    @"SELECT a.cliente_id, a.plano_id, a.recurso_id, a.data_inicio, a.preco_acordado, a.estado, p.tipo_plano, p.preco_mensal
+                      FROM adesao a JOIN plano p ON a.plano_id=p.plano_id WHERE a.adesao_id=@id", conn))
                 {
-                    cmd.Parameters.AddWithValue("@id", _editId);
-                    var v = cmd.ExecuteScalar();
-                    if (v != null && v != DBNull.Value)
-                        cmbAdesaoPosto.SelectedValue = Convert.ToInt32(v);
+                    cmd.Parameters.AddWithValue("@id", id.Value);
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        if (r.Read())
+                        {
+                            cmbCliente.SelectedValue = r["cliente_id"];
+                            cmbPlano.SelectedValue = r["plano_id"];
+                            // SelectedIndexChanged já triggered — carrega postos se necessário
+                            tipoPlanoSel = r["tipo_plano"].ToString();
+                            if (tipoPlanoSel != "Flex" && r["recurso_id"] != DBNull.Value)
+                            {
+                                cmbPosto.SelectedValue = r["recurso_id"];
+                            }
+                            dtInicio.Value = Convert.ToDateTime(r["data_inicio"]);
+                            txtPreco.Text = Convert.ToDecimal(r["preco_acordado"]).ToString(CultureInfo.InvariantCulture);
+                            var estado = r["estado"].ToString();
+                            var idx = cmbEstado.Items.IndexOf(estado);
+                            cmbEstado.SelectedIndex = idx >= 0 ? idx : 0;
+                        }
+                    }
                 }
             }
-        }
+            else
+            {
+                // Trigger SelectedIndexChanged to populate posto / preco
+                if (cmbPlano.Items.Count > 0) cmbPlano.SelectedIndex = 0;
+            }
 
-        // ────────────────────────────────────────────────────────────────────
-        // Toolbar button handlers
-        // ────────────────────────────────────────────────────────────────────
+            using (var dlg = new FormDialog(id.HasValue ? "Editar Adesão" : "Nova Adesão", tbl, 460, () =>
+            {
+                if (cmbCliente.SelectedValue == null || cmbCliente.SelectedValue is DBNull) throw new ApplicationException("Cliente é obrigatório.");
+                if (cmbPlano.SelectedValue == null || cmbPlano.SelectedValue is DBNull) throw new ApplicationException("Plano é obrigatório.");
+                if (!decimal.TryParse(txtPreco.Text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal preco) || preco < 0)
+                    throw new ApplicationException("Preço acordado inválido.");
 
-        private void BtnNovo_Click(object sender, EventArgs e)
-        {
-            _editId = -1;
+                object recursoVal = DBNull.Value;
+                if (tipoPlanoSel != "Flex")
+                {
+                    if (cmbPosto.SelectedValue == null || cmbPosto.SelectedValue is DBNull)
+                        throw new ApplicationException("Posto atribuído é obrigatório para planos Fixo/Privado.");
+                    recursoVal = Convert.ToInt32(cmbPosto.SelectedValue);
+                }
 
-            // Enable all fields for new record
-            cmbCliente.Enabled    = true;
-            cmbPlano.Enabled      = true;
-            dtpDataInicio.Enabled = true;
+                var sql = id.HasValue
+                    ? "UPDATE adesao SET cliente_id=@c, plano_id=@p, recurso_id=@r, data_inicio=@d, preco_acordado=@pr, estado=@e WHERE adesao_id=@id"
+                    : "INSERT INTO adesao (cliente_id, plano_id, recurso_id, data_inicio, preco_acordado, estado) VALUES (@c,@p,@r,@d,@pr,@e)";
 
-            // Reset fields
-            if (cmbCliente.Items.Count > 0) cmbCliente.SelectedIndex = 0;
-            if (cmbPlano.Items.Count > 0)   cmbPlano.SelectedIndex   = 0;
-            dtpDataInicio.Value = DateTime.Today;
-            cmbEstado.SelectedIndex = cmbEstado.Items.IndexOf("Pendente") >= 0
-                ? cmbEstado.Items.IndexOf("Pendente") : 0;
-
-            lblDataFimInfo.Text = "Data fim calculada: —";
-
-            SetEditMode(true);
-            UpdateDataFimLabel();
-        }
-
-        private void BtnEditar_Click(object sender, EventArgs e)
-        {
-            if (dgv.SelectedRows.Count == 0) return;
-
-            var row = dgv.SelectedRows[0];
-
-            // Reflect estado from selected row
-            string estado = row.Cells["Estado"].Value?.ToString() ?? "";
-            int idx = cmbEstado.Items.IndexOf(estado);
-            if (idx >= 0) cmbEstado.SelectedIndex = idx;
-
-            // All fields editable
-            cmbCliente.Enabled    = true;
-            cmbPlano.Enabled      = true;
-            dtpDataInicio.Enabled = true;
-
-            SetEditMode(true);
-            cmbEstado.Focus();
+                using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand(sql, conn))
+                {
+                    if (id.HasValue) cmd.Parameters.AddWithValue("@id", id.Value);
+                    cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbCliente.SelectedValue));
+                    cmd.Parameters.AddWithValue("@p", Convert.ToInt32(cmbPlano.SelectedValue));
+                    cmd.Parameters.AddWithValue("@r", recursoVal);
+                    cmd.Parameters.AddWithValue("@d", dtInicio.Value.Date);
+                    cmd.Parameters.AddWithValue("@pr", preco);
+                    cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedItem.ToString());
+                    cmd.ExecuteNonQuery();
+                }
+            }))
+            {
+                if (dlg.ShowDialog(this.FindForm()) == DialogResult.OK) LoadData();
+            }
         }
 
         private void BtnEliminar_Click(object sender, EventArgs e)
         {
-            if (dgv.SelectedRows.Count == 0) return;
-
-            var res = MessageBox.Show(
-                "Eliminar a adesão selecionada?",
-                "Confirmar",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning);
-
-            if (res != DialogResult.Yes) return;
-
-            int id = Convert.ToInt32(dgv.SelectedRows[0].Cells["ID"].Value);
-
-            try
-            {
-                using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand("DELETE FROM adesao WHERE adesao_id=@id", conn))
-                {
-                    cmd.Parameters.AddWithValue("@id", id);
-                    cmd.ExecuteNonQuery();
-                }
-                _editId = -1;
-                LoadData();
-            }
-            catch (SqlException ex)
-            {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void BtnGuardar_Click(object sender, EventArgs e)
-        {
-            // Validation
-            if (cmbEstado.SelectedIndex < 0)
-            {
-                MessageBox.Show("Selecione um estado.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            if (cmbCliente.SelectedValue == null)
-            {
-                MessageBox.Show("Selecione um cliente.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            if (cmbPlano.SelectedValue == null)
-            {
-                MessageBox.Show("Selecione um plano.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            // Resolve recurso_id and preco_acordado
-            int planoId = Convert.ToInt32(cmbPlano.SelectedValue);
-            string tipoPlano = ObterTipoPlano(planoId);
-
-            object recursoVal = DBNull.Value;
-            if (tipoPlano == "Fixo" || tipoPlano == "Privado")
-            {
-                if (cmbAdesaoPosto.SelectedValue == null)
-                {
-                    MessageBox.Show("Posto é obrigatório para planos Fixo/Privado.", "Validação",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-                recursoVal = Convert.ToInt32(cmbAdesaoPosto.SelectedValue);
-            }
-
-            decimal precoAcordado;
-            using (var conn0 = Database.GetConnection())
-            using (var cmd0 = new SqlCommand("SELECT preco_mensal FROM plano WHERE plano_id=@id", conn0))
-            {
-                cmd0.Parameters.AddWithValue("@id", planoId);
-                precoAcordado = Convert.ToDecimal(cmd0.ExecuteScalar());
-            }
-
+            if (_selectedId < 0) return;
+            if (MessageBox.Show("Eliminar adesão?", "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
             try
             {
                 using (var conn = Database.GetConnection())
                 {
-                    if (_editId == -1)
+                    using (var chk = new SqlCommand("SELECT COUNT(*) FROM pagamento WHERE adesao_id=@id", conn))
                     {
-                        // INSERT
-                        const string sql =
-                            "INSERT INTO adesao (cliente_id, plano_id, recurso_id, data_inicio, preco_acordado, estado) " +
-                            "VALUES (@cli, @pl, @rec, @di, @pa, @est)";
-
-                        using (var cmd = new SqlCommand(sql, conn))
+                        chk.Parameters.AddWithValue("@id", _selectedId);
+                        if ((int)chk.ExecuteScalar() > 0)
                         {
-                            cmd.Parameters.AddWithValue("@cli", Convert.ToInt32(cmbCliente.SelectedValue));
-                            cmd.Parameters.AddWithValue("@pl",  planoId);
-                            cmd.Parameters.AddWithValue("@rec", recursoVal);
-                            cmd.Parameters.AddWithValue("@di",  dtpDataInicio.Value.Date);
-                            cmd.Parameters.AddWithValue("@pa",  precoAcordado);
-                            cmd.Parameters.AddWithValue("@est", cmbEstado.Text);
-                            cmd.ExecuteNonQuery();
+                            MessageBox.Show("Não é possível eliminar — adesão tem pagamentos.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
                         }
                     }
-                    else
+                    using (var cmd = new SqlCommand("DELETE FROM adesao WHERE adesao_id=@id", conn))
                     {
-                        // UPDATE
-                        const string sql =
-                            "UPDATE adesao SET cliente_id=@cli, plano_id=@pl, recurso_id=@rec, " +
-                            "data_inicio=@di, preco_acordado=@pa, estado=@est " +
-                            "WHERE adesao_id=@id";
-
-                        using (var cmd = new SqlCommand(sql, conn))
-                        {
-                            cmd.Parameters.AddWithValue("@cli", Convert.ToInt32(cmbCliente.SelectedValue));
-                            cmd.Parameters.AddWithValue("@pl",  planoId);
-                            cmd.Parameters.AddWithValue("@rec", recursoVal);
-                            cmd.Parameters.AddWithValue("@di",  dtpDataInicio.Value.Date);
-                            cmd.Parameters.AddWithValue("@pa",  precoAcordado);
-                            cmd.Parameters.AddWithValue("@est", cmbEstado.Text);
-                            cmd.Parameters.AddWithValue("@id",  _editId);
-                            cmd.ExecuteNonQuery();
-                        }
+                        cmd.Parameters.AddWithValue("@id", _selectedId);
+                        cmd.ExecuteNonQuery();
                     }
                 }
-
-                Theme.ShowSuccess(_lblStatus);
-                SetEditMode(false);
                 LoadData();
             }
             catch (SqlException ex)
             {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        private void BtnCancelar_Click(object sender, EventArgs e)
-        {
-            SetEditMode(false);
-            UpdateButtonState();
         }
     }
 }
