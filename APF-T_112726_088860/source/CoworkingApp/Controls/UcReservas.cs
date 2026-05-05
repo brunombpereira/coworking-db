@@ -27,6 +27,9 @@ namespace CoworkingApp.Controls
         private Label lblValorCalc;
         private Button btnCalcular, btnConfirmar, btnFecharForm;
 
+        // ── Hora/participantes cell panels (toggled by recurso tipo) ─────────
+        private Panel _cellHoraInicio, _cellHoraFim, _cellParticipantes;
+
         // ── State ────────────────────────────────────────────────────────────
         private decimal _valorCalculado = 0;
 
@@ -113,6 +116,7 @@ namespace CoworkingApp.Controls
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "HFim",     HeaderText = "H.Fim",     DataPropertyName = "H.Fim",    FillWeight = 70 });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Valor",    HeaderText = "Valor",     DataPropertyName = "Valor",    FillWeight = 80 });
             dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "Estado",   HeaderText = "Estado",    DataPropertyName = "Estado",   FillWeight = 80 });
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { Name = "NPess",    HeaderText = "Nº Pess.",  DataPropertyName = "Nº Pess.", FillWeight = 60 });
 
             // ── Nova Reserva panel (Dock=Bottom) ─────────────────────────────
             pnlNovaReserva = BuildNovaReservaPanel();
@@ -261,6 +265,7 @@ namespace CoworkingApp.Controls
             cmbNovaRecursoTipo.SelectedIndexChanged += CmbNovaRecursoTipo_Changed;
 
             cmbNovaRecurso = Theme.Combo();
+            cmbNovaRecurso.SelectedIndexChanged += CmbNovaRecurso_SelectedIndexChanged;
 
             dtpNovaData = Theme.DatePicker();
             dtpNovaData.Value = DateTime.Today;
@@ -274,11 +279,13 @@ namespace CoworkingApp.Controls
                 Dock = DockStyle.Top
             };
 
+            _cellHoraInicio = MakeFormCell(Theme.FieldLabel("H.Início"), dtpHoraInicio);
+
             tblRow1.Controls.Add(MakeFormCell(Theme.FieldLabel("Cliente *"),      cmbNovaCliente),    0, 0);
             tblRow1.Controls.Add(MakeFormCell(Theme.FieldLabel("Tipo"),           cmbNovaRecursoTipo), 1, 0);
             tblRow1.Controls.Add(MakeFormCell(Theme.FieldLabel("Sala / Posto *"), cmbNovaRecurso),    2, 0);
             tblRow1.Controls.Add(MakeFormCell(Theme.FieldLabel("Data *"),         dtpNovaData),       3, 0);
-            tblRow1.Controls.Add(MakeFormCell(Theme.FieldLabel("H.Início"),       dtpHoraInicio),     4, 0);
+            tblRow1.Controls.Add(_cellHoraInicio,                                                     4, 0);
 
             // Row 2: 4-column TableLayoutPanel
             var tblRow2 = new TableLayoutPanel
@@ -324,8 +331,11 @@ namespace CoworkingApp.Controls
             pnlValor.Controls.Add(lblValorCalc);
             pnlValor.Controls.Add(Theme.FieldLabel("Valor"));
 
-            tblRow2.Controls.Add(MakeFormCell(Theme.FieldLabel("H.Fim"),          dtpHoraFim),        0, 0);
-            tblRow2.Controls.Add(MakeFormCell(Theme.FieldLabel("Participantes"),  txtParticipantes),   1, 0);
+            _cellHoraFim       = MakeFormCell(Theme.FieldLabel("H.Fim"),         dtpHoraFim);
+            _cellParticipantes = MakeFormCell(Theme.FieldLabel("Participantes"), txtParticipantes);
+
+            tblRow2.Controls.Add(_cellHoraFim,                                                        0, 0);
+            tblRow2.Controls.Add(_cellParticipantes,                                                   1, 0);
             tblRow2.Controls.Add(MakeFormCell(Theme.FieldLabel("Notas"),          txtNotas),           2, 0);
             tblRow2.Controls.Add(pnlValor,                                                             3, 0);
 
@@ -419,30 +429,21 @@ namespace CoworkingApp.Controls
 
         private void LoadRecursos()
         {
-            string sql;
-
-            if (cmbNovaRecursoTipo.Text == "Sala")
-            {
-                sql = @"
-                    SELECT s.recurso_id AS id,
-                           e.nome + ' — ' + s.nome + ' (cap:' + CAST(s.capacidade AS varchar) + ')' AS descricao,
-                           s.preco_hora
-                    FROM sala s
-                    JOIN espaco e ON s.espaco_id = e.espaco_id
-                    WHERE s.estado = 'Disponivel'
-                    ORDER BY descricao";
-            }
-            else
-            {
-                sql = @"
-                    SELECT p.recurso_id AS id,
-                           e.nome + ' — ' + p.codigo + ' (' + p.tipo_posto + ')' AS descricao,
-                           p.preco_hora
-                    FROM posto_trabalho p
-                    JOIN espaco e ON p.espaco_id = e.espaco_id
-                    WHERE p.estado = 'Disponivel'
-                    ORDER BY descricao";
-            }
+            const string sql = @"SELECT recurso_id, label, tipo, preco FROM (
+                SELECT s.recurso_id,
+                       e.nome + ' / Sala ' + s.nome AS label,
+                       'Sala' AS tipo,
+                       s.preco_hora AS preco
+                FROM sala s JOIN espaco e ON s.espaco_id = e.espaco_id
+                WHERE s.estado = 'Disponivel'
+                UNION ALL
+                SELECT p.recurso_id,
+                       e.nome + ' / Posto ' + p.codigo AS label,
+                       'Posto' AS tipo,
+                       p.preco_dia AS preco
+                FROM posto p JOIN espaco e ON p.espaco_id = e.espaco_id
+                WHERE p.estado = 'Disponivel'
+            ) x ORDER BY label";
 
             try
             {
@@ -453,8 +454,8 @@ namespace CoworkingApp.Controls
                     var dt = new DataTable();
                     adapter.Fill(dt);
                     cmbNovaRecurso.DataSource    = dt;
-                    cmbNovaRecurso.DisplayMember = "descricao";
-                    cmbNovaRecurso.ValueMember   = "id";
+                    cmbNovaRecurso.DisplayMember = "label";
+                    cmbNovaRecurso.ValueMember   = "recurso_id";
                 }
             }
             catch (SqlException ex)
@@ -463,11 +464,7 @@ namespace CoworkingApp.Controls
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
 
-            // Toggle participantes visibility based on tipo
-            if (txtParticipantes != null)
-                txtParticipantes.Visible = (cmbNovaRecursoTipo.Text == "Sala");
-
-            // Reset calculated value when recurso type changes
+            // Reset calculated value when resources are reloaded
             _valorCalculado = 0;
             if (lblValorCalc != null)  lblValorCalc.Text = "Valor: —";
             if (btnConfirmar != null)  btnConfirmar.Enabled = false;
@@ -500,18 +497,20 @@ namespace CoworkingApp.Controls
                 string sql = $@"
                     SELECT r.reserva_id AS ID,
                            c.nome AS Cliente,
-                           ISNULL(s.nome, p.codigo) AS Recurso,
+                           CASE WHEN s.recurso_id IS NOT NULL THEN 'Sala ' + s.nome
+                                ELSE 'Posto ' + p.codigo END AS Recurso,
                            rc.tipo AS Tipo,
                            CONVERT(varchar,r.data_reserva,103) AS Data,
                            CONVERT(varchar,r.hora_inicio,108) AS [H.Início],
                            CONVERT(varchar,r.hora_fim,108) AS [H.Fim],
                            r.valor AS Valor,
-                           r.estado AS Estado
+                           r.estado AS Estado,
+                           r.num_participantes AS [Nº Pess.]
                     FROM reserva r
-                    JOIN cliente c ON r.cliente_id = c.cliente_id
-                    JOIN recurso rc ON r.recurso_id = rc.recurso_id
+                    JOIN cliente c   ON r.cliente_id = c.cliente_id
+                    JOIN recurso rc  ON r.recurso_id = rc.recurso_id
                     LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
-                    LEFT JOIN posto_trabalho p ON rc.recurso_id = p.recurso_id
+                    LEFT JOIN posto p ON rc.recurso_id = p.recurso_id
                     {where}
                     ORDER BY r.data_reserva DESC, r.hora_inicio";
 
@@ -659,7 +658,25 @@ namespace CoworkingApp.Controls
 
         private void CmbNovaRecursoTipo_Changed(object sender, EventArgs e)
         {
-            LoadRecursos();
+            // No longer drives LoadRecursos — unified combo shows all resources.
+            // Kept for backwards compatibility in case anything still references it.
+        }
+
+        private void CmbNovaRecurso_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var dr = (cmbNovaRecurso.SelectedItem as DataRowView)?.Row;
+            if (dr == null) return;
+            string tipo = dr["tipo"].ToString();
+            bool isSala = tipo == "Sala";
+
+            if (_cellHoraInicio    != null) _cellHoraInicio.Visible    = isSala;
+            if (_cellHoraFim       != null) _cellHoraFim.Visible       = isSala;
+            if (_cellParticipantes != null) _cellParticipantes.Visible  = isSala;
+
+            // Reset calculated value when resource changes
+            _valorCalculado = 0;
+            if (lblValorCalc != null) lblValorCalc.Text = "Valor: —";
+            if (btnConfirmar != null) btnConfirmar.Enabled = false;
         }
 
         private void BtnCalcular_Click(object sender, EventArgs e)
@@ -671,53 +688,32 @@ namespace CoworkingApp.Controls
                 return;
             }
 
-            var inicio = dtpHoraInicio.Value.TimeOfDay;
-            var fim    = dtpHoraFim.Value.TimeOfDay;
+            var dr    = (cmbNovaRecurso.SelectedItem as DataRowView)?.Row;
+            string tipo  = dr?["tipo"].ToString() ?? "Sala";
+            decimal preco = Convert.ToDecimal(dr?["preco"] ?? 0);
 
-            if (fim <= inicio)
+            if (tipo == "Sala")
             {
-                MessageBox.Show("Hora fim deve ser posterior à hora início.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+                var inicio = dtpHoraInicio.Value.TimeOfDay;
+                var fim    = dtpHoraFim.Value.TimeOfDay;
 
-            try
-            {
-                const string sql = @"
-                    SELECT COALESCE(s.preco_hora, p.preco_hora)
-                    FROM recurso rc
-                    LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
-                    LEFT JOIN posto_trabalho p ON rc.recurso_id = p.recurso_id
-                    WHERE rc.recurso_id = @id";
-
-                int recursoId = Convert.ToInt32(cmbNovaRecurso.SelectedValue);
-
-                using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(sql, conn))
+                if (fim <= inicio)
                 {
-                    cmd.Parameters.AddWithValue("@id", recursoId);
-                    var result = cmd.ExecuteScalar();
-
-                    if (result == null || result == DBNull.Value)
-                    {
-                        MessageBox.Show("Preço/hora não definido para este recurso.", "Aviso",
-                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
-                    }
-
-                    decimal precoHora = Convert.ToDecimal(result);
-                    double horas      = (fim - inicio).TotalHours;
-                    _valorCalculado   = Convert.ToDecimal(horas) * precoHora;
-
-                    lblValorCalc.Text    = "Valor: " + Theme.FormatEuro(_valorCalculado);
-                    btnConfirmar.Enabled = true;
+                    MessageBox.Show("Hora fim deve ser posterior à hora início.", "Validação",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
                 }
+
+                _valorCalculado = preco * Convert.ToDecimal((fim - inicio).TotalHours);
             }
-            catch (SqlException ex)
+            else
             {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                // Posto: day pass — price per day, no hours needed
+                _valorCalculado = preco;
             }
+
+            lblValorCalc.Text    = "Valor: " + Theme.FormatEuro(_valorCalculado);
+            btnConfirmar.Enabled = true;
         }
 
         private void BtnConfirmar_Click(object sender, EventArgs e)
@@ -735,16 +731,6 @@ namespace CoworkingApp.Controls
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-
-            var inicio = dtpHoraInicio.Value.TimeOfDay;
-            var fim    = dtpHoraFim.Value.TimeOfDay;
-
-            if (fim <= inicio)
-            {
-                MessageBox.Show("Hora fim deve ser posterior à hora início.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
             if (dtpNovaData.Value.Date < DateTime.Today)
             {
                 MessageBox.Show("Não é possível criar reservas para datas passadas.", "Validação",
@@ -752,19 +738,39 @@ namespace CoworkingApp.Controls
                 return;
             }
 
-            int clienteId  = Convert.ToInt32(cmbNovaCliente.SelectedValue);
-            int recursoId  = Convert.ToInt32(cmbNovaRecurso.SelectedValue);
-            bool isSala    = cmbNovaRecursoTipo.Text == "Sala";
-            string horaIni = inicio.ToString(@"hh\:mm");
-            string horaFim = fim.ToString(@"hh\:mm");
+            var dr    = (cmbNovaRecurso.SelectedItem as DataRowView)?.Row;
+            string tipo  = dr?["tipo"].ToString() ?? "Sala";
+            bool isSala  = tipo == "Sala";
+
+            if (isSala)
+            {
+                var inicio = dtpHoraInicio.Value.TimeOfDay;
+                var fim    = dtpHoraFim.Value.TimeOfDay;
+                if (fim <= inicio)
+                {
+                    MessageBox.Show("Hora fim deve ser posterior à hora início.", "Validação",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+
+            int clienteId = Convert.ToInt32(cmbNovaCliente.SelectedValue);
+            int recursoId = Convert.ToInt32(cmbNovaRecurso.SelectedValue);
+
+            object hiVal = isSala
+                ? (object)dtpHoraInicio.Value.TimeOfDay.ToString(@"hh\:mm")
+                : DBNull.Value;
+            object hfVal = isSala
+                ? (object)dtpHoraFim.Value.TimeOfDay.ToString(@"hh\:mm")
+                : DBNull.Value;
+
+            object npVal = isSala && int.TryParse(txtParticipantes.Text.Trim(), out int np) && np > 0
+                ? (object)np
+                : DBNull.Value;
 
             object notasVal = string.IsNullOrWhiteSpace(txtNotas.Text)
                 ? (object)DBNull.Value
                 : txtNotas.Text.Trim();
-
-            object npVal = DBNull.Value;
-            if (isSala && int.TryParse(txtParticipantes.Text.Trim(), out int np) && np > 0)
-                npVal = np;
 
             try
             {
@@ -778,10 +784,10 @@ namespace CoworkingApp.Controls
                     cmd.Parameters.AddWithValue("@c",  clienteId);
                     cmd.Parameters.AddWithValue("@r",  recursoId);
                     cmd.Parameters.AddWithValue("@d",  dtpNovaData.Value.Date);
-                    cmd.Parameters.AddWithValue("@hi", horaIni);
-                    cmd.Parameters.AddWithValue("@hf", horaFim);
+                    cmd.Parameters.Add("@hi", SqlDbType.VarChar).Value = hiVal;
+                    cmd.Parameters.Add("@hf", SqlDbType.VarChar).Value = hfVal;
                     cmd.Parameters.AddWithValue("@v",  _valorCalculado);
-                    cmd.Parameters.AddWithValue("@np", npVal);
+                    cmd.Parameters.Add("@np", SqlDbType.Int).Value = npVal;
                     cmd.Parameters.AddWithValue("@n",  notasVal);
                     cmd.ExecuteNonQuery();
                 }
