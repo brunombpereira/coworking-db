@@ -47,21 +47,55 @@ namespace CoworkingApp.Controls
             LoadClientesCombos();
         }
 
+        private static void StyleChart(System.Windows.Forms.DataVisualization.Charting.Chart c)
+        {
+            c.BackColor = Theme.CardBg;
+            foreach (var area in c.ChartAreas)
+            {
+                area.BackColor = System.Drawing.Color.Transparent;
+                area.AxisX.LineColor = Theme.CardBorder;
+                area.AxisY.LineColor = Theme.CardBorder;
+                area.AxisX.LabelStyle.ForeColor = Theme.TextMuted;
+                area.AxisY.LabelStyle.ForeColor = Theme.TextMuted;
+                area.AxisX.MajorGrid.LineColor = System.Drawing.Color.Transparent;
+                area.AxisY.MajorGrid.LineColor = Theme.CardBorder;
+            }
+            foreach (var legend in c.Legends)
+            {
+                legend.BackColor = System.Drawing.Color.Transparent;
+                legend.ForeColor = Theme.TextSecondary;
+            }
+            foreach (var title in c.Titles)
+            {
+                title.ForeColor = Theme.TextPrimary;
+            }
+        }
+
+        private static readonly System.Drawing.Color[] ChartPalette = new[]
+        {
+            ColorTranslator.FromHtml("#6366f1"),
+            ColorTranslator.FromHtml("#8b5cf6"),
+            ColorTranslator.FromHtml("#10b981"),
+            ColorTranslator.FromHtml("#f59e0b"),
+            ColorTranslator.FromHtml("#ef4444"),
+            ColorTranslator.FromHtml("#3b82f6")
+        };
+
         private void InitUI()
         {
             this.Dock = DockStyle.Fill;
-            this.BackColor = Theme.ContentBg;
+            this.BackColor = Theme.PageBg;
 
             // --- pnlTitle (Dock=Top) ---
             var pnlTitle = new Panel();
             pnlTitle.Dock = DockStyle.Top;
             pnlTitle.Height = 56;
-            pnlTitle.BackColor = Theme.ContentBg;
+            pnlTitle.BackColor = Theme.PageBg;
 
             var lblTitle = new Label();
             lblTitle.Text = "Relatórios";
             lblTitle.Font = Theme.FontTitle;
-            lblTitle.ForeColor = Color.FromArgb(0x0c, 0x4a, 0x6e);
+            lblTitle.ForeColor = Theme.TextPrimary;
             lblTitle.AutoSize = true;
             lblTitle.Location = new Point(18, 14);
             pnlTitle.Controls.Add(lblTitle);
@@ -376,15 +410,15 @@ WHERE r.cliente_id=@c ORDER BY r.data_reserva DESC";
             };
 
             // ── Pie chart: métodos de pagamento por cliente (Dock=Bottom, Height=160)
-            _chartMetodosPag = new Chart { Dock = DockStyle.Bottom, Height = 160, Visible = false, BackColor = Color.White };
-            var areaMet = new ChartArea("main") { BackColor = Color.White };
+            _chartMetodosPag = new Chart { Dock = DockStyle.Bottom, Height = 160, Visible = false, BackColor = Theme.CardBg };
+            var areaMet = new ChartArea("main") { BackColor = Color.Transparent };
             _chartMetodosPag.ChartAreas.Add(areaMet);
             var serMet = new Series("met") { ChartType = SeriesChartType.Pie };
             _chartMetodosPag.Series.Add(serMet);
             var legendMet = new Legend("leg") { Docking = Docking.Right, Font = new Font("Segoe UI", 8f), BackColor = Color.Transparent };
             _chartMetodosPag.Legends.Add(legendMet);
             serMet.Legend = "leg";
-            _chartMetodosPag.Palette = ChartColorPalette.Bright;
+            StyleChart(_chartMetodosPag);
 
             tab.Controls.Add(dgvHistPag);         // Fill
             tab.Controls.Add(_chartMetodosPag);   // Bottom
@@ -419,7 +453,8 @@ FROM pagamento p WHERE p.cliente_id=@c ORDER BY p.data_pagamento DESC";
                         }
                     }
 
-                    _chartMetodosPag.Series["met"].Points.Clear();
+                    var serMet = _chartMetodosPag.Series["met"];
+                    serMet.Points.Clear();
                     string sqlPie = "SELECT metodo_pagamento, COUNT(*) FROM pagamento WHERE cliente_id=@c GROUP BY metodo_pagamento";
                     using (var cmdPie = new SqlCommand(sqlPie, conn))
                     {
@@ -427,10 +462,12 @@ FROM pagamento p WHERE p.cliente_id=@c ORDER BY p.data_pagamento DESC";
                         using (var rdr = cmdPie.ExecuteReader())
                         {
                             while (rdr.Read())
-                                _chartMetodosPag.Series["met"].Points.AddXY(rdr.GetString(0), rdr.GetInt32(1));
+                                serMet.Points.AddXY(rdr.GetString(0), rdr.GetInt32(1));
                         }
                     }
-                    _chartMetodosPag.Visible = _chartMetodosPag.Series["met"].Points.Count > 0;
+                    for (int i = 0; i < serMet.Points.Count; i++)
+                        serMet.Points[i].Color = ChartPalette[i % ChartPalette.Length];
+                    _chartMetodosPag.Visible = serMet.Points.Count > 0;
                 }
             }
             catch (SqlException ex)
@@ -558,7 +595,7 @@ FROM pagamento p WHERE p.cliente_id=@c ORDER BY p.data_pagamento DESC";
 
             lblTotalReceita = new Label();
             lblTotalReceita.AutoSize = true;
-            lblTotalReceita.ForeColor = Color.FromArgb(0x0c, 0x4a, 0x6e);
+            lblTotalReceita.ForeColor = Theme.TextPrimary;
             lblTotalReceita.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
             lblTotalReceita.Margin = new Padding(8, 7, 0, 0);
 
@@ -590,16 +627,17 @@ FROM pagamento p WHERE p.cliente_id=@c ORDER BY p.data_pagamento DESC";
             };
 
             // ── Receita mensal chart (Dock=Top, Height=160) ──────────────
-            _chartReceita = new Chart { Dock = DockStyle.Top, Height = 160, BackColor = Color.White };
+            _chartReceita = new Chart { Dock = DockStyle.Top, Height = 160, BackColor = Theme.CardBg };
             var areaRec = new ChartArea("main");
             areaRec.AxisX.MajorGrid.Enabled   = false;
             areaRec.AxisY.LabelStyle.Format   = "€ #,##0";
-            areaRec.AxisY.MajorGrid.LineColor = ColorTranslator.FromHtml("#e2e8f0");
-            areaRec.BackColor = Color.White;
+            areaRec.AxisY.MajorGrid.LineColor = Theme.CardBorder;
+            areaRec.BackColor = Color.Transparent;
             _chartReceita.ChartAreas.Add(areaRec);
-            var serRec = new Series("rec") { ChartType = SeriesChartType.Column, Color = ColorTranslator.FromHtml("#10b981"), BorderWidth = 0 };
+            var serRec = new Series("rec") { ChartType = SeriesChartType.Column, Color = Theme.Accent, BorderWidth = 0 };
             _chartReceita.Series.Add(serRec);
-            _chartReceita.Titles.Add(new Title("Receita Mensal") { Font = new Font("Segoe UI", 8.5f, FontStyle.Bold), ForeColor = ColorTranslator.FromHtml("#0c4a6e"), Docking = Docking.Top });
+            _chartReceita.Titles.Add(new Title("Receita Mensal") { Font = new Font("Segoe UI", 8.5f, FontStyle.Bold), ForeColor = Theme.TextPrimary, Docking = Docking.Top });
+            StyleChart(_chartReceita);
 
             pnl.Controls.Add(dgvReceita);      // Fill
             pnl.Controls.Add(lblRecHeader);    // Top
