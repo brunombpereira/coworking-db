@@ -1,5 +1,4 @@
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Windows.Forms;
 
@@ -76,14 +75,14 @@ namespace CoworkingApp
         // ── Tipografia ───────────────────────────────────────────────────────
         private const string FontFamily = "Segoe UI";
 
-        public static Font FontTitle   = new Font(FontFamily, 18f, FontStyle.Bold);
-        public static Font FontHero    = new Font(FontFamily, 28f, FontStyle.Bold);
-        public static Font FontSection = new Font(FontFamily, 12f, FontStyle.Bold);
-        public static Font FontBase    = new Font(FontFamily, 11f);
-        public static Font FontBold    = new Font(FontFamily, 11f, FontStyle.Bold);
-        public static Font FontLabel   = new Font(FontFamily, 9f);
-        public static Font FontMicro   = new Font(FontFamily, 8f, FontStyle.Bold);
-        public static Font FontSub     = new Font(FontFamily, 9f);
+        public static readonly Font FontTitle   = new Font(FontFamily, 18f, FontStyle.Bold);
+        public static readonly Font FontHero    = new Font(FontFamily, 28f, FontStyle.Bold);
+        public static readonly Font FontSection = new Font(FontFamily, 12f, FontStyle.Bold);
+        public static readonly Font FontBase    = new Font(FontFamily, 11f);
+        public static readonly Font FontBold    = new Font(FontFamily, 11f, FontStyle.Bold);
+        public static readonly Font FontLabel   = new Font(FontFamily, 9f);
+        public static readonly Font FontMicro   = new Font(FontFamily, 8f, FontStyle.Bold);
+        public static readonly Font FontSub     = new Font(FontFamily, 9f);
 
         // ── Helpers ──────────────────────────────────────────────────────────
         public static string FormatEuro(decimal value)
