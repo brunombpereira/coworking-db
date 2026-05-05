@@ -295,12 +295,15 @@ namespace CoworkingApp.Controls
                     string sqlReservas = @"
 SELECT r.reserva_id,
   ISNULL(s.nome, p.codigo) + ' — ' + CONVERT(varchar,r.data_reserva,103) + ' ' +
-  CONVERT(varchar,r.hora_inicio,108) + '-' + CONVERT(varchar,r.hora_fim,108) AS descricao,
+  CASE WHEN r.hora_inicio IS NULL
+       THEN 'Day pass'
+       ELSE CONVERT(varchar,r.hora_inicio,108) + '-' + CONVERT(varchar,r.hora_fim,108)
+  END AS descricao,
   r.valor
 FROM reserva r
 JOIN recurso rc ON r.recurso_id = rc.recurso_id
 LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
-LEFT JOIN posto_trabalho p ON rc.recurso_id = p.recurso_id
+LEFT JOIN posto p ON rc.recurso_id = p.recurso_id
 WHERE r.cliente_id=@c AND r.estado IN ('Pendente','Confirmada')
 AND NOT EXISTS (SELECT 1 FROM pagamento pg WHERE pg.reserva_id=r.reserva_id AND pg.estado='Pago')";
 
@@ -321,7 +324,7 @@ AND NOT EXISTS (SELECT 1 FROM pagamento pg WHERE pg.reserva_id=r.reserva_id AND 
 
                     // Adesões pendentes sem pagamento
                     string sqlAdesoes = @"
-SELECT a.adesao_id, p.nome_plano, p.preco_mensal
+SELECT a.adesao_id, p.nome_plano, a.preco_acordado AS preco_mensal
 FROM adesao a JOIN plano p ON a.plano_id=p.plano_id
 WHERE a.cliente_id=@c AND a.estado='Pendente'
 AND NOT EXISTS (SELECT 1 FROM pagamento pg WHERE pg.adesao_id=a.adesao_id AND pg.estado='Pago')";
