@@ -17,6 +17,8 @@ namespace CoworkingApp.Controls
 
         // ── Form fields ──────────────────────────────────────────────────────
         private ComboBox cmbCliente, cmbPlano, cmbEstado;
+        private ComboBox cmbAdesaoPosto;
+        private Label lblAdesaoPosto;
         private DateTimePicker dtpDataInicio;
         private Label lblDataFimInfo;
 
@@ -94,15 +96,15 @@ namespace CoworkingApp.Controls
             dgv.SelectionChanged += Dgv_SelectionChanged;
             dgv.CellFormatting   += (s, e) => Theme.ApplyStatusColor(e, "Estado", dgv);
 
-            // ── Form panel (Dock=Bottom, height=160) ─────────────────────────
-            pnlForm = Theme.FormPanel(160);
+            // ── Form panel (Dock=Bottom, height=220) ─────────────────────────
+            pnlForm = Theme.FormPanel(220);
 
-            // TableLayoutPanel: 2 rows x 3 columns
+            // TableLayoutPanel: 4 rows x 3 columns
             var tbl = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 3,
-                RowCount = 3,       // row0: fields, row1: info+calc, row2: buttons
+                RowCount = 4,       // row0: fields, row1: estado+info, row2: posto, row3: buttons
                 BackColor = Color.White
             };
             tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
@@ -110,7 +112,8 @@ namespace CoworkingApp.Controls
             tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 58f));   // row 0: combos
             tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 50f));   // row 1: estado + info
-            tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));   // row 2: buttons
+            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 58f));   // row 2: posto (conditional)
+            tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));   // row 3: buttons
 
             // ── Row 0: Cliente | Plano | Data Início ────────────────────────
             cmbCliente    = Theme.Combo();
@@ -144,7 +147,17 @@ namespace CoworkingApp.Controls
             tbl.Controls.Add(pnlDataFim, 1, 1);
             tbl.SetColumnSpan(pnlDataFim, 2);
 
-            // ── Row 2: Guardar / Cancelar ────────────────────────────────────
+            // ── Row 2: Posto atribuído (conditional) ────────────────────────
+            cmbAdesaoPosto = Theme.Combo();
+            cmbAdesaoPosto.DropDownStyle = ComboBoxStyle.DropDownList;
+            lblAdesaoPosto = Theme.FieldLabel("Posto atribuído *");
+            lblAdesaoPosto.Visible    = false;
+            cmbAdesaoPosto.Visible    = false;
+            var pnlPosto = MakeFieldCell(lblAdesaoPosto, cmbAdesaoPosto);
+            tbl.Controls.Add(pnlPosto, 0, 2);
+            tbl.SetColumnSpan(pnlPosto, 3);
+
+            // ── Row 3: Guardar / Cancelar ────────────────────────────────────
             var flpForm = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -160,7 +173,7 @@ namespace CoworkingApp.Controls
             flpForm.Controls.Add(btnSave);
             flpForm.Controls.Add(btnCancel);
             tbl.SetColumnSpan(flpForm, 3);
-            tbl.Controls.Add(flpForm, 0, 2);
+            tbl.Controls.Add(flpForm, 0, 3);
 
             pnlForm.Controls.Add(tbl);
 
@@ -259,6 +272,7 @@ namespace CoworkingApp.Controls
 
             // Wire up live data-fim preview after datasource is set
             cmbPlano.SelectedIndexChanged      += (s, e) => UpdateDataFimLabel();
+            cmbPlano.SelectedIndexChanged      += CmbPlano_SelectedIndexChanged;
             dtpDataInicio.ValueChanged         += (s, e) => UpdateDataFimLabel();
 
             // Populate filter client combo
@@ -305,12 +319,18 @@ namespace CoworkingApp.Controls
                     SELECT a.adesao_id AS ID,
                            c.nome AS Cliente,
                            p.nome_plano AS Plano,
+                           p.tipo_plano AS Tipo,
+                           CASE WHEN po.recurso_id IS NULL THEN ''
+                                ELSE esp.nome + ' / ' + po.codigo END AS Posto,
                            CONVERT(varchar,a.data_inicio,103) AS [Início],
                            CONVERT(varchar,a.data_fim,103) AS [Fim],
+                           a.preco_acordado AS [Preço Acordado],
                            a.estado AS Estado
                     FROM adesao a
                     JOIN cliente c ON a.cliente_id = c.cliente_id
                     JOIN plano   p ON a.plano_id   = p.plano_id
+                    LEFT JOIN posto po  ON a.recurso_id = po.recurso_id
+                    LEFT JOIN espaco esp ON po.espaco_id = esp.espaco_id
                     {where}
                     ORDER BY a.data_inicio DESC";
 
@@ -330,6 +350,8 @@ namespace CoworkingApp.Controls
 
                 if (dgv.Columns.Contains("ID"))
                     dgv.Columns["ID"].Visible = false;
+                if (dgv.Columns.Contains("Tipo"))
+                    dgv.Columns["Tipo"].Visible = false;
 
                 UpdateButtonState();
             }
@@ -368,6 +390,64 @@ namespace CoworkingApp.Controls
             catch
             {
                 // Silent — live preview only
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // Plano-type driven posto visibility
+        // ────────────────────────────────────────────────────────────────────
+
+        private void CmbPlano_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (cmbPlano.SelectedValue == null) return;
+            int planoId = Convert.ToInt32(cmbPlano.SelectedValue);
+            string tipoPlano = ObterTipoPlano(planoId);
+            bool precisaPosto = tipoPlano == "Fixo" || tipoPlano == "Privado";
+            lblAdesaoPosto.Visible  = precisaPosto;
+            cmbAdesaoPosto.Visible  = precisaPosto;
+            if (precisaPosto) CarregarPostosDisponiveis(tipoPlano);
+            else cmbAdesaoPosto.DataSource = null;
+        }
+
+        private string ObterTipoPlano(int planoId)
+        {
+            try
+            {
+                using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand("SELECT tipo_plano FROM plano WHERE plano_id=@id", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", planoId);
+                    var o = cmd.ExecuteScalar();
+                    return o?.ToString() ?? "Flex";
+                }
+            }
+            catch { return "Flex"; }
+        }
+
+        private void CarregarPostosDisponiveis(string tipoPosto)
+        {
+            try
+            {
+                using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand(
+                    @"SELECT p.recurso_id, e.nome + ' / ' + p.codigo AS label
+                      FROM posto p
+                      JOIN espaco e ON p.espaco_id = e.espaco_id
+                      WHERE p.tipo_posto = @t AND p.estado = 'Disponivel'
+                      ORDER BY e.nome, p.codigo", conn))
+                using (var adapter = new SqlDataAdapter(cmd))
+                {
+                    cmd.Parameters.AddWithValue("@t", tipoPosto);
+                    var dt = new DataTable();
+                    adapter.Fill(dt);
+                    cmbAdesaoPosto.DisplayMember = "label";
+                    cmbAdesaoPosto.ValueMember   = "recurso_id";
+                    cmbAdesaoPosto.DataSource    = dt;
+                }
+            }
+            catch (SqlException ex)
+            {
+                System.Diagnostics.Debug.WriteLine("CarregarPostosDisponiveis: " + ex.Message);
             }
         }
 
@@ -411,6 +491,20 @@ namespace CoworkingApp.Controls
             int idx = cmbEstado.Items.IndexOf(estado);
             if (idx >= 0)
                 cmbEstado.SelectedIndex = idx;
+
+            // Load posto combo if applicable and select current recurso_id
+            CmbPlano_SelectedIndexChanged(null, null);
+            if (row.Cells["Posto"].Value != null && !string.IsNullOrWhiteSpace(row.Cells["Posto"].Value.ToString()))
+            {
+                using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand("SELECT recurso_id FROM adesao WHERE adesao_id=@id", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", _editId);
+                    var v = cmd.ExecuteScalar();
+                    if (v != null && v != DBNull.Value)
+                        cmbAdesaoPosto.SelectedValue = Convert.ToInt32(v);
+                }
+            }
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -450,10 +544,10 @@ namespace CoworkingApp.Controls
             int idx = cmbEstado.Items.IndexOf(estado);
             if (idx >= 0) cmbEstado.SelectedIndex = idx;
 
-            // Disable Cliente, Plano, DataInício — only Estado is editable
-            cmbCliente.Enabled    = false;
-            cmbPlano.Enabled      = false;
-            dtpDataInicio.Enabled = false;
+            // All fields editable
+            cmbCliente.Enabled    = true;
+            cmbPlano.Enabled      = true;
+            dtpDataInicio.Enabled = true;
 
             SetEditMode(true);
             cmbEstado.Focus();
@@ -501,18 +595,42 @@ namespace CoworkingApp.Controls
                 return;
             }
 
-            if (_editId == -1 && cmbCliente.SelectedValue == null)
+            if (cmbCliente.SelectedValue == null)
             {
                 MessageBox.Show("Selecione um cliente.", "Validação",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            if (_editId == -1 && cmbPlano.SelectedValue == null)
+            if (cmbPlano.SelectedValue == null)
             {
                 MessageBox.Show("Selecione um plano.", "Validação",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
+            }
+
+            // Resolve recurso_id and preco_acordado
+            int planoId = Convert.ToInt32(cmbPlano.SelectedValue);
+            string tipoPlano = ObterTipoPlano(planoId);
+
+            object recursoVal = DBNull.Value;
+            if (tipoPlano == "Fixo" || tipoPlano == "Privado")
+            {
+                if (cmbAdesaoPosto.SelectedValue == null)
+                {
+                    MessageBox.Show("Posto é obrigatório para planos Fixo/Privado.", "Validação",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                recursoVal = Convert.ToInt32(cmbAdesaoPosto.SelectedValue);
+            }
+
+            decimal precoAcordado;
+            using (var conn0 = Database.GetConnection())
+            using (var cmd0 = new SqlCommand("SELECT preco_mensal FROM plano WHERE plano_id=@id", conn0))
+            {
+                cmd0.Parameters.AddWithValue("@id", planoId);
+                precoAcordado = Convert.ToDecimal(cmd0.ExecuteScalar());
             }
 
             try
@@ -523,28 +641,37 @@ namespace CoworkingApp.Controls
                     {
                         // INSERT
                         const string sql =
-                            "INSERT INTO adesao (cliente_id, plano_id, data_inicio, estado) " +
-                            "VALUES (@c, @p, @d, @e)";
+                            "INSERT INTO adesao (cliente_id, plano_id, recurso_id, data_inicio, preco_acordado, estado) " +
+                            "VALUES (@cli, @pl, @rec, @di, @pa, @est)";
 
                         using (var cmd = new SqlCommand(sql, conn))
                         {
-                            cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbCliente.SelectedValue));
-                            cmd.Parameters.AddWithValue("@p", Convert.ToInt32(cmbPlano.SelectedValue));
-                            cmd.Parameters.AddWithValue("@d", dtpDataInicio.Value.Date);
-                            cmd.Parameters.AddWithValue("@e", cmbEstado.Text);
+                            cmd.Parameters.AddWithValue("@cli", Convert.ToInt32(cmbCliente.SelectedValue));
+                            cmd.Parameters.AddWithValue("@pl",  planoId);
+                            cmd.Parameters.AddWithValue("@rec", recursoVal);
+                            cmd.Parameters.AddWithValue("@di",  dtpDataInicio.Value.Date);
+                            cmd.Parameters.AddWithValue("@pa",  precoAcordado);
+                            cmd.Parameters.AddWithValue("@est", cmbEstado.Text);
                             cmd.ExecuteNonQuery();
                         }
                     }
                     else
                     {
-                        // UPDATE — only estado can change
+                        // UPDATE
                         const string sql =
-                            "UPDATE adesao SET estado=@e WHERE adesao_id=@id";
+                            "UPDATE adesao SET cliente_id=@cli, plano_id=@pl, recurso_id=@rec, " +
+                            "data_inicio=@di, preco_acordado=@pa, estado=@est " +
+                            "WHERE adesao_id=@id";
 
                         using (var cmd = new SqlCommand(sql, conn))
                         {
-                            cmd.Parameters.AddWithValue("@e",  cmbEstado.Text);
-                            cmd.Parameters.AddWithValue("@id", _editId);
+                            cmd.Parameters.AddWithValue("@cli", Convert.ToInt32(cmbCliente.SelectedValue));
+                            cmd.Parameters.AddWithValue("@pl",  planoId);
+                            cmd.Parameters.AddWithValue("@rec", recursoVal);
+                            cmd.Parameters.AddWithValue("@di",  dtpDataInicio.Value.Date);
+                            cmd.Parameters.AddWithValue("@pa",  precoAcordado);
+                            cmd.Parameters.AddWithValue("@est", cmbEstado.Text);
+                            cmd.Parameters.AddWithValue("@id",  _editId);
                             cmd.ExecuteNonQuery();
                         }
                     }
