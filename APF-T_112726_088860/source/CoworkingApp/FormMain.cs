@@ -12,7 +12,7 @@ namespace CoworkingApp
         private Panel pnlContent;
         private Button _activeBtn;
         private readonly List<Button> _navBtns = new List<Button>();
-        private ToolStripStatusLabel _lblModule;
+        private Label _lblModule;
         private System.Windows.Forms.Timer _clockTimer;
 
         public FormMain()
@@ -30,27 +30,43 @@ namespace CoworkingApp
             this.Font = Theme.FontBase;
             this.BackColor = Theme.ContentBg;
 
-            // StatusStrip (Dock=Bottom — must be added to Controls last / after content)
-            var statusStrip = new StatusStrip
+            // Status bar custom
+            var pnlStatus = new Panel
             {
-                BackColor = Color.White,
-                SizingGrip = false
+                Dock = DockStyle.Bottom,
+                Height = 32,
+                BackColor = Theme.CardBg,
+                Padding = new Padding(14, 0, 14, 0)
             };
-            _lblModule = new ToolStripStatusLabel
+            var pnlStatusBorder = new Panel
             {
-                Text      = "Dashboard",
-                Spring    = true,
-                TextAlign = ContentAlignment.MiddleLeft,
-                ForeColor = ColorTranslator.FromHtml("#475569")
+                Dock = DockStyle.Top,
+                Height = 1,
+                BackColor = Theme.CardBorder
             };
-            var lblClock = new ToolStripStatusLabel
+            pnlStatus.Controls.Add(pnlStatusBorder);
+
+            _lblModule = new Label
             {
-                ForeColor = ColorTranslator.FromHtml("#475569"),
+                Text = "Dashboard",
+                ForeColor = Theme.TextSecondary,
+                Font = Theme.FontBase,
+                Dock = DockStyle.Left,
+                AutoSize = false,
+                Width = 200,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+            var lblClock = new Label
+            {
+                ForeColor = Theme.TextSecondary,
+                Font = Theme.FontBase,
+                Dock = DockStyle.Right,
+                AutoSize = false,
+                Width = 200,
                 TextAlign = ContentAlignment.MiddleRight
             };
-            statusStrip.Items.Add(_lblModule);
-            statusStrip.Items.Add(new ToolStripStatusLabel { Spring = true });
-            statusStrip.Items.Add(lblClock);
+            pnlStatus.Controls.Add(_lblModule);
+            pnlStatus.Controls.Add(lblClock);
 
             _clockTimer = new System.Windows.Forms.Timer { Interval = 1000 };
             _clockTimer.Tick += (s, e) => lblClock.Text = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
@@ -74,7 +90,7 @@ namespace CoworkingApp
             // Fill must be added before Left so docking works; Bottom last
             this.Controls.Add(pnlContent);
             this.Controls.Add(pnlSidebar);
-            this.Controls.Add(statusStrip);
+            this.Controls.Add(pnlStatus);
         }
 
         private void BuildSidebar(Panel sidebar)

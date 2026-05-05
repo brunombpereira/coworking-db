@@ -16,6 +16,7 @@ namespace CoworkingApp
             AppDomain.CurrentDomain.UnhandledException += (s, e) =>
                 MessageBox.Show(e.ExceptionObject?.ToString() ?? "Erro desconhecido.", "Erro fatal",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
+            ThemeManager.Load();
             Application.Run(new FormMain());
         }
     }
