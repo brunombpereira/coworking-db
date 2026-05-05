@@ -176,6 +176,12 @@ namespace CoworkingApp.Controls
 
         private void BtnPesquisarDisp_Click(object sender, EventArgs e)
         {
+            if (dtpDispHI.Value.TimeOfDay >= dtpDispHF.Value.TimeOfDay)
+            {
+                MessageBox.Show("Hora fim deve ser posterior à hora início.", "Validação",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             string hi = dtpDispHI.Value.TimeOfDay.ToString(@"hh\:mm");
             string hf = dtpDispHF.Value.TimeOfDay.ToString(@"hh\:mm");
             DateTime data = dtpDisp.Value.Date;
@@ -184,12 +190,12 @@ namespace CoworkingApp.Controls
             if (rbSala.Checked)
             {
                 sql = @"
-SELECT s.sala_id AS ID, e.nome AS Espaço, s.nome AS Sala,
+SELECT s.recurso_id AS ID, e.nome AS Espaço, s.nome AS Sala,
   s.capacidade AS Capacidade, s.preco_hora AS [€/Hora]
 FROM sala s JOIN espaco e ON s.espaco_id=e.espaco_id
 WHERE s.estado='Disponivel'
 AND NOT EXISTS (
-  SELECT 1 FROM reserva r WHERE r.sala_id=s.sala_id
+  SELECT 1 FROM reserva r WHERE r.recurso_id=s.recurso_id
   AND r.data_reserva=@d AND r.estado<>'Cancelada'
   AND r.hora_inicio < @hf AND r.hora_fim > @hi)
 ORDER BY e.nome, s.nome";
@@ -197,12 +203,12 @@ ORDER BY e.nome, s.nome";
             else
             {
                 sql = @"
-SELECT p.posto_id AS ID, e.nome AS Espaço, p.codigo AS Código,
-  p.tipo AS Tipo, p.preco_hora AS [€/Hora]
+SELECT p.recurso_id AS ID, e.nome AS Espaço, p.codigo AS Código,
+  p.tipo_posto AS Tipo, p.preco_hora AS [€/Hora]
 FROM posto_trabalho p JOIN espaco e ON p.espaco_id=e.espaco_id
 WHERE p.estado='Disponivel'
 AND NOT EXISTS (
-  SELECT 1 FROM reserva r WHERE r.posto_id=p.posto_id
+  SELECT 1 FROM reserva r WHERE r.recurso_id=p.recurso_id
   AND r.data_reserva=@d AND r.estado<>'Cancelada'
   AND r.hora_inicio < @hf AND r.hora_fim > @hi)
 ORDER BY e.nome, p.codigo";
@@ -292,13 +298,14 @@ ORDER BY e.nome, p.codigo";
 
             string sql = @"
 SELECT ISNULL(s.nome, p.codigo) AS Recurso,
-  CASE WHEN r.sala_id IS NOT NULL THEN 'Sala' ELSE 'Posto' END AS Tipo,
+  rc.tipo AS Tipo,
   CONVERT(varchar,r.data_reserva,103) AS Data,
   CONVERT(varchar,r.hora_inicio,108)+'-'+CONVERT(varchar,r.hora_fim,108) AS Horário,
   r.valor AS Valor, r.estado AS Estado
 FROM reserva r
-LEFT JOIN sala s ON r.sala_id=s.sala_id
-LEFT JOIN posto_trabalho p ON r.posto_id=p.posto_id
+JOIN recurso rc ON r.recurso_id = rc.recurso_id
+LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
+LEFT JOIN posto_trabalho p ON rc.recurso_id = p.recurso_id
 WHERE r.cliente_id=@c ORDER BY r.data_reserva DESC";
 
             try
@@ -602,19 +609,28 @@ FROM pagamento p WHERE p.cliente_id=@c ORDER BY p.data_pagamento DESC";
 
         private void BtnPesquisarOcup_Click(object sender, EventArgs e)
         {
+            if (dtpOcupIni.Value.Date > dtpOcupFim.Value.Date)
+            {
+                MessageBox.Show("A data inicial não pode ser posterior à data final.", "Validação",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             string sql = @"
 SELECT e.nome AS Espaço,
-  COUNT(DISTINCT s.sala_id) AS Salas,
-  COUNT(DISTINCT p.posto_id) AS Postos,
-  SUM(CASE WHEN r.sala_id IS NOT NULL AND r.estado<>'Cancelada'
-           AND r.data_reserva BETWEEN @ini AND @fim THEN 1 ELSE 0 END) AS [Reservas Sala],
-  SUM(CASE WHEN r.posto_id IS NOT NULL AND r.estado<>'Cancelada'
-           AND r.data_reserva BETWEEN @ini AND @fim THEN 1 ELSE 0 END) AS [Reservas Posto]
+  (SELECT COUNT(*) FROM sala         WHERE espaco_id = e.espaco_id) AS Salas,
+  (SELECT COUNT(*) FROM posto_trabalho WHERE espaco_id = e.espaco_id) AS Postos,
+  (SELECT COUNT(*) FROM reserva r
+     JOIN sala s ON r.recurso_id = s.recurso_id
+     WHERE s.espaco_id = e.espaco_id
+       AND r.estado <> 'Cancelada'
+       AND r.data_reserva BETWEEN @ini AND @fim) AS [Reservas Sala],
+  (SELECT COUNT(*) FROM reserva r
+     JOIN posto_trabalho p ON r.recurso_id = p.recurso_id
+     WHERE p.espaco_id = e.espaco_id
+       AND r.estado <> 'Cancelada'
+       AND r.data_reserva BETWEEN @ini AND @fim) AS [Reservas Posto]
 FROM espaco e
-LEFT JOIN sala s ON e.espaco_id=s.espaco_id
-LEFT JOIN posto_trabalho p ON e.espaco_id=p.espaco_id
-LEFT JOIN reserva r ON (r.sala_id=s.sala_id OR r.posto_id=p.posto_id)
-GROUP BY e.espaco_id, e.nome ORDER BY e.nome";
+ORDER BY e.nome";
 
             try
             {
@@ -639,6 +655,12 @@ GROUP BY e.espaco_id, e.nome ORDER BY e.nome";
 
         private void BtnPesquisarRec_Click(object sender, EventArgs e)
         {
+            if (dtpRecIni.Value.Date > dtpRecFim.Value.Date)
+            {
+                MessageBox.Show("A data inicial não pode ser posterior à data final.", "Validação",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             string sqlReceita = @"
 SELECT metodo_pagamento AS Método, COUNT(*) AS [Nº Pagamentos], SUM(valor) AS Total
 FROM pagamento

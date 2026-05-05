@@ -319,6 +319,19 @@ namespace CoworkingApp.Controls
                 return;
             }
 
+            if (!TimeSpan.TryParse(txtEspAbertura.Text.Trim(), out TimeSpan abertura))
+            {
+                MessageBox.Show("Hora de abertura inválida. Use o formato HH:MM.", "Validação",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (!TimeSpan.TryParse(txtEspFecho.Text.Trim(), out TimeSpan fecho))
+            {
+                MessageBox.Show("Hora de fecho inválida. Use o formato HH:MM.", "Validação",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             object telefoneVal = string.IsNullOrWhiteSpace(txtEspTelefone.Text)
                 ? (object)DBNull.Value : txtEspTelefone.Text.Trim();
             object emailVal = string.IsNullOrWhiteSpace(txtEspEmail.Text)
@@ -347,8 +360,8 @@ namespace CoworkingApp.Controls
                     cmd.Parameters.AddWithValue("@m",  txtEspMorada.Text.Trim());
                     cmd.Parameters.AddWithValue("@t",  telefoneVal);
                     cmd.Parameters.AddWithValue("@e",  emailVal);
-                    cmd.Parameters.AddWithValue("@ha", txtEspAbertura.Text.Trim());
-                    cmd.Parameters.AddWithValue("@hf", txtEspFecho.Text.Trim());
+                    cmd.Parameters.AddWithValue("@ha", abertura);
+                    cmd.Parameters.AddWithValue("@hf", fecho);
 
                     cmd.ExecuteNonQuery();
                     cmd.Dispose();
@@ -508,7 +521,7 @@ namespace CoworkingApp.Controls
             {
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(
-                    @"SELECT s.sala_id AS ID, e.nome AS Espaço, s.nome AS Nome,
+                    @"SELECT s.recurso_id AS ID, e.nome AS Espaço, s.nome AS Nome,
                              s.capacidade AS Capacidade,
                              s.preco_hora AS [Preço/Hora],
                              s.estado AS Estado
@@ -594,10 +607,23 @@ namespace CoworkingApp.Controls
             try
             {
                 using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand("DELETE FROM sala WHERE sala_id=@id", conn))
                 {
-                    cmd.Parameters.AddWithValue("@id", _editIdSala);
-                    cmd.ExecuteNonQuery();
+                    using (var chk = new SqlCommand(
+                        "SELECT COUNT(*) FROM reserva WHERE recurso_id=@id AND estado NOT IN ('Cancelada','Concluida')", conn))
+                    {
+                        chk.Parameters.AddWithValue("@id", _editIdSala);
+                        if ((int)chk.ExecuteScalar() > 0)
+                        {
+                            MessageBox.Show("Não é possível eliminar — a sala tem reservas ativas.", "Aviso",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                    }
+                    using (var cmd = new SqlCommand("DELETE FROM recurso WHERE recurso_id=@id", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@id", _editIdSala);
+                        cmd.ExecuteNonQuery();
+                    }
                 }
                 _editIdSala = -1;
                 LoadSalasData();
@@ -655,16 +681,21 @@ namespace CoworkingApp.Controls
                     if (_editIdSala < 0)
                     {
                         var espacoId = Convert.ToInt32(cmbSalasEspaco.SelectedValue);
+                        int newRecursoId;
+                        using (var ins = new SqlCommand(
+                            "INSERT INTO recurso (tipo) VALUES ('Sala'); SELECT SCOPE_IDENTITY()", conn))
+                            newRecursoId = Convert.ToInt32(ins.ExecuteScalar());
                         cmd = new SqlCommand(
-                            "INSERT INTO sala (nome,capacidade,preco_hora,estado,espaco_id) " +
-                            "VALUES (@n,@c,@p,@e,@eid)", conn);
+                            "INSERT INTO sala (recurso_id,nome,capacidade,preco_hora,estado,espaco_id) " +
+                            "VALUES (@rid,@n,@c,@p,@e,@eid)", conn);
+                        cmd.Parameters.AddWithValue("@rid", newRecursoId);
                         cmd.Parameters.AddWithValue("@eid", espacoId);
                     }
                     else
                     {
                         cmd = new SqlCommand(
                             "UPDATE sala SET nome=@n,capacidade=@c,preco_hora=@p,estado=@e " +
-                            "WHERE sala_id=@id", conn);
+                            "WHERE recurso_id=@id", conn);
                         cmd.Parameters.AddWithValue("@id", _editIdSala);
                     }
 
@@ -832,8 +863,8 @@ namespace CoworkingApp.Controls
             {
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(
-                    @"SELECT p.posto_id AS ID, e.nome AS Espaço, p.codigo AS Código,
-                             p.tipo AS Tipo, p.preco_hora AS [Preço/Hora], p.estado AS Estado
+                    @"SELECT p.recurso_id AS ID, e.nome AS Espaço, p.codigo AS Código,
+                             p.tipo_posto AS Tipo, p.preco_hora AS [Preço/Hora], p.estado AS Estado
                       FROM posto_trabalho p
                       JOIN espaco e ON p.espaco_id=e.espaco_id
                       ORDER BY e.nome, p.codigo", conn))
@@ -919,10 +950,23 @@ namespace CoworkingApp.Controls
             try
             {
                 using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand("DELETE FROM posto_trabalho WHERE posto_id=@id", conn))
                 {
-                    cmd.Parameters.AddWithValue("@id", _editIdPosto);
-                    cmd.ExecuteNonQuery();
+                    using (var chk = new SqlCommand(
+                        "SELECT COUNT(*) FROM reserva WHERE recurso_id=@id AND estado NOT IN ('Cancelada','Concluida')", conn))
+                    {
+                        chk.Parameters.AddWithValue("@id", _editIdPosto);
+                        if ((int)chk.ExecuteScalar() > 0)
+                        {
+                            MessageBox.Show("Não é possível eliminar — o posto tem reservas ativas.", "Aviso",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                    }
+                    using (var cmd = new SqlCommand("DELETE FROM recurso WHERE recurso_id=@id", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@id", _editIdPosto);
+                        cmd.ExecuteNonQuery();
+                    }
                 }
                 _editIdPosto = -1;
                 LoadPostosData();
@@ -981,16 +1025,21 @@ namespace CoworkingApp.Controls
                     if (_editIdPosto < 0)
                     {
                         var espacoId = Convert.ToInt32(cmbPostosEspaco.SelectedValue);
+                        int newRecursoId;
+                        using (var ins = new SqlCommand(
+                            "INSERT INTO recurso (tipo) VALUES ('Posto'); SELECT SCOPE_IDENTITY()", conn))
+                            newRecursoId = Convert.ToInt32(ins.ExecuteScalar());
                         cmd = new SqlCommand(
-                            "INSERT INTO posto_trabalho (codigo,tipo,preco_hora,estado,espaco_id) " +
-                            "VALUES (@c,@t,@p,@e,@eid)", conn);
+                            "INSERT INTO posto_trabalho (recurso_id,codigo,tipo_posto,preco_hora,estado,espaco_id) " +
+                            "VALUES (@rid,@c,@t,@p,@e,@eid)", conn);
+                        cmd.Parameters.AddWithValue("@rid", newRecursoId);
                         cmd.Parameters.AddWithValue("@eid", espacoId);
                     }
                     else
                     {
                         cmd = new SqlCommand(
-                            "UPDATE posto_trabalho SET codigo=@c,tipo=@t,preco_hora=@p,estado=@e " +
-                            "WHERE posto_id=@id", conn);
+                            "UPDATE posto_trabalho SET codigo=@c,tipo_posto=@t,preco_hora=@p,estado=@e " +
+                            "WHERE recurso_id=@id", conn);
                         cmd.Parameters.AddWithValue("@id", _editIdPosto);
                     }
 

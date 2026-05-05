@@ -274,7 +274,7 @@ namespace CoworkingApp.Controls
                     cmbHistCliente.SelectedIndex = 0;
                 }
             }
-            catch { /* filter combo is optional */ }
+            catch (SqlException ex) { System.Diagnostics.Debug.WriteLine("LoadFiltroClientes: " + ex.Message); }
         }
 
         private void LoadItens()
@@ -298,8 +298,9 @@ SELECT r.reserva_id,
   CONVERT(varchar,r.hora_inicio,108) + '-' + CONVERT(varchar,r.hora_fim,108) AS descricao,
   r.valor
 FROM reserva r
-LEFT JOIN sala s ON r.sala_id=s.sala_id
-LEFT JOIN posto_trabalho p ON r.posto_id=p.posto_id
+JOIN recurso rc ON r.recurso_id = rc.recurso_id
+LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
+LEFT JOIN posto_trabalho p ON rc.recurso_id = p.recurso_id
 WHERE r.cliente_id=@c AND r.estado IN ('Pendente','Confirmada')
 AND NOT EXISTS (SELECT 1 FROM pagamento pg WHERE pg.reserva_id=r.reserva_id AND pg.estado='Pago')";
 
@@ -465,6 +466,17 @@ ORDER BY p.data_pagamento DESC";
                     }
                     else
                     {
+                        // terminate any existing active adesão before activating the new one
+                        // (trigger trg_adesao_ativa_unica blocks having two simultaneous active adesões)
+                        using (var cmd = new SqlCommand(
+                            "UPDATE adesao SET estado='Terminada' WHERE cliente_id=@c AND estado='Ativa' AND adesao_id<>@id",
+                            conn, tran))
+                        {
+                            cmd.Parameters.AddWithValue("@c", clienteId);
+                            cmd.Parameters.AddWithValue("@id", Convert.ToInt32(adesaoId));
+                            cmd.ExecuteNonQuery();
+                        }
+
                         using (var cmd = new SqlCommand("UPDATE adesao SET estado='Ativa' WHERE adesao_id=@id", conn, tran))
                         {
                             cmd.Parameters.AddWithValue("@id", Convert.ToInt32(adesaoId));

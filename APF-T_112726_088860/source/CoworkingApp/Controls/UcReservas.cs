@@ -414,7 +414,7 @@ namespace CoworkingApp.Controls
                     cmbFiltroCliente.SelectedIndex = 0;
                 }
             }
-            catch { /* filter combo is optional */ }
+            catch (SqlException ex) { System.Diagnostics.Debug.WriteLine("LoadFiltroClientes: " + ex.Message); }
         }
 
         private void LoadRecursos()
@@ -424,7 +424,7 @@ namespace CoworkingApp.Controls
             if (cmbNovaRecursoTipo.Text == "Sala")
             {
                 sql = @"
-                    SELECT s.sala_id AS id,
+                    SELECT s.recurso_id AS id,
                            e.nome + ' — ' + s.nome + ' (cap:' + CAST(s.capacidade AS varchar) + ')' AS descricao,
                            s.preco_hora
                     FROM sala s
@@ -435,8 +435,8 @@ namespace CoworkingApp.Controls
             else
             {
                 sql = @"
-                    SELECT p.posto_id AS id,
-                           e.nome + ' — ' + p.codigo + ' (' + p.tipo + ')' AS descricao,
+                    SELECT p.recurso_id AS id,
+                           e.nome + ' — ' + p.codigo + ' (' + p.tipo_posto + ')' AS descricao,
                            p.preco_hora
                     FROM posto_trabalho p
                     JOIN espaco e ON p.espaco_id = e.espaco_id
@@ -475,6 +475,13 @@ namespace CoworkingApp.Controls
 
         private void LoadData()
         {
+            if (dtpFiltroDE != null && dtpFiltroAte != null &&
+                dtpFiltroDE.Value.Date > dtpFiltroAte.Value.Date)
+            {
+                MessageBox.Show("A data 'de' não pode ser posterior à data 'até'.", "Validação",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             try
             {
                 var whereParts = new System.Collections.Generic.List<string>();
@@ -494,7 +501,7 @@ namespace CoworkingApp.Controls
                     SELECT r.reserva_id AS ID,
                            c.nome AS Cliente,
                            ISNULL(s.nome, p.codigo) AS Recurso,
-                           CASE WHEN r.sala_id IS NOT NULL THEN 'Sala' ELSE 'Posto' END AS Tipo,
+                           rc.tipo AS Tipo,
                            CONVERT(varchar,r.data_reserva,103) AS Data,
                            CONVERT(varchar,r.hora_inicio,108) AS [H.Início],
                            CONVERT(varchar,r.hora_fim,108) AS [H.Fim],
@@ -502,8 +509,9 @@ namespace CoworkingApp.Controls
                            r.estado AS Estado
                     FROM reserva r
                     JOIN cliente c ON r.cliente_id = c.cliente_id
-                    LEFT JOIN sala s ON r.sala_id = s.sala_id
-                    LEFT JOIN posto_trabalho p ON r.posto_id = p.posto_id
+                    JOIN recurso rc ON r.recurso_id = rc.recurso_id
+                    LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
+                    LEFT JOIN posto_trabalho p ON rc.recurso_id = p.recurso_id
                     {where}
                     ORDER BY r.data_reserva DESC, r.hora_inicio";
 
@@ -617,11 +625,24 @@ namespace CoworkingApp.Controls
             try
             {
                 using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(
-                    "UPDATE reserva SET estado='Cancelada' WHERE reserva_id=@id", conn))
+                using (var tran = conn.BeginTransaction())
                 {
-                    cmd.Parameters.AddWithValue("@id", id);
-                    cmd.ExecuteNonQuery();
+                    using (var cmd = new SqlCommand(
+                        "UPDATE reserva SET estado='Cancelada' WHERE reserva_id=@id", conn, tran))
+                    {
+                        cmd.Parameters.AddWithValue("@id", id);
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    using (var cmd = new SqlCommand(
+                        "UPDATE pagamento SET estado='Reembolsado' WHERE reserva_id=@id AND estado='Pago'",
+                        conn, tran))
+                    {
+                        cmd.Parameters.AddWithValue("@id", id);
+                        cmd.ExecuteNonQuery();
+                    }
+
+                    tran.Commit();
                 }
                 LoadData();
             }
@@ -662,9 +683,12 @@ namespace CoworkingApp.Controls
 
             try
             {
-                string sql = cmbNovaRecursoTipo.Text == "Sala"
-                    ? "SELECT preco_hora FROM sala WHERE sala_id=@id"
-                    : "SELECT preco_hora FROM posto_trabalho WHERE posto_id=@id";
+                const string sql = @"
+                    SELECT COALESCE(s.preco_hora, p.preco_hora)
+                    FROM recurso rc
+                    LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
+                    LEFT JOIN posto_trabalho p ON rc.recurso_id = p.recurso_id
+                    WHERE rc.recurso_id = @id";
 
                 int recursoId = Convert.ToInt32(cmbNovaRecurso.SelectedValue);
 
@@ -683,7 +707,7 @@ namespace CoworkingApp.Controls
 
                     decimal precoHora = Convert.ToDecimal(result);
                     double horas      = (fim - inicio).TotalHours;
-                    _valorCalculado   = (decimal)horas * precoHora;
+                    _valorCalculado   = Convert.ToDecimal(horas) * precoHora;
 
                     lblValorCalc.Text    = "Valor: " + Theme.FormatEuro(_valorCalculado);
                     btnConfirmar.Enabled = true;
@@ -721,6 +745,12 @@ namespace CoworkingApp.Controls
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+            if (dtpNovaData.Value.Date < DateTime.Today)
+            {
+                MessageBox.Show("Não é possível criar reservas para datas passadas.", "Validação",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 
             int clienteId  = Convert.ToInt32(cmbNovaCliente.SelectedValue);
             int recursoId  = Convert.ToInt32(cmbNovaRecurso.SelectedValue);
@@ -728,58 +758,32 @@ namespace CoworkingApp.Controls
             string horaIni = inicio.ToString(@"hh\:mm");
             string horaFim = fim.ToString(@"hh\:mm");
 
-            // Notas
             object notasVal = string.IsNullOrWhiteSpace(txtNotas.Text)
                 ? (object)DBNull.Value
                 : txtNotas.Text.Trim();
 
+            object npVal = DBNull.Value;
+            if (isSala && int.TryParse(txtParticipantes.Text.Trim(), out int np) && np > 0)
+                npVal = np;
+
             try
             {
                 using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand(
+                    "INSERT INTO reserva " +
+                    "(cliente_id, recurso_id, data_reserva, hora_inicio, hora_fim, estado, valor, num_participantes, notas) " +
+                    "VALUES (@c, @r, @d, @hi, @hf, 'Pendente', @v, @np, @n)",
+                    conn))
                 {
-                    SqlCommand cmd;
-
-                    if (isSala)
-                    {
-                        // Parse participantes
-                        object npVal;
-                        if (int.TryParse(txtParticipantes.Text.Trim(), out int np) && np > 0)
-                            npVal = np;
-                        else
-                            npVal = DBNull.Value;
-
-                        cmd = new SqlCommand(
-                            "INSERT INTO reserva " +
-                            "(cliente_id, sala_id, data_reserva, hora_inicio, hora_fim, estado, valor, num_participantes, notas) " +
-                            "VALUES (@c, @r, @d, @hi, @hf, 'Pendente', @v, @np, @n)",
-                            conn);
-                        cmd.Parameters.AddWithValue("@c",  clienteId);
-                        cmd.Parameters.AddWithValue("@r",  recursoId);
-                        cmd.Parameters.AddWithValue("@d",  dtpNovaData.Value.Date);
-                        cmd.Parameters.AddWithValue("@hi", horaIni);
-                        cmd.Parameters.AddWithValue("@hf", horaFim);
-                        cmd.Parameters.AddWithValue("@v",  _valorCalculado);
-                        cmd.Parameters.AddWithValue("@np", npVal);
-                        cmd.Parameters.AddWithValue("@n",  notasVal);
-                    }
-                    else
-                    {
-                        cmd = new SqlCommand(
-                            "INSERT INTO reserva " +
-                            "(cliente_id, posto_id, data_reserva, hora_inicio, hora_fim, estado, valor, notas) " +
-                            "VALUES (@c, @r, @d, @hi, @hf, 'Pendente', @v, @n)",
-                            conn);
-                        cmd.Parameters.AddWithValue("@c",  clienteId);
-                        cmd.Parameters.AddWithValue("@r",  recursoId);
-                        cmd.Parameters.AddWithValue("@d",  dtpNovaData.Value.Date);
-                        cmd.Parameters.AddWithValue("@hi", horaIni);
-                        cmd.Parameters.AddWithValue("@hf", horaFim);
-                        cmd.Parameters.AddWithValue("@v",  _valorCalculado);
-                        cmd.Parameters.AddWithValue("@n",  notasVal);
-                    }
-
+                    cmd.Parameters.AddWithValue("@c",  clienteId);
+                    cmd.Parameters.AddWithValue("@r",  recursoId);
+                    cmd.Parameters.AddWithValue("@d",  dtpNovaData.Value.Date);
+                    cmd.Parameters.AddWithValue("@hi", horaIni);
+                    cmd.Parameters.AddWithValue("@hf", horaFim);
+                    cmd.Parameters.AddWithValue("@v",  _valorCalculado);
+                    cmd.Parameters.AddWithValue("@np", npVal);
+                    cmd.Parameters.AddWithValue("@n",  notasVal);
                     cmd.ExecuteNonQuery();
-                    cmd.Dispose();
                 }
 
                 MessageBox.Show("Reserva criada com sucesso!", "Sucesso",

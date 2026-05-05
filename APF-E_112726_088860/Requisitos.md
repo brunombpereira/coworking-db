@@ -81,10 +81,10 @@ Os eventos e relações relevantes modelados no DER incluem:
 
 O Diagrama Entidade-Relacionamento apresenta as entidades principais do sistema, os respetivos atributos, os relacionamentos e as cardinalidades entre eles.
 
-![DER Diagram!](der.png "AnImage")
+![DER Diagram!](DER.png "AnImage")
 
 ## ER
 
 O Esquema Relacional resulta da transformação do DER para o modelo relacional, identificando as tabelas, as chaves primárias e as chaves estrangeiras.
 
-![ER Diagram!](er.png "AnImage")
+![ER Diagram!](EsquemaRelacional.png "AnImage")

@@ -280,11 +280,28 @@ namespace CoworkingApp.Controls
             try
             {
                 using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(
-                    "DELETE FROM cliente WHERE cliente_id=@id", conn))
                 {
-                    cmd.Parameters.AddWithValue("@id", id);
-                    cmd.ExecuteNonQuery();
+                    using (var cmd = new SqlCommand(
+                        "SELECT COUNT(*) FROM pagamento WHERE cliente_id=@id", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@id", id);
+                        int count = (int)cmd.ExecuteScalar();
+                        if (count > 0)
+                        {
+                            MessageBox.Show(
+                                $"Não é possível eliminar este cliente — tem {count} pagamento(s) registado(s).",
+                                "Operação bloqueada",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                    }
+
+                    using (var cmd = new SqlCommand(
+                        "DELETE FROM cliente WHERE cliente_id=@id", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@id", id);
+                        cmd.ExecuteNonQuery();
+                    }
                 }
                 LoadData();
             }
@@ -303,6 +320,20 @@ namespace CoworkingApp.Controls
                 string.IsNullOrWhiteSpace(txtEmail.Text))
             {
                 MessageBox.Show("Nome, NIF e Email são obrigatórios.", "Validação",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            string nif = txtNif.Text.Trim();
+            if (nif.Length != 9 || !System.Text.RegularExpressions.Regex.IsMatch(nif, @"^\d{9}$"))
+            {
+                MessageBox.Show("NIF deve ter exatamente 9 dígitos numéricos.", "Validação",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            try { new System.Net.Mail.MailAddress(txtEmail.Text.Trim()); }
+            catch
+            {
+                MessageBox.Show("Email inválido.", "Validação",
                                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }

@@ -11,24 +11,24 @@ namespace CoworkingApp
         public static SqlConnection GetConnection()
         {
             var conn = new SqlConnection(ConnectionString);
-            conn.Open();
-            return conn;
+            try   { conn.Open(); return conn; }
+            catch { conn.Dispose(); throw; }
         }
 
         public static string SqlErrorMessage(SqlException ex)
         {
-            if (ex.Number == 2627 || ex.Number == 2601)
-                return "Já existe um registo com estes dados.";
-            if (ex.Number == 547)
-                return "Não é possível eliminar — registo em uso noutro lado.";
-            if (ex.Message.Contains("sobreposta") || ex.Message.Contains("Sobreposição") ||
-                ex.Message.Contains("sobreposição") || ex.Message.Contains("horário"))
-                return ex.Message;
-            if (ex.Message.Contains("capacidade") || ex.Message.Contains("participantes"))
-                return ex.Message;
-            if (ex.Message.Contains("disponível") || ex.Message.Contains("disponivel"))
-                return ex.Message;
-            return "Erro ao comunicar com a base de dados.";
+            switch (ex.Number)
+            {
+                case 2627: case 2601:
+                    return "Já existe um registo com estes dados.";
+                case 547:
+                    return "Não é possível eliminar — registo em uso noutro lado.";
+                case 50001: case 50002: case 50003: case 50004:
+                case 50005: case 50006: case 50007: case 50008:
+                    return ex.Message;
+                default:
+                    return "Erro ao comunicar com a base de dados.";
+            }
         }
     }
 }

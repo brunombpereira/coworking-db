@@ -280,7 +280,7 @@ namespace CoworkingApp.Controls
                     cmbFiltroCliente.SelectedIndex = 0;
                 }
             }
-            catch { /* filter combo is optional */ }
+            catch (SqlException ex) { System.Diagnostics.Debug.WriteLine("LoadFiltroClientes: " + ex.Message); }
         }
 
         private void LoadData()
