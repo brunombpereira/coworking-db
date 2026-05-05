@@ -161,15 +161,16 @@ namespace CoworkingApp.Controls
             {
                 using (var conn = Database.GetConnection())
                 {
-                    // Hero — receita do mês corrente
+                    // Hero — receita do mês corrente + delta vs mês anterior
+                    decimal curr;
                     using (var cmd = new SqlCommand(
                         @"SELECT ISNULL(SUM(valor),0) FROM pagamento
                           WHERE estado='Pago'
                             AND YEAR(data_pagamento)=YEAR(GETDATE())
                             AND MONTH(data_pagamento)=MONTH(GETDATE())", conn))
                     {
-                        var v = Convert.ToDecimal(cmd.ExecuteScalar());
-                        _lblHeroValue.Text = Theme.FormatEuro(v);
+                        curr = Convert.ToDecimal(cmd.ExecuteScalar());
+                        _lblHeroValue.Text = Theme.FormatEuro(curr);
                     }
                     using (var cmd = new SqlCommand(
                         @"SELECT ISNULL(SUM(valor),0) FROM pagamento
@@ -178,7 +179,6 @@ namespace CoworkingApp.Controls
                             AND data_pagamento <  DATEADD(DAY,1-DAY(GETDATE()),CAST(GETDATE() AS date))", conn))
                     {
                         var prev = Convert.ToDecimal(cmd.ExecuteScalar());
-                        var curr = decimal.Parse(_lblHeroValue.Text.Replace(" €",""), new System.Globalization.CultureInfo("pt-PT"));
                         _lblHeroDelta.Text = prev > 0
                             ? $"{(curr-prev)/prev:+0%;-0%;0%} vs mês anterior"
                             : "sem histórico";
