@@ -13,4 +13,7 @@
     <Reference Include="System.Configuration" />
     <Reference Include="System.Windows.Forms.DataVisualization" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="FontAwesome.Sharp" Version="6.6.0" />
+  </ItemGroup>
 </Project>
