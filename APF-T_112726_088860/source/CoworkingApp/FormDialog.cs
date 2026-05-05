@@ -10,6 +10,17 @@ namespace CoworkingApp
         private readonly Panel _body;
         private readonly Action _saveCallback;
 
+        /// <summary>
+        /// Modal genérico para forms de criar/editar.
+        /// </summary>
+        /// <param name="title">Título mostrado no header.</param>
+        /// <param name="content">Control com o formulário. Será dock'd Fill no body do dialog (atributo Dock é sobrescrito).</param>
+        /// <param name="width">Largura do card central. Default 360px.</param>
+        /// <param name="onSave">
+        /// Delegate executado ao clicar Guardar. Para validação client-side, lança ApplicationException com mensagem
+        /// para o utilizador (capturado e mostrado em MessageBox de Aviso). SqlException é capturada e formatada via
+        /// Database.SqlErrorMessage. Outras exceptions propagam-se.
+        /// </param>
         public FormDialog(string title, Control content, int width = 360, Action onSave = null)
         {
             _saveCallback = onSave;
@@ -97,6 +108,11 @@ namespace CoworkingApp
                 {
                     MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                catch (ApplicationException ex)
+                {
+                    MessageBox.Show(ex.Message, "Validação",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             };
             var btnCancel = Theme.BtnGray("Cancelar");
