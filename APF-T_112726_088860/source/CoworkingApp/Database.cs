@@ -26,6 +26,12 @@ namespace CoworkingApp
                 case 50001: case 50002: case 50003: case 50004:
                 case 50005: case 50006: case 50007: case 50008:
                 case 50009: case 50011: case 50012:
+                case 50016:                                    // lista_espera duplicada
+                case 51001: case 51002: case 51010:            // SP validations
+                case 51020:                                    // app lock
+                case 51030: case 51031:                        // cancelar com reembolso
+                case 51040: case 51041:                        // lista espera promoção
+                case 52001: case 52002: case 52003:            // auth
                     return ex.Message;
                 default:
                     return "Erro ao comunicar com a base de dados.";

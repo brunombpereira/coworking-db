@@ -17,7 +17,18 @@ namespace CoworkingApp
                 MessageBox.Show(e.ExceptionObject?.ToString() ?? "Erro desconhecido.", "Erro fatal",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             ThemeManager.Load();
-            Application.Run(new FormMain());
+
+            // Loop: login -> main -> (optional logout) -> login again.
+            while (true)
+            {
+                using (var login = new FormLogin())
+                {
+                    if (login.ShowDialog() != DialogResult.OK) return;
+                }
+                Application.Run(new FormMain());
+                if (!FormMain.LogoutRequested) break;
+                Session.Clear();
+            }
         }
     }
 }

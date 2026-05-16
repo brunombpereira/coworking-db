@@ -9,6 +9,8 @@ namespace CoworkingApp
 {
     public partial class FormMain : Form
     {
+        public static bool LogoutRequested { get; private set; }
+
         private Panel pnlContent;
         private Button _activeBtn;
         private readonly List<Button> _navBtns = new List<Button>();
@@ -17,9 +19,10 @@ namespace CoworkingApp
 
         public FormMain()
         {
+            LogoutRequested = false;
             InitializeComponent();
             BuildUI();
-            _navBtns[0].PerformClick();
+            if (_navBtns.Count > 0) _navBtns[0].PerformClick();
         }
 
         private void BuildUI()
@@ -125,14 +128,61 @@ namespace CoworkingApp
             pnlHeader.Controls.Add(logoBox);
             pnlHeader.Controls.Add(lblTitle);
 
-            // Footer com toggle theme
+            // Footer com info de utilizador + logout + toggle tema
             var pnlFooter = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 44,
+                Height = 124,
                 BackColor = Theme.SidebarBg,
                 Padding = new Padding(8, 4, 8, 4)
             };
+
+            var lblUser = new Label
+            {
+                Text = "  " + (Session.Username ?? "—"),
+                ForeColor = Color.White,
+                Font = new Font(Theme.FontBase.FontFamily, 9.5f, FontStyle.Bold),
+                Dock = DockStyle.Top,
+                Height = 22,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(8, 0, 0, 0)
+            };
+            var lblRole = new Label
+            {
+                Text = "  Role: " + (Session.Role ?? "—"),
+                ForeColor = Theme.SidebarText,
+                Font = Theme.FontSub,
+                Dock = DockStyle.Top,
+                Height = 18,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(8, 0, 0, 0)
+            };
+
+            var btnLogout = new IconButton
+            {
+                IconChar = IconChar.SignOutAlt,
+                IconColor = Color.White,
+                IconSize = 16,
+                ImageAlign = ContentAlignment.MiddleLeft,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Text = "  Sair",
+                Font = new Font(Theme.FontBase.FontFamily, 9f),
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                FlatStyle = FlatStyle.Flat,
+                Dock = DockStyle.Top,
+                Height = 32,
+                Cursor = Cursors.Hand,
+                Padding = new Padding(8, 0, 0, 0)
+            };
+            btnLogout.FlatAppearance.BorderSize = 0;
+            btnLogout.FlatAppearance.MouseOverBackColor = Theme.SidebarBgActive;
+            btnLogout.Click += (s, e) =>
+            {
+                LogoutRequested = true;
+                this.Close();
+            };
+
             var btnTheme = new IconButton
             {
                 IconChar = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun,
@@ -145,7 +195,8 @@ namespace CoworkingApp
                 ForeColor = Color.White,
                 BackColor = Color.Transparent,
                 FlatStyle = FlatStyle.Flat,
-                Dock = DockStyle.Fill,
+                Dock = DockStyle.Top,
+                Height = 32,
                 Cursor = Cursors.Hand,
                 Padding = new Padding(8, 0, 0, 0)
             };
@@ -156,7 +207,11 @@ namespace CoworkingApp
                 btnTheme.IconChar = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun;
                 btnTheme.Text = ThemeManager.Current == ThemeMode.Light ? "  Modo escuro" : "  Modo claro";
             };
+            // Order matters: Top added last sits highest visually
             pnlFooter.Controls.Add(btnTheme);
+            pnlFooter.Controls.Add(btnLogout);
+            pnlFooter.Controls.Add(lblRole);
+            pnlFooter.Controls.Add(lblUser);
 
             // Nav area
             var pnlNav = new Panel
@@ -175,16 +230,24 @@ namespace CoworkingApp
             };
 
             AddSectionLabel(flp, "OPERACIONAL");
-            AddNavItem(flp, "Dashboard",  IconChar.ThLarge,        () => Navigate<UcDashboard>());
-            AddNavItem(flp, "Clientes",   IconChar.Users,          () => Navigate<UcClientes>());
-            AddNavItem(flp, "Planos",     IconChar.ClipboardList,  () => Navigate<UcPlanos>());
-            AddNavItem(flp, "Espaços",    IconChar.Building,       () => Navigate<UcEspacos>());
-            AddNavItem(flp, "Reservas",   IconChar.CalendarAlt,    () => Navigate<UcReservas>());
+            AddNavItem(flp, "Dashboard",     IconChar.ThLarge,        () => Navigate<UcDashboard>());
+            if (Session.IsStaff)
+            {
+                AddNavItem(flp, "Clientes",  IconChar.Users,          () => Navigate<UcClientes>());
+                AddNavItem(flp, "Planos",    IconChar.ClipboardList,  () => Navigate<UcPlanos>());
+                AddNavItem(flp, "Espaços",   IconChar.Building,       () => Navigate<UcEspacos>());
+            }
+            AddNavItem(flp, "Reservas",      IconChar.CalendarAlt,    () => Navigate<UcReservas>());
+            AddNavItem(flp, "Notificações",  IconChar.Bell,           () => Navigate<UcNotificacoes>());
 
-            AddSectionLabel(flp, "FINANCEIRO");
-            AddNavItem(flp, "Adesões",    IconChar.Star,           () => Navigate<UcAdesoes>());
-            AddNavItem(flp, "Pagamentos", IconChar.CreditCard,     () => Navigate<UcPagamentos>());
-            AddNavItem(flp, "Relatórios", IconChar.ChartLine,      () => Navigate<UcRelatorios>());
+            if (Session.IsStaff)
+            {
+                AddSectionLabel(flp, "FINANCEIRO");
+                AddNavItem(flp, "Adesões",       IconChar.Star,           () => Navigate<UcAdesoes>());
+                AddNavItem(flp, "Pagamentos",    IconChar.CreditCard,     () => Navigate<UcPagamentos>());
+                AddNavItem(flp, "Relatórios",    IconChar.ChartLine,      () => Navigate<UcRelatorios>());
+                AddNavItem(flp, "Estatísticas",  IconChar.ChartBar,       () => Navigate<UcEstatisticas>());
+            }
 
             pnlNav.Controls.Add(flp);
             sidebar.Controls.Add(pnlNav);
@@ -266,14 +329,16 @@ namespace CoworkingApp
 
             var names = new System.Collections.Generic.Dictionary<Type, string>
             {
-                { typeof(UcDashboard),  "Dashboard"  },
-                { typeof(UcClientes),   "Clientes"   },
-                { typeof(UcPlanos),     "Planos"     },
-                { typeof(UcEspacos),    "Espaços"    },
-                { typeof(UcReservas),   "Reservas"   },
-                { typeof(UcAdesoes),    "Adesões"    },
-                { typeof(UcPagamentos), "Pagamentos" },
-                { typeof(UcRelatorios), "Relatórios" }
+                { typeof(UcDashboard),     "Dashboard"     },
+                { typeof(UcClientes),      "Clientes"      },
+                { typeof(UcPlanos),        "Planos"        },
+                { typeof(UcEspacos),       "Espaços"       },
+                { typeof(UcReservas),      "Reservas"      },
+                { typeof(UcNotificacoes),  "Notificações"  },
+                { typeof(UcAdesoes),       "Adesões"       },
+                { typeof(UcPagamentos),    "Pagamentos"    },
+                { typeof(UcRelatorios),    "Relatórios"    },
+                { typeof(UcEstatisticas),  "Estatísticas"  }
             };
             if (names.TryGetValue(typeof(T), out string name))
                 _lblModule.Text = name;
