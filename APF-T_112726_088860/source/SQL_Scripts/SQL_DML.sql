@@ -133,5 +133,28 @@ INSERT INTO pagamento (cliente_id, valor, metodo_pagamento, estado, adesao_id, r
  (4,  12.00, 'Dinheiro',      'Pago', NULL, 4, '2026-05-05'); -- Diogo day pass posto Flex
 GO
 
+-- =====================================================================
+-- Seed: politica_cancelamento (tiers de reembolso)
+-- =====================================================================
+INSERT INTO politica_cancelamento (nome, horas_minimas, perc_reembolso) VALUES
+ (N'48h ou mais: 100%', 48, 100.00),
+ (N'24h-48h: 50%',      24,  50.00),
+ (N'<24h: 0%',           0,   0.00);
+GO
+
+-- =====================================================================
+-- Seed: utilizador (passwords de DEV — TROCAR EM PRODUÇÃO)
+-- Pré-requisito: Auth.sql executado.
+-- =====================================================================
+DECLARE @uid INT;
+EXEC sp_register_user N'admin',  N'admin1234',   'Admin',   NULL, @uid OUTPUT;
+EXEC sp_register_user N'staff1', N'staff1234',   'Staff',   NULL, @uid OUTPUT;
+EXEC sp_register_user N'ana',    N'cliente1234', 'Cliente', 1,    @uid OUTPUT;
+EXEC sp_register_user N'bruno',  N'cliente1234', 'Cliente', 2,    @uid OUTPUT;
+EXEC sp_register_user N'carla',  N'cliente1234', 'Cliente', 3,    @uid OUTPUT;
+EXEC sp_register_user N'diogo',  N'cliente1234', 'Cliente', 4,    @uid OUTPUT;
+EXEC sp_register_user N'eva',    N'cliente1234', 'Cliente', 5,    @uid OUTPUT;
+GO
+
 PRINT 'Seed inserido com sucesso.';
 GO
