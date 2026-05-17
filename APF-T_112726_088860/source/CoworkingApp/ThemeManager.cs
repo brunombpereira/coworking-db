@@ -1,7 +1,6 @@
 using System;
 using System.IO;
-using System.Web.Script.Serialization;
-using System.Windows.Forms;
+using System.Text.Json;
 
 namespace CoworkingApp
 {
@@ -23,7 +22,7 @@ namespace CoworkingApp
             {
                 if (!File.Exists(ConfigPath)) return;
                 var json = File.ReadAllText(ConfigPath);
-                var data = new JavaScriptSerializer().Deserialize<ConfigData>(json);
+                var data = JsonSerializer.Deserialize<ConfigData>(json);
                 if (data != null && Enum.TryParse(data.Mode, out ThemeMode m))
                     Current = m;
             }
@@ -50,8 +49,7 @@ namespace CoworkingApp
             try
             {
                 Directory.CreateDirectory(ConfigDir);
-                var json = new JavaScriptSerializer()
-                    .Serialize(new ConfigData { Mode = Current.ToString() });
+                var json = JsonSerializer.Serialize(new ConfigData { Mode = Current.ToString() });
                 File.WriteAllText(ConfigPath, json);
             }
             catch { /* ignore */ }

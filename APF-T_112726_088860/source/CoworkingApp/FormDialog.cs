@@ -4,7 +4,7 @@ using System.Windows.Forms;
 
 namespace CoworkingApp
 {
-    public class FormDialog : DpiAwareForm
+    public class FormDialog : Form
     {
         private readonly Panel _card;
         private readonly Panel _body;
