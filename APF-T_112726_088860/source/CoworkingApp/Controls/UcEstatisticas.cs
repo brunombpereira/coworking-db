@@ -390,27 +390,34 @@ namespace CoworkingApp.Controls
         {
             var s = _chartReceitaMensal.Series[0];
             s.Points.Clear();
-            // Query directa à tabela pagamento — agregada por (ano, mês) para
-            // garantir 1 linha por mês. A vw_receita_mensal estava a devolver
-            // múltiplas linhas para o mesmo mês (provavelmente split por
-            // método) e o chart empilhava-as como pontos sobrepostos.
+
+            // Lê pagamentos pagos um a um e agrega client-side por (ano, mês).
+            // Belt-and-suspenders: mesmo que a query devolva múltiplas linhas
+            // por (ano, mês), o Dictionary garante 1 ponto por mês no chart.
+            var byMonth = new SortedDictionary<string, double>();
             using (var cmd = new SqlCommand(@"
-                SELECT TOP 12 mes_label, total
-                FROM (
-                    SELECT YEAR(data_pagamento)  AS ano,
-                           MONTH(data_pagamento) AS mes,
-                           CAST(YEAR(data_pagamento) AS varchar) + '/' +
-                                RIGHT('0' + CAST(MONTH(data_pagamento) AS varchar), 2) AS mes_label,
-                           SUM(valor) AS total
-                    FROM pagamento
-                    WHERE estado = 'Pago'
-                    GROUP BY YEAR(data_pagamento), MONTH(data_pagamento)
-                ) x
-                ORDER BY ano, mes", conn))
+                SELECT data_pagamento, valor
+                FROM pagamento
+                WHERE estado = 'Pago'", conn))
             using (var rdr = cmd.ExecuteReader())
             {
                 while (rdr.Read())
-                    s.Points.AddXY(rdr.GetString(0), Convert.ToDouble(rdr.GetDecimal(1)));
+                {
+                    DateTime d = rdr.GetDateTime(0);
+                    decimal  v = rdr.GetDecimal(1);
+                    string key = $"{d.Year}/{d.Month:00}";
+                    if (byMonth.ContainsKey(key)) byMonth[key] += (double)v;
+                    else                          byMonth[key]  = (double)v;
+                }
+            }
+
+            // Últimos 12 meses (em ordem cronológica).
+            int skip = Math.Max(0, byMonth.Count - 12);
+            int i = 0;
+            foreach (var kv in byMonth)
+            {
+                if (i++ < skip) continue;
+                s.Points.AddXY(kv.Key, kv.Value);
             }
         }
 
