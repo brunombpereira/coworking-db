@@ -753,7 +753,7 @@ namespace CoworkingApp.Controls
         }
 
         // ── Helpers ─────────────────────────────────────────────────────
-        internal static Color MixColors(Color a, Color b, float t)
+        public static Color MixColors(Color a, Color b, float t)
             => Color.FromArgb(
                 (int)(a.R + (b.R - a.R) * t),
                 (int)(a.G + (b.G - a.G) * t),
@@ -782,7 +782,7 @@ namespace CoworkingApp.Controls
             }
         }
 
-        internal static IconButton MakeIconBtn(IconChar icon, Color hoverColor, Color bg, Action onClick)
+        public static IconButton MakeIconBtn(IconChar icon, Color hoverColor, Color bg, Action onClick)
         {
             var btn = new IconButton
             {
@@ -798,7 +798,7 @@ namespace CoworkingApp.Controls
             return btn;
         }
 
-        internal static void HookHover(Control root, Color idleBg, Color hoverBg,
+        public static void HookHover(Control root, Color idleBg, Color hoverBg,
                                        IconButton btnEdit, IconButton btnDel)
         {
             void PaintAll(Control c, Color bg) { c.BackColor = bg; foreach (Control x in c.Controls) PaintAll(x, bg); }
@@ -825,7 +825,7 @@ namespace CoworkingApp.Controls
             Hook(root);
         }
 
-        internal static void HookClick(Control root, Control btnEdit, Control btnDel, Action onClick)
+        public static void HookClick(Control root, Control btnEdit, Control btnDel, Action onClick)
         {
             void Hook(Control c)
             {

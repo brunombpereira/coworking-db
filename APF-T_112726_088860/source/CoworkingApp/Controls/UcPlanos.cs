@@ -2,6 +2,8 @@ using System;
 using System.Data;
 using Microsoft.Data.SqlClient;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.Globalization;
 using System.Windows.Forms;
 using FontAwesome.Sharp;
