@@ -18,7 +18,7 @@ namespace CoworkingApp.Controls
 
         // Toolbar/filtros
         private ModernDateField _dtDe, _dtAte;
-        private ModernCombo _cmbCliente, _cmbEstado;
+        private ModernSelect _cmbCliente, _cmbEstado;
         private ModernButton _btnNova;
 
         // Lista
@@ -91,12 +91,11 @@ namespace CoworkingApp.Controls
             _btnNova.Click += (s, e) => OpenEditor();
 
             // ─── Filtros (chips modern) ───────────────────────────────
-            _cmbEstado = MakeCombo(130);
-            _cmbEstado.Items.AddRange(new object[] { "(Todos)", "Pendente", "Confirmada", "Cancelada", "Concluida" });
-            _cmbEstado.SelectedIndex = 0;
+            _cmbEstado = MakeCombo(140);
+            _cmbEstado.AddItems("(Todos)", "Pendente", "Confirmada", "Cancelada", "Concluida");
             _cmbEstado.SelectedIndexChanged += (s, e) => LoadData();
 
-            _cmbCliente = MakeCombo(180);
+            _cmbCliente = MakeCombo(190);
             _cmbCliente.SelectedIndexChanged += (s, e) => LoadData();
 
             _dtAte = MakeDate(DateTime.Today.AddMonths(2));
@@ -109,7 +108,7 @@ namespace CoworkingApp.Controls
                 AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
                 BackColor = Theme.CardBg, Padding = new Padding(0),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left,
             };
             flow.Controls.Add(MakeFilterLabel("Período"));
             flow.Controls.Add(_dtDe);
@@ -124,8 +123,8 @@ namespace CoworkingApp.Controls
             inner.Controls.Add(_btnNova);
             card.Controls.Add(inner);
 
-            // Posicionamento: botão à direita, filtros à esquerda do botão,
-            // ambos centrados verticalmente. Re-layout no Resize.
+            // Posicionamento: filtros à esquerda, botão à direita, ambos
+            // centrados verticalmente. Sem espaço gritante entre eles.
             void Relayout()
             {
                 var dr = inner.DisplayRectangle;
@@ -133,10 +132,10 @@ namespace CoworkingApp.Controls
                 _btnNova.Location = new Point(dr.Right - _btnNova.Width, btnY);
 
                 int flowY = dr.Y + (dr.Height - flow.Height) / 2;
-                flow.Location = new Point(_btnNova.Location.X - flow.Width - 16, flowY);
+                flow.Location = new Point(dr.X, flowY);
             }
-            inner.SizeChanged += (s, e) => Relayout();
-            flow.SizeChanged  += (s, e) => Relayout();
+            inner.SizeChanged   += (s, e) => Relayout();
+            flow.SizeChanged    += (s, e) => Relayout();
             inner.HandleCreated += (s, e) => Relayout();
 
             return card;
@@ -169,9 +168,9 @@ namespace CoworkingApp.Controls
             };
         }
 
-        private ModernCombo MakeCombo(int width = 150)
+        private ModernSelect MakeCombo(int width = 150)
         {
-            return new ModernCombo
+            return new ModernSelect
             {
                 Width = width, Height = 36,
                 Margin = new Padding(0, 6, 0, 0),
@@ -326,10 +325,7 @@ namespace CoworkingApp.Controls
                     rowTodos["cliente_id"] = DBNull.Value;
                     rowTodos["nome"]       = "(Todos)";
                     dt.Rows.InsertAt(rowTodos, 0);
-                    _cmbCliente.DataSource    = dt;
-                    _cmbCliente.DisplayMember = "nome";
-                    _cmbCliente.ValueMember   = "cliente_id";
-                    _cmbCliente.SelectedIndex = 0;
+                    _cmbCliente.BindDataTable(dt, "nome", "cliente_id");
                 }
             }
             catch (SqlException) { /* ignore */ }
@@ -342,7 +338,8 @@ namespace CoworkingApp.Controls
             try
             {
                 var whereParts = new List<string> { "r.data_reserva BETWEEN @de AND @ate" };
-                string estadoFiltro = (_cmbEstado != null && _cmbEstado.SelectedIndex > 0) ? _cmbEstado.Text : null;
+                string estadoFiltro = (_cmbEstado != null && _cmbEstado.SelectedIndex > 0)
+                    ? _cmbEstado.SelectedText : null;
                 if (estadoFiltro != null) whereParts.Add("r.estado = @e");
                 bool filtraCliente = _cmbCliente != null && _cmbCliente.SelectedIndex > 0
                     && _cmbCliente.SelectedValue != null
