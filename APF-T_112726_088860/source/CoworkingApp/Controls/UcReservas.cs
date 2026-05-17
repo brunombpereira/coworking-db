@@ -568,8 +568,75 @@ namespace CoworkingApp.Controls
             row.Controls.Add(dateBlock);
 
             UcEspacos.HookHover(row, idleBg, hoverBg, btnEdit, btnCancel);
-            UcEspacos.HookClick(row, btnEdit, btnCancel, () => OpenEditor(id));
+            UcEspacos.HookClick(row, btnEdit, btnCancel, () =>
+                OpenReservaDetail(id, cliente, recurso, tipoRec, data, hi, hf, valor, estado, numPess));
             return row;
+        }
+
+        private void OpenReservaDetail(int id, string cliente, string recurso, string tipoRec,
+                                        DateTime data, TimeSpan? hi, TimeSpan? hf,
+                                        decimal valor, string estado, int? numPess)
+        {
+            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+
+            // Header com avatar circle indigo + "Reserva #ID" + chip estado
+            var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Theme.CardBg };
+            Image img = null;
+            using (var pb = new IconPictureBox { IconChar = IconChar.CalendarCheck, IconSize = 26, IconColor = Color.White })
+                if (pb.Image != null) img = (Image)pb.Image.Clone();
+            header.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode     = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                int diam = 56;
+                int cx = 0, cy = (header.Height - diam) / 2;
+                using (var br = new SolidBrush(Theme.Accent)) g.FillEllipse(br, cx, cy, diam, diam);
+                if (img != null) g.DrawImage(img, cx + (diam - 26) / 2, cy + (diam - 26) / 2 + 1, 26, 26);
+                using (var f = new Font(Theme.FontBase.FontFamily, 16f, FontStyle.Bold))
+                {
+                    TextRenderer.DrawText(g, "Reserva #" + id, f, new Point(diam + 14, cy + 4),
+                        Theme.TextPrimary, TextFormatFlags.NoPadding);
+                }
+                TextRenderer.DrawText(g, $"{data:dd/MM/yyyy}", Theme.FontSub, new Point(diam + 14, cy + 34),
+                    Theme.TextSecondary, TextFormatFlags.NoPadding);
+            };
+
+            string horario = (hi.HasValue && hf.HasValue)
+                ? $"{hi.Value:hh\\:mm} – {hf.Value:hh\\:mm}"
+                : "Dia completo";
+            string pessoas = numPess.HasValue
+                ? numPess.Value + (numPess.Value == 1 ? " pessoa" : " pessoas")
+                : "—";
+
+            body.Controls.Add(UcEspacos_BuildDetailField("Estado",   estado));
+            body.Controls.Add(UcEspacos_BuildDetailField("Valor",    Theme.FormatEuro(valor)));
+            body.Controls.Add(UcEspacos_BuildDetailField("Nº pessoas", pessoas));
+            body.Controls.Add(UcEspacos_BuildDetailField("Horário",  horario));
+            body.Controls.Add(UcEspacos_BuildDetailField("Recurso",  $"{recurso} ({tipoRec})"));
+            body.Controls.Add(UcEspacos_BuildDetailField("Cliente",  cliente));
+            body.Controls.Add(header);
+
+            using (var dlg = new FormDialog($"Reserva #{id}", body, 500, onSave: null))
+                dlg.ShowDialog(FindForm());
+        }
+
+        // Helper local (espelha BuildDetailField de UcEspacos para evitar
+        // expor outro helper público).
+        private static Panel UcEspacos_BuildDetailField(string label, string value)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Theme.CardBg, Padding = new Padding(0, 8, 0, 0) };
+            pnl.Controls.Add(new Label
+            {
+                Text = value, Font = Theme.FontBase, ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            pnl.Controls.Add(new Label
+            {
+                Text = label.ToUpper(), Font = Theme.FontMicro, ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 16, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            return pnl;
         }
 
         private static Color EstadoReservaBg(string estado)
@@ -631,13 +698,13 @@ namespace CoworkingApp.Controls
             }
 
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-            var cmbCliente = UcClientes.AddComboDataSource(tbl, "Cliente *", dsClientes, "nome", "cliente_id");
-            var cmbRecurso = UcClientes.AddComboDataSource(tbl, "Recurso *", dsRecursos, "label", "recurso_id");
+            var cmbCliente = UcClientes.AddModernSelectDataSource(tbl, "Cliente *", dsClientes, "nome", "cliente_id");
+            var cmbRecurso = UcClientes.AddModernSelectDataSource(tbl, "Recurso *", dsRecursos, "label", "recurso_id");
             var dtData     = UcClientes.AddDate(tbl, "Data *");
-            var txtHIni    = UcClientes.AddField(tbl, "Hora início (HH:MM)");
-            var txtHFim    = UcClientes.AddField(tbl, "Hora fim (HH:MM)");
-            var txtParts   = UcClientes.AddField(tbl, "Nº Participantes");
-            var txtNotas   = UcClientes.AddField(tbl, "Notas");
+            var txtHIni    = UcClientes.AddField(tbl, "Hora início (HH:MM)", IconChar.Sun,            placeholder: "09:00");
+            var txtHFim    = UcClientes.AddField(tbl, "Hora fim (HH:MM)",    IconChar.Moon,           placeholder: "10:00");
+            var txtParts   = UcClientes.AddField(tbl, "Nº Participantes",    IconChar.Users,          placeholder: "4");
+            var txtNotas   = UcClientes.AddField(tbl, "Notas",               IconChar.AlignLeft,      placeholder: "Reunião projeto");
             var lblValor   = new Label { Text = "Valor: —", Font = Theme.FontSection, ForeColor = Theme.TextPrimary, Dock = DockStyle.Top, AutoSize = true, Margin = new Padding(0, 8, 0, 8) };
             tbl.Controls.Add(lblValor);
 
@@ -652,9 +719,10 @@ namespace CoworkingApp.Controls
             {
                 if (cmbRecurso.SelectedValue == null || cmbRecurso.SelectedValue is DBNull)
                 { lblValor.Text = "Valor: —"; valorCalc = 0; return; }
-                var rowView = (DataRowView)cmbRecurso.SelectedItem;
-                tipoSel = rowView["tipo"].ToString();
-                decimal preco = Convert.ToDecimal(rowView["preco"]);
+                var row = cmbRecurso.SelectedRawData as DataRow;
+                if (row == null) { lblValor.Text = "Valor: —"; valorCalc = 0; return; }
+                tipoSel = row["tipo"].ToString();
+                decimal preco = Convert.ToDecimal(row["preco"]);
                 if (tipoSel == "Sala")
                 {
                     txtHIni.Parent.Visible = true;
@@ -681,7 +749,7 @@ namespace CoworkingApp.Controls
             txtHFim.TextChanged += (s, e) => recalc();
             recalc();
 
-            using (var dlg = new FormDialog("Nova Reserva", tbl, 460, () =>
+            using (var dlg = new FormDialog("Nova Reserva", tbl, 520, () =>
             {
                 if (cmbCliente.SelectedValue == null || cmbCliente.SelectedValue is DBNull) throw new ApplicationException("Cliente é obrigatório.");
                 if (cmbRecurso.SelectedValue == null || cmbRecurso.SelectedValue is DBNull) throw new ApplicationException("Recurso é obrigatório.");
@@ -704,13 +772,13 @@ namespace CoworkingApp.Controls
                         if (!int.TryParse(txtParts.Text, out int np) || np <= 0) throw new ApplicationException("Nº Participantes inválido.");
                         pParts = np;
                     }
-                    var rowView = (DataRowView)cmbRecurso.SelectedItem;
-                    decimal preco = Convert.ToDecimal(rowView["preco"]);
+                    var rowS = (DataRow)cmbRecurso.SelectedRawData;
+                    decimal preco = Convert.ToDecimal(rowS["preco"]);
                     valor = (decimal)(hf - hi).TotalHours * preco;
                 }
                 else
                 {
-                    var rowView = (DataRowView)cmbRecurso.SelectedItem;
+                    var rowView = (DataRow)cmbRecurso.SelectedRawData;
                     valor = Convert.ToDecimal(rowView["preco"]);
                 }
 
