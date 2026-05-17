@@ -15,7 +15,11 @@ namespace CoworkingApp
     {
         private readonly TextBox        _inner;
         private          IconPictureBox _trailing;
-        private          IconPictureBox _leading;
+        private          IconChar       _leadingIcon = IconChar.None;
+        private          Image          _leadingImage;
+        private const    int            LeadingIconSize    = 16;
+        private const    int            LeadingIconLeftPad = 14;
+        private const    int            LeadingIconGap     = 10;
 
         public int   CornerRadius     { get; set; } = 8;
         public Color BorderColorIdle  { get; set; } = Theme.CardBorder;
@@ -44,32 +48,33 @@ namespace CoworkingApp
             remove => _inner.TextChanged -= value;
         }
 
-        /// <summary>Ícone à esquerda (decorativo — ex.: lupa de pesquisa).</summary>
+        /// <summary>Ícone à esquerda (decorativo — ex.: lupa de pesquisa).
+        /// Pintado manualmente em OnPaint para evitar os offsets internos do
+        /// IconPictureBox + SizeMode.CenterImage, que faziam o glyph FA
+        /// aparecer demasiado em cima.</summary>
         public IconChar LeadingIcon
         {
-            get => _leading?.IconChar ?? IconChar.None;
+            get => _leadingIcon;
             set
             {
-                if (value == IconChar.None)
+                if (_leadingIcon == value) return;
+                _leadingIcon = value;
+                _leadingImage?.Dispose();
+                _leadingImage = null;
+                if (value != IconChar.None)
                 {
-                    if (_leading != null) { Controls.Remove(_leading); _leading.Dispose(); _leading = null; }
-                    return;
-                }
-                if (_leading == null)
-                {
-                    _leading = new IconPictureBox
+                    using (var pb = new IconPictureBox
+                           { IconChar = value, IconSize = LeadingIconSize, IconColor = Theme.TextMuted })
                     {
-                        IconSize  = 16,
-                        IconColor = Theme.TextMuted,
-                        BackColor = Theme.FieldBg,
-                        Size      = new Size(28, 22),
-                        Dock      = DockStyle.Left,
-                        SizeMode  = PictureBoxSizeMode.CenterImage,
-                    };
-                    Controls.Add(_leading);
-                    _leading.SendToBack();
+                        if (pb.Image != null) _leadingImage = (Image)pb.Image.Clone();
+                    }
                 }
-                _leading.IconChar = value;
+                // Reserva espaço à esquerda do TextBox para o icon não sobrepor.
+                int leftPad = (value == IconChar.None)
+                    ? LeadingIconLeftPad
+                    : LeadingIconLeftPad + LeadingIconSize + LeadingIconGap;
+                Padding = new Padding(leftPad, Padding.Top, Padding.Right, Padding.Bottom);
+                Invalidate();
             }
         }
 
@@ -201,6 +206,14 @@ namespace CoworkingApp
                 float w           = focused ? 1.6f : 1f;
                 using (var pen = new Pen(borderColor, w))
                     g.DrawPath(pen, path);
+            }
+
+            // Leading icon — pintado manualmente para controlo total de posição.
+            if (_leadingImage != null)
+            {
+                int x = LeadingIconLeftPad;
+                int y = (Height - LeadingIconSize) / 2 + 1;  // +1 compensa padding interno do glyph FA
+                g.DrawImage(_leadingImage, x, y, LeadingIconSize, LeadingIconSize);
             }
         }
     }
