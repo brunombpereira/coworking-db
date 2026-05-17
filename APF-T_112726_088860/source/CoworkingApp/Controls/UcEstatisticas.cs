@@ -299,20 +299,24 @@ namespace CoworkingApp.Controls
             if (type == SeriesChartType.Column)
             {
                 area.AxisY.LabelStyle.Format = "€ #,##0";
-                area.AxisX.Interval          = 1;
                 area.AxisX.LabelStyle.Angle  = 0;
+                area.AxisX.IsLabelAutoFit    = true;
             }
             c.ChartAreas.Add(area);
 
             var s = new Series(seriesName) { ChartType = type, BorderWidth = 0 };
             if (type == SeriesChartType.Column)
             {
-                s.Color           = Theme.Accent;
-                s["PointWidth"]   = "0.6";
+                s.Color               = Theme.Accent;
+                s["PointWidth"]       = "0.6";
                 s.IsValueShownAsLabel = true;
-                s.LabelForeColor  = Theme.TextSecondary;
-                s.LabelFormat     = "€ #,##0";
-                s.Font            = Theme.FontSub;
+                s.LabelForeColor      = Theme.TextSecondary;
+                s.LabelFormat         = "€ #,##0";
+                s.Font                = Theme.FontSub;
+                // CRÍTICO: força 1 categoria por ponto. Sem isto, o chart
+                // tenta parsear o X value string como número → todos os
+                // pontos empilhados no mesmo X.
+                s.IsXValueIndexed     = true;
             }
             else if (type == SeriesChartType.Bar)
             {
@@ -403,6 +407,7 @@ namespace CoworkingApp.Controls
                 LabelFormat          = "€ #,##0",
                 LabelForeColor       = Theme.TextSecondary,
                 Font                 = Theme.FontSub,
+                IsXValueIndexed      = true, // CRÍTICO: 1 categoria por ponto
             };
             s["PointWidth"] = "0.6";
             _chartReceitaMensal.Series.Add(s);
