@@ -2,227 +2,162 @@ using System;
 using System.Data;
 using Microsoft.Data.SqlClient;
 using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
-using FontAwesome.Sharp;
 
 namespace CoworkingApp
 {
     /// <summary>
-    /// Login redesenhado — dark glassmorphism / neon.
-    /// • Form borderless com title bar custom (drag + close).
-    /// • Background com 3 "orbs" semi-transparentes a fakear o glow de glass.
-    /// • Card central NeonPanel com border gradient cyan→magenta.
-    /// • Título "COWORKING" com efeito text-glow.
-    /// • Campos NeonTextBox com ícone à esquerda.
-    /// • Botão "ENTRAR" NeonButton em hover/pressed states.
+    /// Login — design sóbrio e profissional. Dark theme forçado, system title bar
+    /// (dark via DWM), card centrado com soft shadow, paleta slate + indigo
+    /// herdada do Theme.cs.
     /// </summary>
     public class FormLogin : Form
     {
-        private NeonTextBox _txtUser;
-        private NeonTextBox _txtPwd;
-        private NeonButton  _btnLogin;
-        private Label       _lblErro;
+        private ModernInput  _txtUser;
+        private ModernInput  _txtPwd;
+        private ModernButton _btnLogin;
+        private Label        _lblErro;
 
-        // ── Custom title bar drag ────────────────────────────────────────
-        [DllImport("user32.dll")]
-        private static extern int SendMessage(IntPtr h, int m, int w, int l);
-        [DllImport("user32.dll")]
-        private static extern bool ReleaseCapture();
-        private const int WM_NCLBUTTONDOWN = 0xA1;
-        private const int HT_CAPTION       = 0x2;
-
-        // ── Dark title bar (legacy fallback se borderless não for usado) ─
+        // DWMWA_USE_IMMERSIVE_DARK_MODE — pinta a title bar a dark em Win10/11.
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
+        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 
         public FormLogin()
         {
-            // Sem UserPaint! No form, isso pode fazer o background não ser
-            // pintado em forms borderless e mostrar o que estiver por baixo.
-            SetStyle(ControlStyles.OptimizedDoubleBuffer
-                   | ControlStyles.AllPaintingInWmPaint
-                   | ControlStyles.ResizeRedraw, true);
+            // Força dark mode no login (independentemente do que está em ThemeManager.Current).
+            ThemeManager.Set(ThemeMode.Dark);
 
-            Text                 = "Coworking — Login";
-            FormBorderStyle      = FormBorderStyle.None;
+            Text                 = "Coworking";
+            FormBorderStyle      = FormBorderStyle.FixedDialog;
+            MaximizeBox          = false;
+            MinimizeBox          = false;
             StartPosition        = FormStartPosition.CenterScreen;
-            ShowInTaskbar        = true;
-            BackColor            = NeonStyle.BgBase;
-            ForeColor            = NeonStyle.TextPrimary;
-            Font                 = NeonStyle.FontBody;
-            ClientSize           = new Size(520, 620);
-            DoubleBuffered       = true;
+            ClientSize           = new Size(440, 520);
+            BackColor            = Theme.PageBg;
+            ForeColor            = Theme.TextPrimary;
+            Font                 = Theme.FontBase;
             KeyPreview           = true;
             KeyDown             += (s, e) => { if (e.KeyCode == Keys.Escape) Close(); };
+            DoubleBuffered       = true;
 
             BuildUI();
         }
 
-        // ── Background pintado: gradient + orbs neon ─────────────────────
-        protected override void OnPaintBackground(PaintEventArgs e)
+        protected override void OnHandleCreated(EventArgs e)
         {
-            var g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            // Fundo: gradient diagonal de BgDeep → BgBase
-            using (var bg = new LinearGradientBrush(ClientRectangle,
-                       NeonStyle.BgDeep, NeonStyle.BgBase, 135f))
+            base.OnHandleCreated(e);
+            // Title bar dark em Windows 10 (2004+) / 11. Falha silenciosa em mais velhos.
+            try
             {
-                g.FillRectangle(bg, ClientRectangle);
+                int useDark = 1;
+                DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                                      ref useDark, sizeof(int));
             }
-
-            // Orbs decorativos (atrás do card) — fake glassmorphism
-            DrawOrb(g, new Point(70,  120), 180, NeonStyle.NeonViolet);
-            DrawOrb(g, new Point(450, 470), 220, NeonStyle.NeonMagenta);
-            DrawOrb(g, new Point(420, 100), 130, NeonStyle.NeonCyan);
-        }
-
-        private static void DrawOrb(Graphics g, Point center, int radius, Color color)
-        {
-            // Multi-pass: ellipses crescentes com alpha decrescente → glow soft
-            for (int i = 8; i >= 1; i--)
-            {
-                int r     = radius + i * 8;
-                int alpha = (int)(45.0 * (1.0 - (double)i / 8) + 5);
-                var rect  = new Rectangle(center.X - r / 2, center.Y - r / 2, r, r);
-                using (var path  = new GraphicsPath())
-                {
-                    path.AddEllipse(rect);
-                    using (var brush = new PathGradientBrush(path)
-                    {
-                        CenterColor    = NeonStyle.WithAlpha(color, alpha),
-                        SurroundColors = new[] { Color.FromArgb(0, color) }
-                    })
-                    {
-                        g.FillPath(brush, path);
-                    }
-                }
-            }
+            catch { /* não é crítico */ }
         }
 
         private void BuildUI()
         {
-            // ── Title bar custom (32px alto) — BackColor opaco ──────────
-            var titleBar = new Panel
+            // ── Card central ─────────────────────────────────────────────
+            var card = new ModernCard
             {
-                Dock      = DockStyle.Top,
-                Height    = 32,
-                BackColor = NeonStyle.BgDeep,
-            };
-            titleBar.MouseDown += TitleBar_MouseDown;
-
-            var btnClose = new IconButton
-            {
-                IconChar           = IconChar.Xmark,
-                IconColor          = NeonStyle.TextSecondary,
-                IconSize           = 16,
-                BackColor          = NeonStyle.BgDeep,
-                ForeColor          = NeonStyle.TextSecondary,
-                FlatStyle          = FlatStyle.Flat,
-                Size               = new Size(40, 32),
-                Dock               = DockStyle.Right,
-                Cursor             = Cursors.Hand,
-                TabStop            = false,
-            };
-            btnClose.FlatAppearance.BorderSize       = 0;
-            btnClose.FlatAppearance.MouseOverBackColor = NeonStyle.NeonRed;
-            btnClose.Click            += (s, e) => Close();
-            btnClose.MouseEnter       += (s, e) => btnClose.IconColor = Color.White;
-            btnClose.MouseLeave       += (s, e) => btnClose.IconColor = NeonStyle.TextSecondary;
-            titleBar.Controls.Add(btnClose);
-
-            var brandSmall = new Label
-            {
-                Text      = "  ◆  COWORKING",
-                Font      = NeonStyle.FontCapsBold,
-                ForeColor = NeonStyle.TextMuted,
-                BackColor = NeonStyle.BgDeep,
-                Dock      = DockStyle.Left,
-                Width     = 200,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding   = new Padding(12, 0, 0, 0),
-            };
-            brandSmall.MouseDown += TitleBar_MouseDown;
-            titleBar.Controls.Add(brandSmall);
-            Controls.Add(titleBar);
-
-            // ── Card central (420×500) ───────────────────────────────────
-            var card = new NeonPanel
-            {
-                Size         = new Size(420, 500),
-                BorderColor1 = NeonStyle.NeonCyan,
-                BorderColor2 = NeonStyle.NeonMagenta,
-                CornerRadius = NeonStyle.RadiusLg,
+                Size         = new Size(360, 440),
+                BackColor    = Theme.CardBg,
+                BorderColor  = Theme.CardBorder,
+                CornerRadius = 14,
+                ShowShadow   = true,
+                ShadowSpread = 18,
             };
             card.Location = new Point(
                 (ClientSize.Width  - card.Width)  / 2,
-                (ClientSize.Height - card.Height) / 2 + 8);
+                (ClientSize.Height - card.Height) / 2);
             Controls.Add(card);
-            card.BringToFront();
 
-            // ── Conteúdo do card ─────────────────────────────────────────
-            const int padX = 36;
-            int       y    = 38;
+            // Conteúdo do card
+            const int padX = 32;
+            int       y    = 36;
 
-            // Hero title com text-glow (paint custom via Label override? Simpler: usamos paint manual via OnPaint do card... ou só Label normal com cor neon — visualmente bate ok)
-            var lblHero = new GlowLabel
+            // Logo (quadrado indigo simples — sem complexidade)
+            var logo = new Panel
             {
-                Text       = "COWORKING",
-                Font       = NeonStyle.FontHero,
-                ForeColor  = NeonStyle.NeonCyan,
-                GlowColor  = NeonStyle.NeonCyan,
-                AutoSize   = false,
-                Size       = new Size(card.Width - padX * 2, 44),
-                Location   = new Point(padX, y),
-                TextAlign  = ContentAlignment.MiddleLeft,
-                BackColor  = NeonStyle.CardBg,
+                Size      = new Size(40, 40),
+                Location  = new Point(padX, y),
+                BackColor = Theme.Accent,
             };
-            card.Controls.Add(lblHero);
-            y += lblHero.Height + 2;
+            card.Controls.Add(logo);
 
+            // Título "Coworking"
+            var lblTitle = new Label
+            {
+                Text      = "Coworking",
+                Font      = Theme.FontTitle,
+                ForeColor = Theme.TextPrimary,
+                AutoSize  = false,
+                Size      = new Size(card.Width - padX * 2 - 48, 40),
+                Location  = new Point(padX + 52, y),
+                TextAlign = ContentAlignment.MiddleLeft,
+                BackColor = Theme.CardBg,
+            };
+            card.Controls.Add(lblTitle);
+            y += 56;
+
+            // Subtítulo
             var lblSub = new Label
             {
-                Text      = "Sistema de Gestão · Inicie sessão",
-                Font      = NeonStyle.FontCaption,
-                ForeColor = NeonStyle.TextSecondary,
+                Text      = "Sistema de gestão de espaços",
+                Font      = Theme.FontSub,
+                ForeColor = Theme.TextSecondary,
                 AutoSize  = false,
                 Size      = new Size(card.Width - padX * 2, 18),
                 Location  = new Point(padX, y),
-                BackColor = NeonStyle.CardBg,
+                BackColor = Theme.CardBg,
             };
             card.Controls.Add(lblSub);
-            y += lblSub.Height + NeonStyle.Sp6;
+            y += 36;
 
             // ── Username ─────────────────────────────────────────────────
-            y += AddField(card, padX, y, IconChar.User, "USERNAME", out _txtUser, false);
+            AddLabel(card, padX, y, "Username");
+            y += 22;
+            _txtUser = new ModernInput
+            {
+                Location = new Point(padX, y),
+                Size     = new Size(card.Width - padX * 2, 42),
+            };
+            card.Controls.Add(_txtUser);
+            y += 56;
 
             // ── Password ─────────────────────────────────────────────────
-            y += AddField(card, padX, y, IconChar.Lock, "PASSWORD", out _txtPwd, true);
-
-            y += NeonStyle.Sp3;
+            AddLabel(card, padX, y, "Password");
+            y += 22;
+            _txtPwd = new ModernInput
+            {
+                Location              = new Point(padX, y),
+                Size                  = new Size(card.Width - padX * 2, 42),
+                UseSystemPasswordChar = true,
+            };
+            card.Controls.Add(_txtPwd);
+            y += 56;
 
             // ── Botão Entrar ─────────────────────────────────────────────
-            _btnLogin = new NeonButton
+            _btnLogin = new ModernButton
             {
-                Text     = "ENTRAR",
+                Text     = "Entrar",
+                Style    = ModernButton.Variant.Primary,
                 Location = new Point(padX, y),
-                Size     = new Size(card.Width - padX * 2, 48),
-                Color1   = NeonStyle.NeonCyan,
-                Color2   = NeonStyle.NeonMagenta,
+                Size     = new Size(card.Width - padX * 2, 44),
             };
             _btnLogin.Click += BtnLogin_Click;
             card.Controls.Add(_btnLogin);
-            y += _btnLogin.Height + NeonStyle.Sp3;
+            y += _btnLogin.Height + 12;
 
             // ── Erro ─────────────────────────────────────────────────────
             _lblErro = new Label
             {
-                Font      = NeonStyle.FontCaption,
-                ForeColor = NeonStyle.NeonRed,
-                BackColor = NeonStyle.CardBg,
+                Font      = Theme.FontSub,
+                ForeColor = Theme.StatusDangerFg,
+                BackColor = Theme.CardBg,
                 AutoSize  = false,
                 Size      = new Size(card.Width - padX * 2, 20),
                 Location  = new Point(padX, y),
@@ -234,58 +169,20 @@ namespace CoworkingApp
             this.AcceptButton = _btnLogin;
         }
 
-        /// <summary>Adiciona icon + label + NeonTextBox; devolve a altura consumida.</summary>
-        private int AddField(NeonPanel parent, int x, int y, IconChar icon, string label,
-                             out NeonTextBox field, bool password)
+        private static void AddLabel(Control parent, int x, int y, string text)
         {
-            int startY = y;
-
-            // Linha icon + label — BackColor explícito (sem dependência de transparência)
-            var iconLbl = new IconPictureBox
+            parent.Controls.Add(new Label
             {
-                IconChar         = icon,
-                IconColor        = NeonStyle.NeonCyan,
-                IconSize         = 12,
-                BackColor        = NeonStyle.CardBg,
-                Size             = new Size(14, 14),
-                Location         = new Point(x, y + 2),
-                SizeMode         = PictureBoxSizeMode.AutoSize,
-            };
-            parent.Controls.Add(iconLbl);
-
-            var lbl = new Label
-            {
-                Text       = label,
-                Font       = NeonStyle.FontCapsBold,
-                ForeColor  = NeonStyle.TextSecondary,
+                Text       = text,
+                Font       = Theme.FontLabel,
+                ForeColor  = Theme.TextSecondary,
                 AutoSize   = true,
-                Location   = new Point(x + 20, y),
-                BackColor  = NeonStyle.CardBg,
-            };
-            parent.Controls.Add(lbl);
-            y += 22;
-
-            // NeonTextBox
-            field = new NeonTextBox
-            {
-                Location              = new Point(x, y),
-                Size                  = new Size(parent.Width - x * 2, 42),
-                UseSystemPasswordChar = password,
-            };
-            parent.Controls.Add(field);
-            y += field.Height + NeonStyle.Sp3;
-
-            return y - startY;
+                Location   = new Point(x, y),
+                BackColor  = Theme.CardBg,
+            });
         }
 
-        private void TitleBar_MouseDown(object sender, MouseEventArgs e)
-        {
-            if (e.Button != MouseButtons.Left) return;
-            ReleaseCapture();
-            SendMessage(Handle, WM_NCLBUTTONDOWN, HT_CAPTION, 0);
-        }
-
-        // ── Lógica de login (igual à versão anterior) ────────────────────
+        // ── Auth ─────────────────────────────────────────────────────────
         private void BtnLogin_Click(object sender, EventArgs e)
         {
             _lblErro.Visible = false;
@@ -343,70 +240,6 @@ namespace CoworkingApp
         {
             _lblErro.Text    = msg;
             _lblErro.Visible = true;
-        }
-    }
-
-    /// <summary>
-    /// Label que desenha o texto com efeito glow (mesmo texto pintado N vezes
-    /// com alpha decrescente em torno da posição final).
-    /// </summary>
-    internal class GlowLabel : Label
-    {
-        public Color GlowColor   { get; set; } = NeonStyle.NeonCyan;
-        public int   GlowSpread  { get; set; } = 4;
-        public int   GlowPasses  { get; set; } = 6;
-
-        public GlowLabel()
-        {
-            SetStyle(ControlStyles.AllPaintingInWmPaint
-                   | ControlStyles.OptimizedDoubleBuffer
-                   | ControlStyles.UserPaint, true);
-        }
-
-        protected override void OnPaintBackground(PaintEventArgs e) { /* skip */ }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            var g = e.Graphics;
-            g.SmoothingMode     = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-
-            if (Parent != null)
-            {
-                using (var bg = new SolidBrush(Parent.BackColor))
-                    g.FillRectangle(bg, ClientRectangle);
-            }
-
-            var fmt = StringAlignment.Near;
-            if (TextAlign == ContentAlignment.MiddleCenter || TextAlign == ContentAlignment.TopCenter
-             || TextAlign == ContentAlignment.BottomCenter) fmt = StringAlignment.Center;
-
-            using (var sf = new StringFormat
-                {
-                    Alignment     = fmt,
-                    LineAlignment = StringAlignment.Center
-                })
-            {
-                // Glow halo (multi-pass com offsets em x e y)
-                for (int pass = GlowPasses; pass >= 1; pass--)
-                {
-                    int   spread = (GlowSpread * pass) / GlowPasses;
-                    int   alpha  = (int)(80.0 * (1.0 - (double)pass / GlowPasses) + 10);
-                    using (var glowBrush = new SolidBrush(NeonStyle.WithAlpha(GlowColor, alpha)))
-                    {
-                        for (int dx = -spread; dx <= spread; dx += spread)
-                        for (int dy = -spread; dy <= spread; dy += spread)
-                        {
-                            if (dx == 0 && dy == 0) continue;
-                            var r = new RectangleF(dx, dy, Width, Height);
-                            g.DrawString(Text, Font, glowBrush, r, sf);
-                        }
-                    }
-                }
-                // Texto principal por cima
-                using (var fg = new SolidBrush(ForeColor))
-                    g.DrawString(Text, Font, fg, ClientRectangle, sf);
-            }
         }
     }
 }
