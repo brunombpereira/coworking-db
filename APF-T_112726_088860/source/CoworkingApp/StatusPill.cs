@@ -1,3 +1,4 @@
+using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
@@ -12,6 +13,15 @@ namespace CoworkingApp
     {
         private Color _pillBg = Theme.StatusNeutralBg;
         private Color _pillFg = Theme.StatusNeutralFg;
+
+        /// <summary>Quando true, o pill desenha apenas com a largura do texto +
+        /// padding e fica left-aligned dentro do controlo. Útil quando o
+        /// StatusPill é colocado com Dock=Top (que estica a largura) mas
+        /// queremos um pill compacto, em vez de full-width.</summary>
+        public bool AutoWidthFromText { get; set; } = false;
+
+        /// <summary>Padding horizontal interno do pill (à volta do texto).</summary>
+        public int HorizontalPadding { get; set; } = 12;
 
         public StatusPill()
         {
@@ -30,6 +40,12 @@ namespace CoworkingApp
             Invalidate();
         }
 
+        protected override void OnTextChanged(EventArgs e)
+        {
+            base.OnTextChanged(e);
+            Invalidate();
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e) { /* skip */ }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -44,13 +60,25 @@ namespace CoworkingApp
                     g.FillRectangle(bg, ClientRectangle);
             }
 
-            // Pill — altura 22 centrada, largura dinâmica conforme texto
+            // Pill — altura 22 centrada
             int pillHeight = 22;
             int pillY      = (Height - pillHeight) / 2;
-            int margin     = 8;  // gap horizontal do edge
 
-            var pillRect = new Rectangle(margin, pillY, Width - margin * 2, pillHeight);
-            int radius   = pillHeight / 2;  // pill perfeita
+            Rectangle pillRect;
+            if (AutoWidthFromText)
+            {
+                // Largura = texto + padding horizontal, left-aligned (gap 0 da borda esquerda).
+                var ts = TextRenderer.MeasureText(g, Text ?? string.Empty, Font, Size.Empty,
+                    TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
+                int pillW = Math.Min(Width, ts.Width + HorizontalPadding * 2);
+                pillRect  = new Rectangle(0, pillY, pillW, pillHeight);
+            }
+            else
+            {
+                int margin = 8;  // gap horizontal do edge
+                pillRect   = new Rectangle(margin, pillY, Width - margin * 2, pillHeight);
+            }
+            int radius = pillHeight / 2;  // pill perfeita
 
             using (var path = NeonRound(pillRect, radius))
             using (var brush = new SolidBrush(_pillBg))
