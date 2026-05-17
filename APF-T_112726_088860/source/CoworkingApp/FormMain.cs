@@ -127,139 +127,42 @@ namespace CoworkingApp
 
         private void BuildSidebar(Panel sidebar)
         {
-            sidebar.Width = 200;
+            sidebar.Width = 220;
 
-            // Header
+            // ── Header: só o logo (sem texto duplicado com a title bar) ─
             var pnlHeader = new Panel
             {
-                Dock = DockStyle.Top,
-                Height = 64,
+                Dock      = DockStyle.Top,
+                Height    = 56,
                 BackColor = Theme.SidebarBg,
-                Padding = new Padding(14, 14, 8, 0)
             };
-            var lblTitle = new Label
-            {
-                Text = "Coworking",
-                ForeColor = Color.White,
-                Font = new Font(Theme.FontBase.FontFamily, 13f, FontStyle.Bold),
-                AutoSize = false,
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(40, 0, 0, 0)
-            };
-            // Logo: app icon (rounded "C")
             var logoBox = new PictureBox
             {
-                Image     = AppIcon.Get(28).ToBitmap(),
-                Size      = new Size(28, 28),
-                Location  = new Point(14, 18),
+                Image     = AppIcon.Get(32).ToBitmap(),
+                Size      = new Size(32, 32),
+                Location  = new Point(16, 12),
                 SizeMode  = PictureBoxSizeMode.StretchImage,
                 BackColor = Theme.SidebarBg,
             };
             pnlHeader.Controls.Add(logoBox);
-            pnlHeader.Controls.Add(lblTitle);
 
-            // Footer com info de utilizador + logout + toggle tema
-            var pnlFooter = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 124,
-                BackColor = Theme.SidebarBg,
-                Padding = new Padding(8, 4, 8, 4)
-            };
+            // ── Footer: avatar + nome → click abre menu ──────────────────
+            var pnlFooter = BuildAvatarFooter();
 
-            var lblUser = new Label
-            {
-                Text = Session.Username ?? "—",
-                ForeColor = Color.White,
-                Font = new Font(Theme.FontBase.FontFamily, 9.5f, FontStyle.Bold),
-                Dock = DockStyle.Top,
-                Height = 22,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(12, 0, 0, 0)
-            };
-            var lblRole = new Label
-            {
-                Text = "Role: " + (Session.Role ?? "—"),
-                ForeColor = Theme.SidebarText,
-                Font = Theme.FontSub,
-                Dock = DockStyle.Top,
-                Height = 18,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(12, 0, 0, 0)
-            };
-
-            var btnLogout = new IconButton
-            {
-                IconChar            = IconChar.SignOutAlt,
-                IconColor           = Color.White,
-                IconSize            = 16,
-                ImageAlign          = ContentAlignment.MiddleLeft,
-                TextAlign           = ContentAlignment.MiddleLeft,
-                TextImageRelation   = TextImageRelation.ImageBeforeText,
-                Text                = "Sair",
-                Font                = new Font(Theme.FontBase.FontFamily, 9f),
-                ForeColor           = Color.White,
-                BackColor           = Color.Transparent,
-                FlatStyle           = FlatStyle.Flat,
-                Dock                = DockStyle.Top,
-                Height              = 32,
-                Cursor              = Cursors.Hand,
-                Padding             = new Padding(12, 0, 8, 0),
-            };
-            btnLogout.FlatAppearance.BorderSize = 0;
-            btnLogout.FlatAppearance.MouseOverBackColor = Theme.SidebarBgActive;
-            btnLogout.Click += (s, e) =>
-            {
-                LogoutRequested = true;
-                this.Close();
-            };
-
-            var btnTheme = new IconButton
-            {
-                IconChar            = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun,
-                IconColor           = Color.White,
-                IconSize            = 16,
-                ImageAlign          = ContentAlignment.MiddleLeft,
-                TextAlign           = ContentAlignment.MiddleLeft,
-                TextImageRelation   = TextImageRelation.ImageBeforeText,
-                Text                = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro",
-                Font                = new Font(Theme.FontBase.FontFamily, 9f),
-                ForeColor           = Color.White,
-                BackColor           = Color.Transparent,
-                FlatStyle           = FlatStyle.Flat,
-                Dock                = DockStyle.Top,
-                Height              = 32,
-                Cursor              = Cursors.Hand,
-                Padding             = new Padding(12, 0, 8, 0),
-            };
-            btnTheme.FlatAppearance.BorderSize = 0;
-            btnTheme.Click += (s, e) =>
-            {
-                ThemeManager.Toggle();
-                btnTheme.IconChar = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun;
-                btnTheme.Text = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro";
-            };
-            // Order matters: Top added last sits highest visually
-            pnlFooter.Controls.Add(btnTheme);
-            pnlFooter.Controls.Add(btnLogout);
-            pnlFooter.Controls.Add(lblRole);
-            pnlFooter.Controls.Add(lblUser);
-
-            // Nav area
+            // ── Nav area ────────────────────────────────────────────────
             var pnlNav = new Panel
             {
-                Dock = DockStyle.Fill,
-                BackColor = Theme.SidebarBg,
-                Padding = new Padding(8, 8, 8, 0),
-                AutoScroll = true
+                Dock       = DockStyle.Fill,
+                BackColor  = Theme.SidebarBg,
+                Padding    = new Padding(0, 12, 0, 0),
+                AutoScroll = true,
             };
             var flp = new FlowLayoutPanel
             {
-                Dock = DockStyle.Fill,
+                Dock          = DockStyle.Fill,
                 FlowDirection = FlowDirection.TopDown,
-                WrapContents = false,
-                AutoSize = false
+                WrapContents  = false,
+                AutoSize      = false,
             };
 
             AddSectionLabel(flp, "OPERACIONAL");
@@ -294,19 +197,174 @@ namespace CoworkingApp
             sidebar.Controls.Add(pnlHeader);
         }
 
+        // ── Footer avatar com menu de perfil/tema/sair ──────────────────
+        private Panel BuildAvatarFooter()
+        {
+            var footer = new Panel
+            {
+                Dock      = DockStyle.Bottom,
+                Height    = 64,
+                BackColor = Theme.SidebarBg,
+                Cursor    = Cursors.Hand,
+            };
+
+            // Linha divisória subtil
+            var divider = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = 1,
+                BackColor = Color.FromArgb(30, Theme.SidebarText),
+            };
+            footer.Controls.Add(divider);
+
+            var avatar = new AvatarCircle
+            {
+                Initial     = Session.Username ?? "?",
+                CircleColor = Theme.Accent,
+                Size        = new Size(36, 36),
+                Location    = new Point(16, 14),
+            };
+            footer.Controls.Add(avatar);
+
+            var lblName = new Label
+            {
+                Text      = Session.Username ?? "—",
+                ForeColor = Color.White,
+                Font      = new Font(Theme.FontBase.FontFamily, 10f, FontStyle.Bold),
+                BackColor = Theme.SidebarBg,
+                AutoSize  = false,
+                Size      = new Size(140, 20),
+                Location  = new Point(60, 22),
+                TextAlign = ContentAlignment.MiddleLeft,
+            };
+            footer.Controls.Add(lblName);
+
+            var chevron = new IconPictureBox
+            {
+                IconChar  = IconChar.EllipsisVertical,
+                IconColor = Theme.SidebarText,
+                IconSize  = 16,
+                Size      = new Size(20, 22),
+                Location  = new Point(190, 22),
+                SizeMode  = PictureBoxSizeMode.CenterImage,
+                BackColor = Theme.SidebarBg,
+            };
+            footer.Controls.Add(chevron);
+
+            // ContextMenuStrip
+            var menu = BuildProfileMenu();
+
+            void ShowMenu()
+            {
+                menu.Show(footer, new Point(footer.Width - menu.Width - 4,
+                                            -menu.Height + 4));
+            }
+            footer.Click  += (s, e) => ShowMenu();
+            avatar.Click  += (s, e) => ShowMenu();
+            lblName.Click += (s, e) => ShowMenu();
+            chevron.Click += (s, e) => ShowMenu();
+
+            // Hover feedback (subtle background change)
+            void SetHover(bool on)
+            {
+                Color bg = on ? Theme.SidebarBgActive : Theme.SidebarBg;
+                footer.BackColor  = bg;
+                lblName.BackColor = bg;
+                chevron.BackColor = bg;
+                divider.BackColor = Color.FromArgb(30, Theme.SidebarText);
+            }
+            footer.MouseEnter += (s, e) => SetHover(true);
+            footer.MouseLeave += (s, e) => SetHover(false);
+
+            return footer;
+        }
+
+        private ContextMenuStrip BuildProfileMenu()
+        {
+            var menu = new ContextMenuStrip
+            {
+                BackColor       = Theme.CardBg,
+                ForeColor       = Theme.TextPrimary,
+                Font            = Theme.FontBase,
+                ShowImageMargin = true,
+                RenderMode      = ToolStripRenderMode.Professional,
+                Renderer        = new DarkMenuRenderer(),
+            };
+
+            var miPerfil = new ToolStripMenuItem("Perfil")
+            {
+                Image     = IconToImage(IconChar.User, 16, Theme.TextSecondary),
+                ForeColor = Theme.TextPrimary,
+            };
+            miPerfil.Click += (s, e) => Navigate<UcPerfil>();
+
+            string themeText = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro";
+            IconChar themeIcon = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun;
+            var miTema = new ToolStripMenuItem(themeText)
+            {
+                Image     = IconToImage(themeIcon, 16, Theme.TextSecondary),
+                ForeColor = Theme.TextPrimary,
+            };
+            miTema.Click += (s, e) =>
+            {
+                ThemeManager.Toggle();
+                miTema.Text  = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro";
+                miTema.Image = IconToImage(
+                    ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun,
+                    16, Theme.TextSecondary);
+            };
+
+            var miSair = new ToolStripMenuItem("Sair")
+            {
+                Image     = IconToImage(IconChar.SignOutAlt, 16, Theme.StatusDangerFg),
+                ForeColor = Theme.TextPrimary,
+            };
+            miSair.Click += (s, e) =>
+            {
+                LogoutRequested = true;
+                this.Close();
+            };
+
+            menu.Items.Add(miPerfil);
+            menu.Items.Add(miTema);
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(miSair);
+            return menu;
+        }
+
+        private static Image IconToImage(IconChar icon, int size, Color color)
+        {
+            // Render via IconPictureBox + DrawToBitmap (mais fiável que ler pb.Image
+            // directamente, que pode ser null antes do primeiro paint).
+            using (var pb = new IconPictureBox
+                   {
+                       IconChar  = icon,
+                       IconSize  = size,
+                       IconColor = color,
+                       Size      = new Size(size, size),
+                       BackColor = Theme.CardBg,
+                       SizeMode  = PictureBoxSizeMode.AutoSize,
+                   })
+            {
+                var bmp = new Bitmap(size, size);
+                pb.DrawToBitmap(bmp, new Rectangle(0, 0, size, size));
+                return bmp;
+            }
+        }
+
         private void AddSectionLabel(FlowLayoutPanel container, string text)
         {
             container.Controls.Add(new Label
             {
-                Text = text,
-                Font = Theme.FontMicro,
+                Text      = text,
+                Font      = Theme.FontMicro,
                 ForeColor = Theme.SidebarSectionLbl,
-                AutoSize = false,
-                Width = 180,
-                Height = 22,
+                AutoSize  = false,
+                Width     = 200,
+                Height    = 22,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 0, 0),
-                Margin = new Padding(0, 6, 0, 4)
+                Padding   = new Padding(14, 0, 0, 0),     // section a x=14
+                Margin    = new Padding(0, 12, 0, 6),     // mais breathing antes/depois
             });
         }
 
@@ -326,8 +384,8 @@ namespace CoworkingApp
                 BackColor           = Color.Transparent,
                 Font                = new Font(Theme.FontBase.FontFamily, 9.5f),
                 Height              = 38,
-                Width               = 184,
-                Padding             = new Padding(14, 0, 8, 0),
+                Width               = 200,
+                Padding             = new Padding(26, 0, 8, 0),   // items indented vs section (x=26)
                 Margin              = new Padding(0, 0, 0, 3),
                 Cursor              = Cursors.Hand,
                 UseVisualStyleBackColor = false,
@@ -379,7 +437,8 @@ namespace CoworkingApp
                 { typeof(UcPagamentos),    "Pagamentos"    },
                 { typeof(UcRelatorios),    "Relatórios"    },
                 { typeof(UcEstatisticas),  "Estatísticas"  },
-                { typeof(UcUtilizadores),  "Utilizadores"  }
+                { typeof(UcUtilizadores),  "Utilizadores"  },
+                { typeof(UcPerfil),        "Perfil"        }
             };
             if (names.TryGetValue(typeof(T), out string name))
                 _lblModule.Text = name;
