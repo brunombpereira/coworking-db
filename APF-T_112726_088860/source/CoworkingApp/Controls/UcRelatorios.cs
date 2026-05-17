@@ -1,257 +1,262 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
-using Microsoft.Data.SqlClient;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+using System.Globalization;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
+using FontAwesome.Sharp;
+using Microsoft.Data.SqlClient;
 
 namespace CoworkingApp.Controls
 {
     public class UcRelatorios : UserControl
     {
+        private enum Tab { Disponibilidade, Cliente, Analise }
+        private Tab _active = Tab.Disponibilidade;
+        private TabButton _tabDisp, _tabCli, _tabAna;
+        private Panel _content;
+
         // Tab 1
-        private RadioButton rbSala;
-        private RadioButton rbPosto;
-        private DateTimePicker dtpDisp;
-        private DateTimePicker dtpDispHI;
-        private DateTimePicker dtpDispHF;
-        private Button btnPesquisarDisp;
-        private DataGridView dgvDisponibilidade;
+        private SegmentedControl _segTipo;
+        private ModernDateField  _dtDispData;
+        private ModernSelect     _hIni, _hFim;
+        private ModernButton     _btnPesqDisp;
+        private ScrollableList   _listDisp;
+        private Panel            _dispEmpty;
+        private Label            _dispHeader;
 
         // Tab 2
-        private ComboBox cmbClienteHist;
-        private Button btnPesquisarHist;
-        private DataGridView dgvHistCliente;
+        private ModernSelect     _cmbCliCli;
+        private Label            _kpiCliReservas, _kpiCliPago, _kpiCliUltima;
+        private ScrollableList   _listCliReservas, _listCliPagamentos;
+        private Panel            _cliReservasEmpty, _cliPagamentosEmpty;
+        private TableLayoutPanel _cliListGrid;
+        private Panel            _cliEmpty;
 
         // Tab 3
-        private ComboBox cmbClientePag;
-        private Button btnPesquisarPag;
-        private DataGridView dgvHistPag;
+        private ModernDateField  _dtAnaIni, _dtAnaFim;
+        private ModernButton     _btnAnaAplicar;
+        private Label            _kpiAnaReceita, _kpiAnaReservas, _kpiAnaPagos;
+        private Chart            _chartReceitaMensal;
+        private Chart            _chartOcupacao;
+        private Chart            _chartMetodos;
 
-        // Tab 4
-        private DateTimePicker dtpOcupIni;
-        private DateTimePicker dtpOcupFim;
-        private Button btnPesquisarOcup;
-        private DataGridView dgvOcupacao;
-        private DateTimePicker dtpRecIni;
-        private DateTimePicker dtpRecFim;
-        private Button btnPesquisarRec;
-        private Label lblTotalReceita;
-        private DataGridView dgvReceita;
-        private Chart _chartReceita;
-        private Chart _chartMetodosPag;
+        private bool _anaLoaded = false;
 
         public UcRelatorios()
         {
-            InitUI();
-            LoadClientesCombos();
+            BackColor = Theme.PageBg;
+            Dock      = DockStyle.Fill;
+            BuildUI();
+            LoadClientesCombo();
+            // Auto-load Disponibilidade ao abrir o UC (após handle criado).
+            HandleCreated += (s, e) => { try { LoadDispData(); } catch { /* sem BD não rebenta */ } };
         }
 
-        private static void StyleChart(System.Windows.Forms.DataVisualization.Charting.Chart c)
+        // ── BUILD UI ────────────────────────────────────────────────────
+        private void BuildUI()
         {
-            c.BackColor = Theme.CardBg;
-            foreach (var area in c.ChartAreas)
+            var root = new TableLayoutPanel
             {
-                area.BackColor = System.Drawing.Color.Transparent;
-                area.AxisX.LineColor = Theme.CardBorder;
-                area.AxisY.LineColor = Theme.CardBorder;
-                area.AxisX.LabelStyle.ForeColor = Theme.TextMuted;
-                area.AxisY.LabelStyle.ForeColor = Theme.TextMuted;
-                area.AxisX.MajorGrid.LineColor = System.Drawing.Color.Transparent;
-                area.AxisY.MajorGrid.LineColor = Theme.CardBorder;
-            }
-            foreach (var legend in c.Legends)
-            {
-                legend.BackColor = System.Drawing.Color.Transparent;
-                legend.ForeColor = Theme.TextSecondary;
-            }
-            foreach (var title in c.Titles)
-            {
-                title.ForeColor = Theme.TextPrimary;
-            }
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+                BackColor = Theme.PageBg,
+                Padding = new Padding(20, 16, 20, 16),
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));   // title
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));   // tab bar
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // content
+
+            root.Controls.Add(BuildTitle(),  0, 0);
+            root.Controls.Add(BuildTabBar(), 0, 1);
+            root.Controls.Add(BuildContent(), 0, 2);
+
+            Controls.Add(root);
+            SwitchTab(Tab.Disponibilidade);
         }
 
-        private static readonly System.Drawing.Color[] ChartPalette = new[]
+        private Control BuildTitle()
         {
-            ColorTranslator.FromHtml("#6366f1"),
-            ColorTranslator.FromHtml("#8b5cf6"),
-            ColorTranslator.FromHtml("#10b981"),
-            ColorTranslator.FromHtml("#f59e0b"),
-            ColorTranslator.FromHtml("#ef4444"),
-            ColorTranslator.FromHtml("#3b82f6")
-        };
-
-        private void InitUI()
-        {
-            this.Dock = DockStyle.Fill;
-            this.BackColor = Theme.PageBg;
-
-            // --- pnlTitle (Dock=Top) ---
-            var pnlTitle = new Panel();
-            pnlTitle.Dock = DockStyle.Top;
-            pnlTitle.Height = 56;
-            pnlTitle.BackColor = Theme.PageBg;
-
-            var lblTitle = new Label();
-            lblTitle.Text = "Relatórios";
-            lblTitle.Font = Theme.FontTitle;
-            lblTitle.ForeColor = Theme.TextPrimary;
-            lblTitle.AutoSize = true;
-            lblTitle.Location = new Point(18, 14);
-            pnlTitle.Controls.Add(lblTitle);
-
-            // --- tabControl (Dock=Fill) ---
-            var tabControl = new TabControl();
-            tabControl.Dock = DockStyle.Fill;
-            tabControl.Font = Theme.FontBase;
-
-            tabControl.TabPages.Add(BuildTabDisponibilidade());
-            tabControl.TabPages.Add(BuildTabHistorialCliente());
-            tabControl.TabPages.Add(BuildTabHistorialPagamentos());
-            tabControl.TabPages.Add(BuildTabOcupacaoReceita());
-
-            // Add order: Fill first, then Top panels (title last = visually topmost)
-            this.Controls.Add(tabControl);   // Dock=Fill
-            this.Controls.Add(pnlTitle);     // Dock=Top — added last = visually topmost
+            var pnl = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg };
+            pnl.Controls.Add(new Label
+            {
+                Text = "Relatórios", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary,
+                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            return pnl;
         }
 
-        // ─── Tab 1: Disponibilidade ─────────────────────────────────────────────
-
-        private TabPage BuildTabDisponibilidade()
+        private Control BuildTabBar()
         {
-            var tab = new TabPage("Disponibilidade");
-            tab.BackColor = Color.White;
-
-            // FlowLayoutPanel (Dock=Top)
-            var flw = new FlowLayoutPanel();
-            flw.Dock = DockStyle.Top;
-            flw.Height = 56;
-            flw.BackColor = Color.White;
-            flw.Padding = new Padding(10, 8, 0, 8);
-            flw.WrapContents = false;
-            flw.FlowDirection = FlowDirection.LeftToRight;
-
-            rbSala = new RadioButton();
-            rbSala.Text = "Sala";
-            rbSala.Checked = true;
-            rbSala.AutoSize = true;
-            rbSala.Margin = new Padding(0, 4, 8, 0);
-
-            rbPosto = new RadioButton();
-            rbPosto.Text = "Posto";
-            rbPosto.AutoSize = true;
-            rbPosto.Margin = new Padding(0, 4, 12, 0);
-
-            var lblData = new Label();
-            lblData.Text = "Data:";
-            lblData.AutoSize = true;
-            lblData.Margin = new Padding(0, 7, 4, 0);
-
-            dtpDisp = new DateTimePicker();
-            dtpDisp.Format = DateTimePickerFormat.Short;
-            dtpDisp.Width = 100;
-            dtpDisp.Margin = new Padding(0, 3, 12, 0);
-
-            var lblHI = new Label();
-            lblHI.Text = "H.Início:";
-            lblHI.AutoSize = true;
-            lblHI.Margin = new Padding(0, 7, 4, 0);
-
-            dtpDispHI = new DateTimePicker();
-            dtpDispHI.Format = DateTimePickerFormat.Time;
-            dtpDispHI.ShowUpDown = true;
-            dtpDispHI.Width = 80;
-            dtpDispHI.Value = DateTime.Today.AddHours(9);
-            dtpDispHI.Margin = new Padding(0, 3, 12, 0);
-
-            var lblHF = new Label();
-            lblHF.Text = "H.Fim:";
-            lblHF.AutoSize = true;
-            lblHF.Margin = new Padding(0, 7, 4, 0);
-
-            dtpDispHF = new DateTimePicker();
-            dtpDispHF.Format = DateTimePickerFormat.Time;
-            dtpDispHF.ShowUpDown = true;
-            dtpDispHF.Width = 80;
-            dtpDispHF.Value = DateTime.Today.AddHours(10);
-            dtpDispHF.Margin = new Padding(0, 3, 12, 0);
-
-            btnPesquisarDisp = Theme.BtnPrim("Pesquisar");
-            btnPesquisarDisp.Margin = new Padding(0, 3, 0, 0);
-            btnPesquisarDisp.Click += BtnPesquisarDisp_Click;
-
-            flw.Controls.Add(rbSala);
-            flw.Controls.Add(rbPosto);
-            flw.Controls.Add(lblData);
-            flw.Controls.Add(dtpDisp);
-            flw.Controls.Add(lblHI);
-            flw.Controls.Add(dtpDispHI);
-            flw.Controls.Add(lblHF);
-            flw.Controls.Add(dtpDispHF);
-            flw.Controls.Add(btnPesquisarDisp);
-
-            dgvDisponibilidade = new DataGridView();
-            dgvDisponibilidade.Dock = DockStyle.Fill;
-            Theme.StyleGrid(dgvDisponibilidade);
-            dgvDisponibilidade.CellFormatting += (s, e) =>
+            var bar = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg };
+            // Linha divisória inferior — full width.
+            bar.Paint += (s, e) =>
             {
-                if (e.ColumnIndex >= 0 && (dgvDisponibilidade.Columns[e.ColumnIndex].HeaderText == "€/Hora" ||
-                    dgvDisponibilidade.Columns[e.ColumnIndex].HeaderText == "€/Dia") &&
-                    e.Value != null && e.Value != DBNull.Value)
-                {
-                    try { e.Value = Theme.FormatEuro(Convert.ToDecimal(e.Value)); e.FormattingApplied = true; }
-                    catch { }
-                }
+                using (var pen = new Pen(Theme.CardBorder, 1f))
+                    e.Graphics.DrawLine(pen, 0, bar.Height - 1, bar.Width, bar.Height - 1);
             };
 
-            tab.Controls.Add(dgvDisponibilidade);  // Fill
-            tab.Controls.Add(flw);                 // Top — added last = visually topmost
-            return tab;
+            _tabDisp = new TabButton { Text = "Disponibilidade", Icon = IconChar.MagnifyingGlass, Margin = new Padding(0, 6, 4, 0) };
+            _tabCli  = new TabButton { Text = "Por Cliente",     Icon = IconChar.User,            Margin = new Padding(0, 6, 4, 0) };
+            _tabAna  = new TabButton { Text = "Análise",         Icon = IconChar.ChartLine,       Margin = new Padding(0, 6, 0, 0) };
+
+            _tabDisp.Click += (s, e) => SwitchTab(Tab.Disponibilidade);
+            _tabCli .Click += (s, e) => SwitchTab(Tab.Cliente);
+            _tabAna .Click += (s, e) => SwitchTab(Tab.Analise);
+
+            var flow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.PageBg,
+                FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
+                AutoSize = false, Padding = new Padding(0),
+            };
+            flow.Controls.Add(_tabDisp);
+            flow.Controls.Add(_tabCli);
+            flow.Controls.Add(_tabAna);
+            bar.Controls.Add(flow);
+            return bar;
         }
 
-        private void BtnPesquisarDisp_Click(object sender, EventArgs e)
+        private Control BuildContent()
         {
-            if (dtpDispHI.Value.TimeOfDay >= dtpDispHF.Value.TimeOfDay)
+            _content = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg, Padding = new Padding(0, 12, 0, 0) };
+            _content.Controls.Add(BuildTabDisp());
+            _content.Controls.Add(BuildTabCli());
+            _content.Controls.Add(BuildTabAna());
+            return _content;
+        }
+
+        private void SwitchTab(Tab t)
+        {
+            _active = t;
+            _tabDisp.Active = (t == Tab.Disponibilidade);
+            _tabCli .Active = (t == Tab.Cliente);
+            _tabAna .Active = (t == Tab.Analise);
+            foreach (Control c in _content.Controls)
+            {
+                if (c.Name == "tabDisp") c.Visible = (t == Tab.Disponibilidade);
+                if (c.Name == "tabCli")  c.Visible = (t == Tab.Cliente);
+                if (c.Name == "tabAna")  c.Visible = (t == Tab.Analise);
+            }
+            // Lazy-load Análise na primeira visita
+            if (t == Tab.Analise && !_anaLoaded)
+            {
+                try { LoadAnaData(); _anaLoaded = true; } catch { /* sem BD */ }
+            }
+        }
+
+        // ─── TAB 1: Disponibilidade ─────────────────────────────────────
+        private Control BuildTabDisp()
+        {
+            var card = new ModernCard
+            {
+                Name = "tabDisp", Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+            };
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = Theme.CardBg,
+                Padding = new Padding(16, 14, 16, 16),
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));  // filtros
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));  // header contextual
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // lista
+
+            // ─── Filtros (Locations sem overlap) ──────────────────────
+            var filterRow = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+            _segTipo = new SegmentedControl
+            {
+                Segments = new[] { "Sala", "Posto" }, SelectedIndex = 0,
+                Width = 160, Height = 36, Location = new Point(0, 10),
+            };
+            _dtDispData = new ModernDateField
+            {
+                Width = 130, Height = 36, Value = DateTime.Today,
+                Location = new Point(176, 10),
+            };
+            _hIni = MakeHora("09:00", 322);
+            _hFim = MakeHora("10:00", 422);
+            _btnPesqDisp = new ModernButton
+            {
+                Text = "Pesquisar", Style = ModernButton.Variant.Primary, Font = Theme.FontBold,
+                Size = new Size(120, 40), Location = new Point(522, 8),
+            };
+            _btnPesqDisp.Click += (s, e) => LoadDispData();
+            filterRow.Controls.AddRange(new Control[] { _segTipo, _dtDispData, _hIni, _hFim, _btnPesqDisp });
+
+            // ─── Header contextual (em vez de KPI separado)
+            _dispHeader = new Label
+            {
+                Text = "Define os filtros e clica em Pesquisar",
+                Font = Theme.FontSection, ForeColor = Theme.TextSecondary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Fill,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Margin = new Padding(0, 6, 0, 4),
+            };
+
+            // ─── Lista ───
+            var listHost = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+            _listDisp = new ScrollableList { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Visible = false };
+            _listDisp.Content.BackColor = Theme.CardBg;
+            _dispEmpty = BuildEmptyState("Clica em 'Pesquisar' para listar os recursos disponíveis", IconChar.MagnifyingGlass);
+            _dispEmpty.Dock = DockStyle.Fill;
+            listHost.Controls.Add(_listDisp);
+            listHost.Controls.Add(_dispEmpty);
+
+            root.Controls.Add(filterRow,   0, 0);
+            root.Controls.Add(_dispHeader, 0, 1);
+            root.Controls.Add(listHost,    0, 2);
+            card.Controls.Add(root);
+            return card;
+        }
+
+        private ModernSelect MakeHora(string defaultVal, int x)
+        {
+            var sel = new ModernSelect { Width = 84, Height = 36, Location = new Point(x, 10) };
+            for (int h = 0; h < 24; h++)
+                sel.AddItems($"{h:00}:00", $"{h:00}:30");
+            sel.SelectByDisplay(defaultVal);
+            return sel;
+        }
+
+        private void LoadDispData()
+        {
+            bool isSala = (_segTipo.SelectedIndex == 0);
+            string hi = _hIni.SelectedText;
+            string hf = _hFim.SelectedText;
+            DateTime data = _dtDispData.Value.Date;
+            if (string.Compare(hi, hf, StringComparison.Ordinal) >= 0)
             {
                 MessageBox.Show("Hora fim deve ser posterior à hora início.", "Validação",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            string hi = dtpDispHI.Value.TimeOfDay.ToString(@"hh\:mm");
-            string hf = dtpDispHF.Value.TimeOfDay.ToString(@"hh\:mm");
-            DateTime data = dtpDisp.Value.Date;
 
-            string sql;
-            if (rbSala.Checked)
-            {
-                sql = @"
-SELECT s.recurso_id AS ID, e.nome AS Espaço, s.nome AS Sala,
-  s.capacidade AS Capacidade, s.preco_hora AS [€/Hora]
-FROM sala s JOIN espaco e ON s.espaco_id=e.espaco_id
-WHERE s.estado='Disponivel'
-AND NOT EXISTS (
-  SELECT 1 FROM reserva r WHERE r.recurso_id=s.recurso_id
-  AND r.data_reserva=@d AND r.estado<>'Cancelada'
-  AND r.hora_inicio < @hf AND r.hora_fim > @hi)
-ORDER BY e.nome, s.nome";
-            }
-            else
-            {
-                sql = @"
-SELECT p.recurso_id AS ID, e.nome AS Espaço, p.codigo AS Código,
-  p.tipo_posto AS Tipo, p.preco_dia AS [€/Dia]
-FROM posto p JOIN espaco e ON p.espaco_id=e.espaco_id
-WHERE p.estado='Disponivel'
-AND NOT EXISTS (
-  SELECT 1 FROM reserva r WHERE r.recurso_id=p.recurso_id
-  AND r.data_reserva=@d AND r.estado<>'Cancelada')
-ORDER BY e.nome, p.codigo";
-            }
+            string sql = isSala
+                ? @"SELECT s.recurso_id AS id, e.nome AS espaco, s.nome AS nome,
+                           s.capacidade AS extra, s.preco_hora AS preco, 'Sala' AS tipo
+                    FROM sala s JOIN espaco e ON s.espaco_id=e.espaco_id
+                    WHERE s.estado='Disponivel' AND NOT EXISTS (
+                        SELECT 1 FROM reserva r WHERE r.recurso_id=s.recurso_id
+                        AND r.data_reserva=@d AND r.estado<>'Cancelada'
+                        AND r.hora_inicio < @hf AND r.hora_fim > @hi)
+                    ORDER BY e.nome, s.nome"
+                : @"SELECT p.recurso_id AS id, e.nome AS espaco, p.codigo AS nome,
+                           NULL AS extra, p.preco_dia AS preco, 'Posto' AS tipo
+                    FROM posto p JOIN espaco e ON p.espaco_id=e.espaco_id
+                    WHERE p.estado='Disponivel' AND NOT EXISTS (
+                        SELECT 1 FROM reserva r WHERE r.recurso_id=p.recurso_id
+                        AND r.data_reserva=@d AND r.estado<>'Cancelada')
+                    ORDER BY e.nome, p.codigo";
 
             try
             {
                 using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(sql, conn))
+                using (var cmd  = new SqlCommand(sql, conn))
                 {
                     cmd.Parameters.AddWithValue("@d", data);
                     cmd.Parameters.AddWithValue("@hi", hi);
@@ -260,99 +265,7 @@ ORDER BY e.nome, p.codigo";
                     {
                         var dt = new DataTable();
                         da.Fill(dt);
-                        dgvDisponibilidade.DataSource = dt;
-                    }
-                }
-
-                if (dgvDisponibilidade.Columns.Contains("ID"))
-                    dgvDisponibilidade.Columns["ID"].Visible = false;
-            }
-            catch (SqlException ex)
-            {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        // ─── Tab 2: Historial por Cliente ───────────────────────────────────────
-
-        private TabPage BuildTabHistorialCliente()
-        {
-            var tab = new TabPage("Historial por Cliente");
-            tab.BackColor = Color.White;
-
-            var flw = new FlowLayoutPanel();
-            flw.Dock = DockStyle.Top;
-            flw.Height = 50;
-            flw.BackColor = Color.White;
-            flw.WrapContents = false;
-            flw.FlowDirection = FlowDirection.LeftToRight;
-            flw.Padding = new Padding(10, 8, 0, 8);
-
-            var lblCliente = new Label();
-            lblCliente.Text = "Cliente:";
-            lblCliente.AutoSize = true;
-            lblCliente.Margin = new Padding(0, 7, 4, 0);
-
-            cmbClienteHist = new ComboBox();
-            cmbClienteHist.Width = 220;
-            cmbClienteHist.DropDownStyle = ComboBoxStyle.DropDownList;
-            cmbClienteHist.Margin = new Padding(0, 3, 12, 0);
-
-            btnPesquisarHist = Theme.BtnPrim("Pesquisar");
-            btnPesquisarHist.Margin = new Padding(0, 3, 0, 0);
-            btnPesquisarHist.Click += BtnPesquisarHist_Click;
-
-            flw.Controls.Add(lblCliente);
-            flw.Controls.Add(cmbClienteHist);
-            flw.Controls.Add(btnPesquisarHist);
-
-            dgvHistCliente = new DataGridView();
-            dgvHistCliente.Dock = DockStyle.Fill;
-            Theme.StyleGrid(dgvHistCliente);
-            dgvHistCliente.CellFormatting += (s, e) =>
-            {
-                Theme.ApplyStatusColor(e, "Estado", dgvHistCliente);
-                if (e.ColumnIndex >= 0 && dgvHistCliente.Columns[e.ColumnIndex].HeaderText == "Valor" &&
-                    e.Value != null && e.Value != DBNull.Value)
-                {
-                    try { e.Value = Theme.FormatEuro(Convert.ToDecimal(e.Value)); e.FormattingApplied = true; }
-                    catch { }
-                }
-            };
-
-            tab.Controls.Add(dgvHistCliente);  // Fill
-            tab.Controls.Add(flw);             // Top — added last = visually topmost
-            return tab;
-        }
-
-        private void BtnPesquisarHist_Click(object sender, EventArgs e)
-        {
-            if (cmbClienteHist.SelectedValue == null) return;
-            int clienteId = Convert.ToInt32(cmbClienteHist.SelectedValue);
-
-            string sql = @"
-SELECT ISNULL(s.nome, p.codigo) AS Recurso,
-  rc.tipo AS Tipo,
-  CONVERT(varchar,r.data_reserva,103) AS Data,
-  CONVERT(varchar,r.hora_inicio,108)+'-'+CONVERT(varchar,r.hora_fim,108) AS Horário,
-  r.valor AS Valor, r.estado AS Estado
-FROM reserva r
-JOIN recurso rc ON r.recurso_id = rc.recurso_id
-LEFT JOIN sala s ON rc.recurso_id = s.recurso_id
-LEFT JOIN posto p ON rc.recurso_id = p.recurso_id
-WHERE r.cliente_id=@c ORDER BY r.data_reserva DESC";
-
-            try
-            {
-                using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@c", clienteId);
-                    using (var da = new SqlDataAdapter(cmd))
-                    {
-                        var dt = new DataTable();
-                        da.Fill(dt);
-                        dgvHistCliente.DataSource = dt;
+                        RenderDispRows(dt, isSala);
                     }
                 }
             }
@@ -362,396 +275,797 @@ WHERE r.cliente_id=@c ORDER BY r.data_reserva DESC";
             }
         }
 
-        // ─── Tab 3: Historial de Pagamentos ─────────────────────────────────────
-
-        private TabPage BuildTabHistorialPagamentos()
+        private void RenderDispRows(DataTable dt, bool isSala)
         {
-            var tab = new TabPage("Historial de Pagamentos");
-            tab.BackColor = Color.White;
+            _listDisp.Content.SuspendLayout();
+            _listDisp.Content.Controls.Clear();
 
-            var flw = new FlowLayoutPanel();
-            flw.Dock = DockStyle.Top;
-            flw.Height = 50;
-            flw.BackColor = Color.White;
-            flw.WrapContents = false;
-            flw.FlowDirection = FlowDirection.LeftToRight;
-            flw.Padding = new Padding(10, 8, 0, 8);
+            string tipo  = isSala ? "salas" : "postos";
+            string horas = isSala ? $" das {_hIni.SelectedText} às {_hFim.SelectedText}" : "";
+            _dispHeader.Text = dt.Rows.Count == 0
+                ? $"Sem {tipo} disponíveis em {_dtDispData.Value:dd/MM/yyyy}{horas}"
+                : $"{dt.Rows.Count} {tipo} disponíveis em {_dtDispData.Value:dd/MM/yyyy}{horas}";
 
-            var lblCliente = new Label();
-            lblCliente.Text = "Cliente:";
-            lblCliente.AutoSize = true;
-            lblCliente.Margin = new Padding(0, 7, 4, 0);
-
-            cmbClientePag = new ComboBox();
-            cmbClientePag.Width = 220;
-            cmbClientePag.DropDownStyle = ComboBoxStyle.DropDownList;
-            cmbClientePag.Margin = new Padding(0, 3, 12, 0);
-
-            btnPesquisarPag = Theme.BtnPrim("Pesquisar");
-            btnPesquisarPag.Margin = new Padding(0, 3, 0, 0);
-            btnPesquisarPag.Click += BtnPesquisarPag_Click;
-
-            flw.Controls.Add(lblCliente);
-            flw.Controls.Add(cmbClientePag);
-            flw.Controls.Add(btnPesquisarPag);
-
-            dgvHistPag = new DataGridView();
-            dgvHistPag.Dock = DockStyle.Fill;
-            Theme.StyleGrid(dgvHistPag);
-            dgvHistPag.CellFormatting += (s, e) =>
+            // Agrupar por espaço para criar section headers.
+            var byEspaco = new Dictionary<string, List<DataRow>>();
+            foreach (DataRow r in dt.Rows)
             {
-                Theme.ApplyStatusColor(e, "Estado", dgvHistPag);
-                if (e.ColumnIndex >= 0 && dgvHistPag.Columns[e.ColumnIndex].HeaderText == "Valor" &&
-                    e.Value != null && e.Value != DBNull.Value)
+                string e = r["espaco"].ToString();
+                if (!byEspaco.ContainsKey(e)) byEspaco[e] = new List<DataRow>();
+                byEspaco[e].Add(r);
+            }
+
+            // Construir todos os controls em ordem reversa (Dock=Top → reverse z).
+            var controls = new List<Control>();
+            int totalH = 0;
+            int spaceIdx = 0;
+            foreach (var pair in byEspaco)
+            {
+                // Section header (espaço + count)
+                var header = BuildSectionHeader(pair.Key, pair.Value.Count, tipo);
+                header.Dock = DockStyle.Top;
+                controls.Add(header);
+                totalH += header.Height + 4;
+                spaceIdx++;
+
+                foreach (DataRow r in pair.Value)
                 {
-                    try { e.Value = Theme.FormatEuro(Convert.ToDecimal(e.Value)); e.FormattingApplied = true; }
-                    catch { }
+                    string nome   = r["nome"].ToString();
+                    string tipoR  = r["tipo"].ToString();
+                    decimal preco = Convert.ToDecimal(r["preco"]);
+                    int? extra    = r["extra"] is DBNull ? (int?)null : Convert.ToInt32(r["extra"]);
+                    string unidade = isSala ? "/hora" : "/dia";
+
+                    var card = BuildResourceCard(pair.Key, nome, tipoR, extra, preco, unidade);
+                    card.Dock = DockStyle.Top;
+                    controls.Add(card);
+                    totalH += card.Height + 6;
                 }
-            };
+            }
+            // Adicionar reversed para preservar a ordem visual.
+            for (int i = controls.Count - 1; i >= 0; i--)
+                _listDisp.Content.Controls.Add(controls[i]);
 
-            // ── Pie chart: métodos de pagamento por cliente (Dock=Bottom, Height=160)
-            _chartMetodosPag = new Chart { Dock = DockStyle.Bottom, Height = 160, Visible = false, BackColor = Theme.CardBg };
-            var areaMet = new ChartArea("main") { BackColor = Color.Transparent };
-            _chartMetodosPag.ChartAreas.Add(areaMet);
-            var serMet = new Series("met") { ChartType = SeriesChartType.Pie };
-            _chartMetodosPag.Series.Add(serMet);
-            var legendMet = new Legend("leg") { Docking = Docking.Right, Font = new Font("Segoe UI", 8f), BackColor = Color.Transparent };
-            _chartMetodosPag.Legends.Add(legendMet);
-            serMet.Legend = "leg";
-            StyleChart(_chartMetodosPag);
-
-            tab.Controls.Add(dgvHistPag);         // Fill
-            tab.Controls.Add(_chartMetodosPag);   // Bottom
-            tab.Controls.Add(flw);                // Top — added last = visually topmost
-            return tab;
+            _listDisp.Content.ResumeLayout();
+            _listDisp.UpdateLayout(totalH);
+            _listDisp.Visible  = dt.Rows.Count > 0;
+            _dispEmpty.Visible = dt.Rows.Count == 0;
+            _dispEmpty.Invalidate();
         }
 
-        private void BtnPesquisarPag_Click(object sender, EventArgs e)
+        private Control BuildSectionHeader(string espaco, int count, string tipo)
         {
-            if (cmbClientePag.SelectedValue == null) return;
-            int clienteId = Convert.ToInt32(cmbClientePag.SelectedValue);
+            var pnl = new Panel { Height = 42, BackColor = Theme.CardBg, Padding = new Padding(4, 14, 4, 4) };
+            var lblName = new Label
+            {
+                Text = espaco, Font = new Font(Theme.FontBase.FontFamily, 10.5f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Left, AutoSize = false, Width = 320, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            var lblCount = new Label
+            {
+                Text = $"{count} {(count == 1 ? tipo.TrimEnd('s') : tipo)}",
+                Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
+                Dock = DockStyle.Right, AutoSize = false, Width = 200, TextAlign = ContentAlignment.MiddleRight,
+                Padding = new Padding(0, 0, 8, 0),
+            };
+            var divider = new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.CardBorder };
+            pnl.Controls.Add(lblName);
+            pnl.Controls.Add(lblCount);
+            pnl.Controls.Add(divider);
+            return pnl;
+        }
 
-            string sqlHist = @"
-SELECT CONVERT(varchar,p.data_pagamento,103) AS Data,
-  p.valor AS Valor, p.metodo_pagamento AS Método, p.estado AS Estado,
-  CASE WHEN p.reserva_id IS NOT NULL THEN 'Reserva #'+CAST(p.reserva_id AS varchar)
-       ELSE 'Adesão #'+CAST(p.adesao_id AS varchar) END AS Referência
-FROM pagamento p WHERE p.cliente_id=@c ORDER BY p.data_pagamento DESC";
+        private Control BuildResourceCard(string espaco, string nome, string tipo, int? capacidade, decimal preco, string unidade)
+        {
+            Color idleBg  = Theme.CardBg;
+            Color hoverBg = UcEspacos.MixColors(Theme.CardBg, Color.White, 0.05f);
+            // Outer wrapper para Padding bottom funcionar como gap entre cards.
+            var wrap = new Panel { Height = 86, BackColor = idleBg, Padding = new Padding(0, 0, 0, 8) };
+            var row  = new Panel { Dock = DockStyle.Fill, BackColor = idleBg };
+
+            Color tipoColor = (tipo == "Sala") ? Theme.Accent : ColorTranslator.FromHtml("#06b6d4");
+            IconChar tipoIcon = (tipo == "Sala") ? IconChar.DoorClosed : IconChar.Chair;
+
+            // ─── Esquerda: avatar tipo ───────────────────────────────
+            var leftBlock = new Panel { Dock = DockStyle.Left, Width = 68, BackColor = idleBg };
+            Image img = null;
+            using (var pb = new IconPictureBox { IconChar = tipoIcon, IconSize = 20, IconColor = Color.White })
+                if (pb.Image != null) img = (Image)pb.Image.Clone();
+            leftBlock.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                int diam = 42;
+                int cx = (leftBlock.Width  - diam) / 2;
+                int cy = (leftBlock.Height - diam) / 2;
+                using (var br = new SolidBrush(tipoColor)) g.FillEllipse(br, cx, cy, diam, diam);
+                if (img != null) g.DrawImage(img, cx + (diam - 20) / 2, cy + (diam - 20) / 2 + 1, 20, 20);
+            };
+
+            // ─── Direita: botão Reservar (centrado vertical) ─────────
+            // Wrap card.Height = 86 inclui Padding bottom 8 → height útil = 78.
+            // Button 36 → top = (78-36)/2 = 21 para centrar.
+            var actions = new Panel { Dock = DockStyle.Right, Width = 130, BackColor = idleBg, Padding = new Padding(0, 21, 12, 0) };
+            var btnReservar = new ModernButton
+            {
+                Text = "Reservar", Style = ModernButton.Variant.Primary,
+                Font = Theme.FontBold, Dock = DockStyle.Top, Height = 36,
+            };
+            btnReservar.Click += (s, e) =>
+            {
+                MessageBox.Show($"Abrir nova reserva para '{nome}' em {_dtDispData.Value:dd/MM/yyyy}.",
+                    "Reservar", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            };
+            actions.Controls.Add(btnReservar);
+
+            // ─── Preço + chip Disponível (centrado vertical) ─────────
+            // Preço (30) + pill (22) = 52 → top = (78-52)/2 = 13.
+            var precoInfo = new Panel { Dock = DockStyle.Right, Width = 170, BackColor = idleBg, Padding = new Padding(0, 13, 12, 0) };
+            var lblPreco = new Label
+            {
+                Text = Theme.FormatEuro(preco) + " " + unidade,
+                Font = new Font(Theme.FontBase.FontFamily, 14f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 30, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+            };
+            var pillHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
+            var pill = new StatusPill
+            {
+                Text = "Disponível", Height = 22, Font = Theme.FontSub,
+                BackColor = idleBg, Style = StatusPill.PillStyle.Dot,
+            };
+            pill.SetColors(Theme.StatusSuccessBg, Theme.StatusSuccessFg);
+            pill.Dock  = DockStyle.Right;
+            pill.Width = StatusPill.MeasureDotWidth("Disponível", Theme.FontSub);
+            pillHolder.Controls.Add(pill);
+            precoInfo.Controls.Add(pillHolder);
+            precoInfo.Controls.Add(lblPreco);
+
+            // ─── Centro: nome + capacidade/tipo (centrado vertical) ──
+            // Nome (24) + subline (22) = 46 → top = (78-46)/2 = 16.
+            var middle = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(10, 16, 8, 0) };
+            string subline = capacidade.HasValue
+                ? $"{capacidade.Value} lugares"
+                : tipo;
+            // Ordem: Dock=Top processa em reverse z-order → subline (Dock=Top) last add = topmost.
+            // Para nome em cima e subline abaixo, adicionar subline primeiro, nome último.
+            var lblSub = new Label
+            {
+                Text = subline, Font = Theme.FontSub, ForeColor = Theme.TextSecondary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            var lblName = new Label
+            {
+                Text = nome, Font = new Font(Theme.FontBase.FontFamily, 13f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            middle.Controls.Add(lblSub);    // adicionado primeiro = abaixo
+            middle.Controls.Add(lblName);   // adicionado depois = topo
+
+            row.Controls.Add(middle);
+            row.Controls.Add(precoInfo);
+            row.Controls.Add(actions);
+            row.Controls.Add(leftBlock);
+            wrap.Controls.Add(row);
+
+            // Hover subtle no row (sem afectar o botão).
+            void Recurse(Control c, Color bg)
+            {
+                if (c is ModernButton) return;
+                c.BackColor = bg;
+                foreach (Control x in c.Controls) Recurse(x, bg);
+            }
+            void Hook(Control c)
+            {
+                c.MouseEnter += (s, e) => Recurse(row, hoverBg);
+                c.MouseLeave += (s, e) =>
+                {
+                    var p = row.PointToClient(System.Windows.Forms.Cursor.Position);
+                    if (!row.ClientRectangle.Contains(p)) Recurse(row, idleBg);
+                };
+                foreach (Control x in c.Controls) Hook(x);
+            }
+            Hook(row);
+
+            return wrap;
+        }
+
+        // ─── TAB 2: Por Cliente ─────────────────────────────────────────
+        private Control BuildTabCli()
+        {
+            // Outer Panel com PageBg → cards interiores ficam visíveis com contraste.
+            var panel = new Panel
+            {
+                Name = "tabCli", Dock = DockStyle.Fill, BackColor = Theme.PageBg, Visible = false,
+            };
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = Theme.PageBg,
+                Padding = new Padding(0, 4, 0, 0),
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));   // filtro card
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // KPIs
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // listas
+
+            // Filter dentro de ModernCard próprio.
+            var filterCard = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+                Margin = new Padding(0, 0, 0, 12),
+            };
+            var filterInner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
+            var lblCli = new Label
+            {
+                Text = "Cliente", Font = new Font(Theme.FontBase.FontFamily, 9f, FontStyle.Bold),
+                ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
+                Location = new Point(0, 10), Size = new Size(54, 36), TextAlign = ContentAlignment.MiddleLeft,
+            };
+            _cmbCliCli = new ModernSelect { Width = 280, Height = 36, Location = new Point(60, 10) };
+            _cmbCliCli.SelectedIndexChanged += (s, e) => LoadClienteData();
+            filterInner.Controls.Add(lblCli);
+            filterInner.Controls.Add(_cmbCliCli);
+            filterCard.Controls.Add(filterInner);
+
+            // KPI row (3 cards)
+            var kpiGrid = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Theme.PageBg,
+                Margin = new Padding(0, 0, 0, 12),
+            };
+            for (int i = 0; i < 3; i++) kpiGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
+            kpiGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var k1 = BuildSmallKpi("Reservas",      IconChar.CalendarCheck, Theme.Accent,          out _kpiCliReservas);
+            var k2 = BuildSmallKpi("Total pago",     IconChar.EuroSign,      Theme.StatusSuccessFg, out _kpiCliPago);
+            var k3 = BuildSmallKpi("Última atividade", IconChar.Clock,        Theme.TextSecondary,   out _kpiCliUltima);
+            k3.Margin = new Padding(0);
+            kpiGrid.Controls.Add(k1, 0, 0);
+            kpiGrid.Controls.Add(k2, 1, 0);
+            kpiGrid.Controls.Add(k3, 2, 0);
+
+            // Lista 2 colunas: Reservas | Pagamentos
+            _cliListGrid = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Theme.PageBg,
+                Visible = false,
+            };
+            _cliListGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            _cliListGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            _cliListGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            var col1 = BuildSubListCard("Reservas",   IconChar.CalendarCheck, out _listCliReservas, out _cliReservasEmpty);
+            var col2 = BuildSubListCard("Pagamentos", IconChar.CreditCard,    out _listCliPagamentos, out _cliPagamentosEmpty);
+            col1.Margin = new Padding(0, 0, 6, 0);
+            col2.Margin = new Padding(6, 0, 0, 0);
+            _cliListGrid.Controls.Add(col1, 0, 0);
+            _cliListGrid.Controls.Add(col2, 1, 0);
+
+            _cliEmpty = BuildEmptyState("Selecciona um cliente para ver o histórico", IconChar.User);
+            _cliEmpty.Dock = DockStyle.Fill;
+            var listHost = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg };
+            listHost.Controls.Add(_cliListGrid);
+            listHost.Controls.Add(_cliEmpty);
+
+            root.Controls.Add(filterCard, 0, 0);
+            root.Controls.Add(kpiGrid,    0, 1);
+            root.Controls.Add(listHost,   0, 2);
+            panel.Controls.Add(root);
+            return panel;
+        }
+
+        private Control BuildSmallKpi(string label, IconChar icon, Color iconColor, out Label valLbl)
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 10, ShowShadow = false,
+                Margin = new Padding(0, 0, 12, 0),
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
+            var topLine = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = Theme.CardBg };
+            topLine.Controls.Add(new Label
+            {
+                Text = label, Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Fill, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 0, 0, 0),
+            });
+            topLine.Controls.Add(new IconPictureBox
+            {
+                IconChar = icon, IconSize = 16, IconColor = iconColor, BackColor = Theme.CardBg,
+                Dock = DockStyle.Left, Width = 22, SizeMode = PictureBoxSizeMode.CenterImage,
+            });
+            valLbl = new Label
+            {
+                Text = "—", Font = new Font(Theme.FontBase.FontFamily, 20f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(0, 4, 0, 0),
+            };
+            inner.Controls.Add(valLbl);
+            inner.Controls.Add(topLine);
+            card.Controls.Add(inner);
+            return card;
+        }
+
+        private Control BuildSubListCard(string title, IconChar icon, out ScrollableList list, out Panel empty)
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 10, ShowShadow = false,
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(14, 12, 14, 14) };
+            // Header line: ícone + título
+            var headerLine = new Panel { Dock = DockStyle.Top, Height = 30, BackColor = Theme.CardBg };
+            headerLine.Controls.Add(new Label
+            {
+                Text = title, Font = Theme.FontSection, ForeColor = Theme.TextPrimary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Fill, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(6, 0, 0, 0),
+            });
+            headerLine.Controls.Add(new IconPictureBox
+            {
+                IconChar = icon, IconSize = 16, IconColor = Theme.Accent,
+                BackColor = Theme.CardBg, Dock = DockStyle.Left, Width = 22,
+                SizeMode = PictureBoxSizeMode.CenterImage,
+            });
+
+            list = new ScrollableList { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+            list.Content.BackColor = Theme.CardBg;
+            empty = BuildEmptyState("Sem registos", icon);
+            empty.Dock = DockStyle.Fill;
+            empty.Visible = false;
+
+            // Body holder com list + empty.
+            var body = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+            body.Controls.Add(list);
+            body.Controls.Add(empty);
+
+            inner.Controls.Add(body);
+            inner.Controls.Add(headerLine);
+            card.Controls.Add(inner);
+            return card;
+        }
+
+        private void LoadClienteData()
+        {
+            if (_cmbCliCli.SelectedValue == null || _cmbCliCli.SelectedValue is DBNull) return;
+            int cid = Convert.ToInt32(_cmbCliCli.SelectedValue);
 
             try
             {
                 using (var conn = Database.GetConnection())
                 {
-                    using (var cmd = new SqlCommand(sqlHist, conn))
+                    int nReservas = 0;
+                    decimal totalPago = 0;
+                    DateTime? ultima = null;
+
+                    // Reservas
+                    var dtR = new DataTable();
+                    using (var cmd = new SqlCommand(
+                        @"SELECT r.reserva_id, r.data_reserva, r.hora_inicio, r.hora_fim,
+                                 r.valor, r.estado,
+                                 CASE WHEN s.recurso_id IS NOT NULL THEN 'Sala ' + s.nome
+                                      ELSE 'Posto ' + p.codigo END AS recurso
+                          FROM reserva r
+                          JOIN recurso rc ON r.recurso_id = rc.recurso_id
+                          LEFT JOIN sala s  ON rc.recurso_id = s.recurso_id
+                          LEFT JOIN posto p ON rc.recurso_id = p.recurso_id
+                          WHERE r.cliente_id = @c ORDER BY r.data_reserva DESC", conn))
                     {
-                        cmd.Parameters.AddWithValue("@c", clienteId);
-                        using (var da = new SqlDataAdapter(cmd))
-                        {
-                            var dt = new DataTable();
-                            da.Fill(dt);
-                            dgvHistPag.DataSource = dt;
-                        }
+                        cmd.Parameters.AddWithValue("@c", cid);
+                        using (var da = new SqlDataAdapter(cmd)) da.Fill(dtR);
+                    }
+                    nReservas = dtR.Rows.Count;
+
+                    // Pagamentos
+                    var dtP = new DataTable();
+                    using (var cmd = new SqlCommand(
+                        @"SELECT data_pagamento, valor, metodo_pagamento, estado,
+                                 CASE WHEN reserva_id IS NOT NULL THEN 'Reserva #' + CAST(reserva_id AS varchar)
+                                      ELSE 'Adesão #' + CAST(adesao_id AS varchar) END AS ref
+                          FROM pagamento WHERE cliente_id = @c
+                          ORDER BY data_pagamento DESC", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@c", cid);
+                        using (var da = new SqlDataAdapter(cmd)) da.Fill(dtP);
+                    }
+                    foreach (DataRow row in dtP.Rows)
+                    {
+                        if (row["estado"].ToString() == "Pago") totalPago += Convert.ToDecimal(row["valor"]);
+                        DateTime d = Convert.ToDateTime(row["data_pagamento"]);
+                        if (!ultima.HasValue || d > ultima) ultima = d;
+                    }
+                    foreach (DataRow row in dtR.Rows)
+                    {
+                        DateTime d = Convert.ToDateTime(row["data_reserva"]);
+                        if (!ultima.HasValue || d > ultima) ultima = d;
                     }
 
-                    var serMet = _chartMetodosPag.Series["met"];
-                    serMet.Points.Clear();
-                    string sqlPie = "SELECT metodo_pagamento, COUNT(*) FROM pagamento WHERE cliente_id=@c GROUP BY metodo_pagamento";
-                    using (var cmdPie = new SqlCommand(sqlPie, conn))
+                    _kpiCliReservas.Text = nReservas.ToString();
+                    _kpiCliPago    .Text = Theme.FormatEuro(totalPago);
+                    _kpiCliUltima  .Text = ultima.HasValue ? ultima.Value.ToString("dd/MM/yyyy") : "—";
+
+                    RenderCliReservas(dtR);
+                    RenderCliPagamentos(dtP);
+                    _cliListGrid.Visible = true;
+                    _cliEmpty   .Visible = false;
+                }
+            }
+            catch (SqlException ex)
+            {
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void RenderCliReservas(DataTable dt)
+        {
+            _listCliReservas.Content.SuspendLayout();
+            _listCliReservas.Content.Controls.Clear();
+
+            var cards = new List<Control>();
+            int totalH = 0;
+            foreach (DataRow r in dt.Rows)
+            {
+                string recurso = r["recurso"].ToString();
+                DateTime data  = Convert.ToDateTime(r["data_reserva"]);
+                decimal valor  = Convert.ToDecimal(r["valor"]);
+                string estado  = r["estado"].ToString();
+                var card = BuildSubItemCard(recurso, $"{data:dd/MM/yyyy}", valor, estado, TipoColorReserva(estado));
+                card.Dock = DockStyle.Top;
+                cards.Add(card);
+                totalH += card.Height;
+            }
+            // Reverse para preservar ordem visual (Dock=Top processa reverse z-order).
+            for (int i = cards.Count - 1; i >= 0; i--)
+                _listCliReservas.Content.Controls.Add(cards[i]);
+            _listCliReservas.Content.ResumeLayout();
+            _listCliReservas.UpdateLayout(totalH);
+
+            _listCliReservas.Visible    = dt.Rows.Count > 0;
+            _cliReservasEmpty.Visible   = dt.Rows.Count == 0;
+            _cliReservasEmpty.Invalidate();
+        }
+
+        private void RenderCliPagamentos(DataTable dt)
+        {
+            _listCliPagamentos.Content.SuspendLayout();
+            _listCliPagamentos.Content.Controls.Clear();
+
+            var cards = new List<Control>();
+            int totalH = 0;
+            foreach (DataRow r in dt.Rows)
+            {
+                string refLine = r["ref"].ToString();
+                DateTime data  = Convert.ToDateTime(r["data_pagamento"]);
+                decimal valor  = Convert.ToDecimal(r["valor"]);
+                string estado  = r["estado"].ToString();
+                string sub     = $"{r["metodo_pagamento"]} · {data:dd/MM/yyyy}";
+                var card = BuildSubItemCard(refLine, sub, valor, estado, TipoColorPagamento(estado));
+                card.Dock = DockStyle.Top;
+                cards.Add(card);
+                totalH += card.Height;
+            }
+            for (int i = cards.Count - 1; i >= 0; i--)
+                _listCliPagamentos.Content.Controls.Add(cards[i]);
+            _listCliPagamentos.Content.ResumeLayout();
+            _listCliPagamentos.UpdateLayout(totalH);
+
+            _listCliPagamentos.Visible    = dt.Rows.Count > 0;
+            _cliPagamentosEmpty.Visible   = dt.Rows.Count == 0;
+            _cliPagamentosEmpty.Invalidate();
+        }
+
+        private Control BuildSubItemCard(string title, string sub, decimal valor, string estado, (Color bg, Color fg) cores)
+        {
+            Color idleBg  = Theme.CardBg;
+            Color hoverBg = UcEspacos.MixColors(Theme.CardBg, Color.White, 0.05f);
+            // wrap = item + gap bottom
+            var wrap = new Panel { Height = 72, BackColor = idleBg, Padding = new Padding(0, 0, 0, 6) };
+            var row  = new Panel { Dock = DockStyle.Fill, BackColor = idleBg };
+
+            // Direita: valor + pill (Height 66 = wrap-padBottom-padTop? = 66 útil)
+            // Valor 28 + pill 22 = 50 → top = (66-50)/2 = 8
+            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 130, BackColor = idleBg, Padding = new Padding(0, 8, 12, 0) };
+            var lblValor = new Label
+            {
+                Text = Theme.FormatEuro(valor),
+                Font = new Font(Theme.FontBase.FontFamily, 12f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 28, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+            };
+            var pillHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
+            var pill = new StatusPill
+            {
+                Text = estado, Height = 22, Style = StatusPill.PillStyle.Dot,
+                Font = Theme.FontSub, BackColor = idleBg,
+            };
+            pill.SetColors(cores.bg, cores.fg);
+            pill.Dock = DockStyle.Right;
+            pill.Width = StatusPill.MeasureDotWidth(estado, Theme.FontSub);
+            pillHolder.Controls.Add(pill);
+            rightInfo.Controls.Add(pillHolder);
+            rightInfo.Controls.Add(lblValor);
+
+            // Centro: título + sub (Height 66 útil; title 24 + sub 20 = 44 → top = 11)
+            var middle = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(12, 11, 8, 0) };
+            var lblSub = new Label
+            {
+                Text = sub, Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 20, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            var lblTitle = new Label
+            {
+                Text = title, Font = new Font(Theme.FontBase.FontFamily, 11f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            // Adicionar Sub primeiro = abaixo; Title depois = topo.
+            middle.Controls.Add(lblSub);
+            middle.Controls.Add(lblTitle);
+
+            row.Controls.Add(middle);
+            row.Controls.Add(rightInfo);
+            wrap.Controls.Add(row);
+
+            // Hover sutil.
+            void Recurse(Control c, Color bg) { c.BackColor = bg; foreach (Control x in c.Controls) Recurse(x, bg); }
+            void Hook(Control c)
+            {
+                c.MouseEnter += (s, e) => Recurse(row, hoverBg);
+                c.MouseLeave += (s, e) =>
+                {
+                    var p = row.PointToClient(System.Windows.Forms.Cursor.Position);
+                    if (!row.ClientRectangle.Contains(p)) Recurse(row, idleBg);
+                };
+                foreach (Control x in c.Controls) Hook(x);
+            }
+            Hook(row);
+
+            return wrap;
+        }
+
+        private static (Color bg, Color fg) TipoColorReserva(string estado)
+        {
+            switch (estado)
+            {
+                case "Confirmada": return (Theme.StatusSuccessBg, Theme.StatusSuccessFg);
+                case "Pendente":   return (Theme.StatusWarningBg, Theme.StatusWarningFg);
+                case "Cancelada":  return (Theme.StatusDangerBg,  Theme.StatusDangerFg);
+                default:            return (Theme.StatusNeutralBg, Theme.StatusNeutralFg);
+            }
+        }
+        private static (Color bg, Color fg) TipoColorPagamento(string estado)
+        {
+            switch (estado)
+            {
+                case "Pago":        return (Theme.StatusSuccessBg, Theme.StatusSuccessFg);
+                case "Pendente":    return (Theme.StatusWarningBg, Theme.StatusWarningFg);
+                case "Cancelado":   return (Theme.StatusDangerBg,  Theme.StatusDangerFg);
+                default:             return (Theme.StatusNeutralBg, Theme.StatusNeutralFg);
+            }
+        }
+
+        // ─── TAB 3: Análise ─────────────────────────────────────────────
+        private Control BuildTabAna()
+        {
+            // Outer Panel(PageBg) → cards interiores ficam visíveis.
+            var panel = new Panel
+            {
+                Name = "tabAna", Dock = DockStyle.Fill, BackColor = Theme.PageBg, Visible = false,
+            };
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = Theme.PageBg,
+                Padding = new Padding(0, 4, 0, 0),
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));   // filtro card
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // KPIs
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // charts
+
+            // Filter dentro de ModernCard próprio.
+            var filterCard = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+                Margin = new Padding(0, 0, 0, 12),
+            };
+            var filterInner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
+            var lblP = new Label
+            {
+                Text = "Período", Font = new Font(Theme.FontBase.FontFamily, 9f, FontStyle.Bold),
+                ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
+                Location = new Point(0, 10), Size = new Size(60, 36), TextAlign = ContentAlignment.MiddleLeft,
+            };
+            _dtAnaIni = new ModernDateField { Width = 130, Height = 36, Value = DateTime.Today.AddMonths(-3), Location = new Point(66, 10) };
+            var lblArrow = new Label
+            {
+                Text = "→", Font = new Font(Theme.FontBase.FontFamily, 11f),
+                ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
+                Location = new Point(204, 10), Size = new Size(20, 36), TextAlign = ContentAlignment.MiddleCenter,
+            };
+            _dtAnaFim = new ModernDateField { Width = 130, Height = 36, Value = DateTime.Today, Location = new Point(228, 10) };
+            _btnAnaAplicar = new ModernButton
+            {
+                Text = "Aplicar", Style = ModernButton.Variant.Primary, Font = Theme.FontBold,
+                Size = new Size(110, 40), Location = new Point(370, 8),
+            };
+            _btnAnaAplicar.Click += (s, e) => LoadAnaData();
+            filterInner.Controls.AddRange(new Control[] { lblP, _dtAnaIni, lblArrow, _dtAnaFim, _btnAnaAplicar });
+            filterCard.Controls.Add(filterInner);
+
+            // KPIs (3 cards)
+            var kpiGrid = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Theme.PageBg,
+                Margin = new Padding(0, 0, 0, 12),
+            };
+            for (int i = 0; i < 3; i++) kpiGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
+            kpiGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var ka = BuildSmallKpi("Receita total", IconChar.EuroSign,     Theme.Accent,           out _kpiAnaReceita);
+            var kb = BuildSmallKpi("Nº reservas",    IconChar.CalendarDays, Theme.StatusSuccessFg,  out _kpiAnaReservas);
+            var kc = BuildSmallKpi("Nº pagamentos",  IconChar.CreditCard,    Theme.StatusOrangeFg,   out _kpiAnaPagos);
+            kc.Margin = new Padding(0);
+            kpiGrid.Controls.Add(ka, 0, 0);
+            kpiGrid.Controls.Add(kb, 1, 0);
+            kpiGrid.Controls.Add(kc, 2, 0);
+
+            // Charts (2 col x 2 row: mensal + pie em cima, ocupação span baixo)
+            var chartGrid = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, BackColor = Theme.PageBg,
+            };
+            chartGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60f));
+            chartGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40f));
+            chartGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+            chartGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+
+            chartGrid.Controls.Add(BuildChartCard("Receita mensal",       out _chartReceitaMensal, isLine: false, isPie: false), 0, 0);
+            chartGrid.Controls.Add(BuildChartCard("Métodos de pagamento", out _chartMetodos,        isLine: false, isPie: true),  1, 0);
+            var ocup = BuildChartCard("Ocupação por espaço", out _chartOcupacao, isLine: false, isPie: false);
+            chartGrid.SetColumnSpan(ocup, 2);
+            ocup.Margin = new Padding(0, 0, 0, 0); // último — sem margin right (já no span)
+            chartGrid.Controls.Add(ocup, 0, 1);
+
+            root.Controls.Add(filterCard, 0, 0);
+            root.Controls.Add(kpiGrid,    0, 1);
+            root.Controls.Add(chartGrid,  0, 2);
+            panel.Controls.Add(root);
+            return panel;
+        }
+
+        private Control BuildChartCard(string title, out Chart chart, bool isLine, bool isPie)
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 10, ShowShadow = false,
+                Margin = new Padding(0, 0, 12, 12),
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(14, 10, 14, 14) };
+            var lblTitle = new Label
+            {
+                Text = title, Font = Theme.FontSection, ForeColor = Theme.TextPrimary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 26, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            chart = new Chart { Dock = DockStyle.Fill, BackColor = Theme.CardBg, MinimumSize = new Size(1, 1) };
+            var area = new ChartArea("main") { BackColor = Color.Transparent };
+            area.AxisX.LineColor = Theme.CardBorder;
+            area.AxisY.LineColor = Theme.CardBorder;
+            area.AxisX.LabelStyle.ForeColor = Theme.TextMuted;
+            area.AxisY.LabelStyle.ForeColor = Theme.TextMuted;
+            area.AxisX.MajorGrid.LineColor = Color.Transparent;
+            area.AxisY.MajorGrid.LineColor = Theme.CardBorder;
+            if (isPie) { area.Position.Auto = true; }
+            chart.ChartAreas.Add(area);
+
+            var ser = new Series("s")
+            {
+                ChartType = isPie ? SeriesChartType.Doughnut : (isLine ? SeriesChartType.Line : SeriesChartType.Column),
+                Color = Theme.Accent, BorderWidth = 2,
+            };
+            chart.Series.Add(ser);
+            if (isPie)
+            {
+                var leg = new Legend("leg") { Docking = Docking.Right, BackColor = Color.Transparent, ForeColor = Theme.TextSecondary, Font = Theme.FontSub };
+                chart.Legends.Add(leg);
+                ser.Legend = "leg";
+            }
+            inner.Controls.Add(chart);     // Fill primeiro (bottom z)
+            inner.Controls.Add(lblTitle);  // Top depois (top z, processa primeiro)
+            card.Controls.Add(inner);
+            return card;
+        }
+
+        private void LoadAnaData()
+        {
+            if (_dtAnaIni.Value > _dtAnaFim.Value) { MessageBox.Show("Data inicial deve ser anterior à final."); return; }
+            try
+            {
+                using (var conn = Database.GetConnection())
+                {
+                    // KPIs + receita mensal
+                    decimal receita = 0;
+                    int nResv = 0, nPag = 0;
+                    using (var cmd = new SqlCommand(
+                        @"SELECT COUNT(*), ISNULL(SUM(valor),0) FROM pagamento
+                          WHERE estado='Pago' AND data_pagamento BETWEEN @i AND @f", conn))
                     {
-                        cmdPie.Parameters.AddWithValue("@c", clienteId);
-                        using (var rdr = cmdPie.ExecuteReader())
-                        {
+                        cmd.Parameters.AddWithValue("@i", _dtAnaIni.Value.Date);
+                        cmd.Parameters.AddWithValue("@f", _dtAnaFim.Value.Date);
+                        using (var r = cmd.ExecuteReader())
+                            if (r.Read()) { nPag = r.GetInt32(0); receita = r.GetDecimal(1); }
+                    }
+                    using (var cmd = new SqlCommand(
+                        @"SELECT COUNT(*) FROM reserva
+                          WHERE estado <> 'Cancelada' AND data_reserva BETWEEN @i AND @f", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@i", _dtAnaIni.Value.Date);
+                        cmd.Parameters.AddWithValue("@f", _dtAnaFim.Value.Date);
+                        nResv = (int)cmd.ExecuteScalar();
+                    }
+                    _kpiAnaReceita .Text = Theme.FormatEuro(receita);
+                    _kpiAnaReservas.Text = nResv.ToString();
+                    _kpiAnaPagos   .Text = nPag.ToString();
+
+                    // Mensal chart
+                    var serM = _chartReceitaMensal.Series["s"]; serM.Points.Clear();
+                    using (var cmd = new SqlCommand(
+                        @"SELECT CAST(YEAR(data_pagamento) AS varchar) + '/' +
+                                 RIGHT('0' + CAST(MONTH(data_pagamento) AS varchar), 2) AS mes,
+                                 SUM(valor) AS total
+                          FROM pagamento
+                          WHERE estado='Pago' AND data_pagamento BETWEEN @i AND @f
+                          GROUP BY YEAR(data_pagamento), MONTH(data_pagamento)
+                          ORDER BY YEAR(data_pagamento), MONTH(data_pagamento)", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@i", _dtAnaIni.Value.Date);
+                        cmd.Parameters.AddWithValue("@f", _dtAnaFim.Value.Date);
+                        using (var rdr = cmd.ExecuteReader())
                             while (rdr.Read())
-                                serMet.Points.AddXY(rdr.GetString(0), rdr.GetInt32(1));
-                        }
-                    }
-                    for (int i = 0; i < serMet.Points.Count; i++)
-                        serMet.Points[i].Color = ChartPalette[i % ChartPalette.Length];
-                    _chartMetodosPag.Visible = serMet.Points.Count > 0;
-                }
-            }
-            catch (SqlException ex)
-            {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        // ─── Tab 4: Ocupação e Receita ──────────────────────────────────────────
-
-        private TabPage BuildTabOcupacaoReceita()
-        {
-            var tab = new TabPage("Ocupação e Receita");
-            tab.BackColor = Color.White;
-
-            // Sub-section B (Dock=Fill) — added first so A (Dock=Top) sits above it
-            var pnlReceita = new Panel();
-            pnlReceita.Dock = DockStyle.Fill;
-            pnlReceita.BackColor = Color.White;
-            BuildReceitaPanel(pnlReceita);
-
-            // Sub-section A (Dock=Top, Height=200)
-            var pnlOcupacao = new Panel();
-            pnlOcupacao.Dock = DockStyle.Top;
-            pnlOcupacao.Height = 200;
-            pnlOcupacao.BackColor = Color.White;
-            BuildOcupacaoPanel(pnlOcupacao);
-
-            tab.Controls.Add(pnlReceita);   // Fill — added first
-            tab.Controls.Add(pnlOcupacao);  // Top — added last = visually topmost
-            return tab;
-        }
-
-        private void BuildOcupacaoPanel(Panel pnl)
-        {
-            var flw = new FlowLayoutPanel();
-            flw.Dock = DockStyle.Top;
-            flw.Height = 50;
-            flw.BackColor = Color.White;
-            flw.WrapContents = false;
-            flw.FlowDirection = FlowDirection.LeftToRight;
-            flw.Padding = new Padding(10, 8, 0, 8);
-
-            var lblDe = new Label();
-            lblDe.Text = "De:";
-            lblDe.AutoSize = true;
-            lblDe.Margin = new Padding(0, 7, 4, 0);
-
-            dtpOcupIni = new DateTimePicker();
-            dtpOcupIni.Format = DateTimePickerFormat.Short;
-            dtpOcupIni.Width = 100;
-            dtpOcupIni.Value = DateTime.Today.AddDays(-30);
-            dtpOcupIni.Margin = new Padding(0, 3, 12, 0);
-
-            var lblAte = new Label();
-            lblAte.Text = "Até:";
-            lblAte.AutoSize = true;
-            lblAte.Margin = new Padding(0, 7, 4, 0);
-
-            dtpOcupFim = new DateTimePicker();
-            dtpOcupFim.Format = DateTimePickerFormat.Short;
-            dtpOcupFim.Width = 100;
-            dtpOcupFim.Margin = new Padding(0, 3, 12, 0);
-
-            btnPesquisarOcup = Theme.BtnPrim("Ver Ocupação");
-            btnPesquisarOcup.Margin = new Padding(0, 3, 0, 0);
-            btnPesquisarOcup.Click += BtnPesquisarOcup_Click;
-
-            flw.Controls.Add(lblDe);
-            flw.Controls.Add(dtpOcupIni);
-            flw.Controls.Add(lblAte);
-            flw.Controls.Add(dtpOcupFim);
-            flw.Controls.Add(btnPesquisarOcup);
-
-            var lblOcupHeader = new Label();
-            lblOcupHeader.Text = "Ocupação por Espaço";
-            lblOcupHeader.Dock = DockStyle.Top;
-            lblOcupHeader.Height = 24;
-            lblOcupHeader.Padding = new Padding(10, 4, 0, 0);
-            lblOcupHeader.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
-
-            dgvOcupacao = new DataGridView();
-            dgvOcupacao.Dock = DockStyle.Fill;
-            Theme.StyleGrid(dgvOcupacao);
-
-            pnl.Controls.Add(dgvOcupacao);      // Fill
-            pnl.Controls.Add(lblOcupHeader);     // Top
-            pnl.Controls.Add(flw);              // Top — added last = visually topmost
-        }
-
-        private void BuildReceitaPanel(Panel pnl)
-        {
-            var flw = new FlowLayoutPanel();
-            flw.Dock = DockStyle.Top;
-            flw.Height = 50;
-            flw.BackColor = Color.White;
-            flw.WrapContents = false;
-            flw.FlowDirection = FlowDirection.LeftToRight;
-            flw.Padding = new Padding(10, 8, 0, 8);
-
-            var lblDe = new Label();
-            lblDe.Text = "De:";
-            lblDe.AutoSize = true;
-            lblDe.Margin = new Padding(0, 7, 4, 0);
-
-            dtpRecIni = new DateTimePicker();
-            dtpRecIni.Format = DateTimePickerFormat.Short;
-            dtpRecIni.Width = 100;
-            dtpRecIni.Value = DateTime.Today.AddDays(-30);
-            dtpRecIni.Margin = new Padding(0, 3, 12, 0);
-
-            var lblAte = new Label();
-            lblAte.Text = "Até:";
-            lblAte.AutoSize = true;
-            lblAte.Margin = new Padding(0, 7, 4, 0);
-
-            dtpRecFim = new DateTimePicker();
-            dtpRecFim.Format = DateTimePickerFormat.Short;
-            dtpRecFim.Width = 100;
-            dtpRecFim.Margin = new Padding(0, 3, 12, 0);
-
-            btnPesquisarRec = Theme.BtnPrim("Ver Receita");
-            btnPesquisarRec.Margin = new Padding(0, 3, 12, 0);
-            btnPesquisarRec.Click += BtnPesquisarRec_Click;
-
-            lblTotalReceita = new Label();
-            lblTotalReceita.AutoSize = true;
-            lblTotalReceita.ForeColor = Theme.TextPrimary;
-            lblTotalReceita.Font = new Font("Segoe UI", 10f, FontStyle.Bold);
-            lblTotalReceita.Margin = new Padding(8, 7, 0, 0);
-
-            flw.Controls.Add(lblDe);
-            flw.Controls.Add(dtpRecIni);
-            flw.Controls.Add(lblAte);
-            flw.Controls.Add(dtpRecFim);
-            flw.Controls.Add(btnPesquisarRec);
-            flw.Controls.Add(lblTotalReceita);
-
-            var lblRecHeader = new Label();
-            lblRecHeader.Text = "Receita por Método de Pagamento";
-            lblRecHeader.Dock = DockStyle.Top;
-            lblRecHeader.Height = 24;
-            lblRecHeader.Padding = new Padding(10, 4, 0, 0);
-            lblRecHeader.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
-
-            dgvReceita = new DataGridView();
-            dgvReceita.Dock = DockStyle.Fill;
-            Theme.StyleGrid(dgvReceita);
-            dgvReceita.CellFormatting += (s, e) =>
-            {
-                if (e.ColumnIndex >= 0 && dgvReceita.Columns[e.ColumnIndex].HeaderText == "Total" &&
-                    e.Value != null && e.Value != DBNull.Value)
-                {
-                    try { e.Value = Theme.FormatEuro(Convert.ToDecimal(e.Value)); e.FormattingApplied = true; }
-                    catch { }
-                }
-            };
-
-            // ── Receita mensal chart (Dock=Top, Height=160) ──────────────
-            _chartReceita = new Chart { Dock = DockStyle.Top, Height = 160, BackColor = Theme.CardBg };
-            var areaRec = new ChartArea("main");
-            areaRec.AxisX.MajorGrid.Enabled   = false;
-            areaRec.AxisY.LabelStyle.Format   = "€ #,##0";
-            areaRec.AxisY.MajorGrid.LineColor = Theme.CardBorder;
-            areaRec.BackColor = Color.Transparent;
-            _chartReceita.ChartAreas.Add(areaRec);
-            var serRec = new Series("rec") { ChartType = SeriesChartType.Column, Color = Theme.Accent, BorderWidth = 0 };
-            _chartReceita.Series.Add(serRec);
-            _chartReceita.Titles.Add(new Title("Receita Mensal") { Font = new Font("Segoe UI", 8.5f, FontStyle.Bold), ForeColor = Theme.TextPrimary, Docking = Docking.Top });
-            StyleChart(_chartReceita);
-
-            pnl.Controls.Add(dgvReceita);      // Fill
-            pnl.Controls.Add(lblRecHeader);    // Top
-            pnl.Controls.Add(_chartReceita);   // Top
-            pnl.Controls.Add(flw);             // Top — added last = visually topmost
-        }
-
-        private void BtnPesquisarOcup_Click(object sender, EventArgs e)
-        {
-            if (dtpOcupIni.Value.Date > dtpOcupFim.Value.Date)
-            {
-                MessageBox.Show("A data inicial não pode ser posterior à data final.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-            string sql = @"
-SELECT e.nome AS Espaço,
-  (SELECT COUNT(*) FROM sala         WHERE espaco_id = e.espaco_id) AS Salas,
-  (SELECT COUNT(*) FROM posto WHERE espaco_id = e.espaco_id) AS Postos,
-  (SELECT COUNT(*) FROM reserva r
-     JOIN sala s ON r.recurso_id = s.recurso_id
-     WHERE s.espaco_id = e.espaco_id
-       AND r.estado <> 'Cancelada'
-       AND r.data_reserva BETWEEN @ini AND @fim) AS [Reservas Sala],
-  (SELECT COUNT(*) FROM reserva r
-     JOIN posto p ON r.recurso_id = p.recurso_id
-     WHERE p.espaco_id = e.espaco_id
-       AND r.estado <> 'Cancelada'
-       AND r.data_reserva BETWEEN @ini AND @fim) AS [Reservas Posto]
-FROM espaco e
-ORDER BY e.nome";
-
-            try
-            {
-                using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@ini", dtpOcupIni.Value.Date);
-                    cmd.Parameters.AddWithValue("@fim", dtpOcupFim.Value.Date);
-                    using (var da = new SqlDataAdapter(cmd))
-                    {
-                        var dt = new DataTable();
-                        da.Fill(dt);
-                        dgvOcupacao.DataSource = dt;
-                    }
-                }
-            }
-            catch (SqlException ex)
-            {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void BtnPesquisarRec_Click(object sender, EventArgs e)
-        {
-            if (dtpRecIni.Value.Date > dtpRecFim.Value.Date)
-            {
-                MessageBox.Show("A data inicial não pode ser posterior à data final.", "Validação",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-            string sqlReceita = @"
-SELECT metodo_pagamento AS Método, COUNT(*) AS [Nº Pagamentos], SUM(valor) AS Total
-FROM pagamento
-WHERE estado='Pago' AND data_pagamento BETWEEN @ini AND @fim
-GROUP BY metodo_pagamento ORDER BY Total DESC";
-
-            string sqlTotal = @"
-SELECT ISNULL(SUM(valor),0) FROM pagamento WHERE estado='Pago' AND data_pagamento BETWEEN @ini AND @fim";
-
-            try
-            {
-                using (var conn = Database.GetConnection())
-                {
-                    using (var cmd = new SqlCommand(sqlReceita, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@ini", dtpRecIni.Value.Date);
-                        cmd.Parameters.AddWithValue("@fim", dtpRecFim.Value.Date);
-                        using (var da = new SqlDataAdapter(cmd))
-                        {
-                            var dt = new DataTable();
-                            da.Fill(dt);
-                            dgvReceita.DataSource = dt;
-                        }
+                                serM.Points.AddXY(rdr.GetString(0), Convert.ToDouble(rdr.GetDecimal(1)));
                     }
 
-                    using (var cmdTotal = new SqlCommand(sqlTotal, conn))
+                    // Métodos pie
+                    var serP = _chartMetodos.Series["s"]; serP.Points.Clear();
+                    using (var cmd = new SqlCommand(
+                        @"SELECT metodo_pagamento, COUNT(*) FROM pagamento
+                          WHERE estado='Pago' AND data_pagamento BETWEEN @i AND @f
+                          GROUP BY metodo_pagamento", conn))
                     {
-                        cmdTotal.Parameters.AddWithValue("@ini", dtpRecIni.Value.Date);
-                        cmdTotal.Parameters.AddWithValue("@fim", dtpRecFim.Value.Date);
-                        decimal total = (decimal)cmdTotal.ExecuteScalar();
-                        lblTotalReceita.Text = "Total: " + Theme.FormatEuro(total);
-                    }
-
-                    // Update bar chart
-                    _chartReceita.Series["rec"].Points.Clear();
-                    string sqlMensal = @"
-SELECT CAST(YEAR(data_pagamento) AS varchar) + '/' +
-       RIGHT('0' + CAST(MONTH(data_pagamento) AS varchar), 2) AS Mes,
-       SUM(valor) AS Total
-FROM pagamento
-WHERE estado='Pago' AND data_pagamento BETWEEN @ini AND @fim
-GROUP BY YEAR(data_pagamento), MONTH(data_pagamento)
-ORDER BY YEAR(data_pagamento), MONTH(data_pagamento)";
-                    using (var cmdMensal = new SqlCommand(sqlMensal, conn))
-                    {
-                        cmdMensal.Parameters.AddWithValue("@ini", dtpRecIni.Value.Date);
-                        cmdMensal.Parameters.AddWithValue("@fim", dtpRecFim.Value.Date);
-                        using (var rdr = cmdMensal.ExecuteReader())
-                        {
+                        cmd.Parameters.AddWithValue("@i", _dtAnaIni.Value.Date);
+                        cmd.Parameters.AddWithValue("@f", _dtAnaFim.Value.Date);
+                        using (var rdr = cmd.ExecuteReader())
                             while (rdr.Read())
-                                _chartReceita.Series["rec"].Points.AddXY(
-                                    rdr.GetString(0), Convert.ToDouble(rdr.GetDecimal(1)));
-                        }
+                                serP.Points.AddXY(rdr.GetString(0), rdr.GetInt32(1));
+                    }
+                    Color[] pal = new[]
+                    {
+                        Theme.Accent, ColorTranslator.FromHtml("#8b5cf6"), ColorTranslator.FromHtml("#10b981"),
+                        ColorTranslator.FromHtml("#f59e0b"), ColorTranslator.FromHtml("#ef4444"),
+                    };
+                    for (int i = 0; i < serP.Points.Count; i++) serP.Points[i].Color = pal[i % pal.Length];
+
+                    // Ocupação por espaço
+                    var serO = _chartOcupacao.Series["s"]; serO.Points.Clear();
+                    using (var cmd = new SqlCommand(
+                        @"SELECT e.nome, COUNT(r.reserva_id) AS reservas
+                          FROM espaco e
+                          LEFT JOIN sala s    ON s.espaco_id = e.espaco_id
+                          LEFT JOIN posto p   ON p.espaco_id = e.espaco_id
+                          LEFT JOIN reserva r ON r.recurso_id IN (s.recurso_id, p.recurso_id)
+                            AND r.estado <> 'Cancelada' AND r.data_reserva BETWEEN @i AND @f
+                          GROUP BY e.nome ORDER BY e.nome", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@i", _dtAnaIni.Value.Date);
+                        cmd.Parameters.AddWithValue("@f", _dtAnaFim.Value.Date);
+                        using (var rdr = cmd.ExecuteReader())
+                            while (rdr.Read())
+                                serO.Points.AddXY(rdr.GetString(0), rdr.GetInt32(1));
                     }
                 }
             }
@@ -761,33 +1075,47 @@ ORDER BY YEAR(data_pagamento), MONTH(data_pagamento)";
             }
         }
 
-        // ─── Shared helpers ─────────────────────────────────────────────────────
-
-        private void LoadClientesCombos()
+        // ─── Helpers ────────────────────────────────────────────────────
+        private void LoadClientesCombo()
         {
             try
             {
                 using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn))
-                using (var da = new SqlDataAdapter(cmd))
+                using (var cmd  = new SqlCommand("SELECT cliente_id, nome FROM cliente ORDER BY nome", conn))
+                using (var da   = new SqlDataAdapter(cmd))
                 {
                     var dt = new DataTable();
                     da.Fill(dt);
-
-                    cmbClienteHist.DisplayMember = "nome";
-                    cmbClienteHist.ValueMember = "cliente_id";
-                    cmbClienteHist.DataSource = dt.Copy();
-
-                    cmbClientePag.DisplayMember = "nome";
-                    cmbClientePag.ValueMember = "cliente_id";
-                    cmbClientePag.DataSource = dt.Copy();
+                    _cmbCliCli.BindDataTable(dt, "nome", "cliente_id");
                 }
             }
-            catch (SqlException ex)
+            catch (SqlException) { /* ignore */ }
+        }
+
+        private Panel BuildEmptyState(string text, IconChar icon)
+        {
+            var pnl = new Panel { BackColor = Theme.CardBg };
+            Image iconImg = null;
+            pnl.Paint += (s, e) =>
             {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                if (iconImg == null)
+                {
+                    using (var pb = new IconPictureBox { IconChar = icon, IconSize = 44, IconColor = Theme.TextMuted })
+                        if (pb.Image != null) iconImg = (Image)pb.Image.Clone();
+                }
+                var ts = TextRenderer.MeasureText(g, text, Theme.FontBase, Size.Empty, TextFormatFlags.NoPadding);
+                int iconSize = 44, gap = 14, totalH = iconSize + gap + ts.Height;
+                int startY = Math.Max(8, (pnl.Height - totalH) / 2);
+                int iconX = (pnl.Width - iconSize) / 2;
+                int textX = (pnl.Width - ts.Width) / 2;
+                if (iconImg != null) g.DrawImage(iconImg, iconX, startY, iconSize, iconSize);
+                TextRenderer.DrawText(g, text, Theme.FontBase, new Point(textX, startY + iconSize + gap),
+                    Theme.TextMuted, TextFormatFlags.NoPadding);
+            };
+            pnl.Resize += (s, e) => pnl.Invalidate();
+            return pnl;
         }
     }
 }
