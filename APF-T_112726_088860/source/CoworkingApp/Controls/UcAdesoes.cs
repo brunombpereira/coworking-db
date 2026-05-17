@@ -136,9 +136,10 @@ namespace CoworkingApp.Controls
                 Text = text,
                 Font = new Font(Theme.FontBase.FontFamily, 9f, FontStyle.Bold),
                 ForeColor = Theme.TextMuted,
-                AutoSize = true, TextAlign = ContentAlignment.MiddleLeft,
+                AutoSize = false, Width = TextRenderer.MeasureText(text, new Font(Theme.FontBase.FontFamily, 9f, FontStyle.Bold)).Width + 4,
+                Height = 36, TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Theme.CardBg,
-                Margin = new Padding(text == "Cliente" ? 0 : 18, 14, 8, 0),
+                Margin = new Padding(text == "Cliente" ? 0 : 18, 0, 8, 0),
             };
         }
 
@@ -385,8 +386,8 @@ namespace CoworkingApp.Controls
                 Margin = new Padding(0, 0, 0, 8),
             };
 
-            // ─── Esquerda: bloco tipo plano (ícone + nome tipo) ───────
-            var leftBlock = new Panel { Dock = DockStyle.Left, Width = 84, BackColor = idleBg };
+            // ─── Esquerda: bloco tipo plano (circle centrado) ─────────
+            var leftBlock = new Panel { Dock = DockStyle.Left, Width = 76, BackColor = idleBg };
             Image img = null;
             using (var pb = new IconPictureBox
                    { IconChar = TipoIcon(tipo), IconSize = 22, IconColor = Color.White })
@@ -394,10 +395,11 @@ namespace CoworkingApp.Controls
             leftBlock.Paint += (s, e) =>
             {
                 var g = e.Graphics;
-                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.SmoothingMode     = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 int diam = 44;
-                int cx = (leftBlock.Width - diam) / 2;
-                int cy = (leftBlock.Height - diam) / 2 - 8;
+                int cx = (leftBlock.Width  - diam) / 2;
+                int cy = (leftBlock.Height - diam) / 2;
                 using (var br = new SolidBrush(tipoColor))
                     g.FillEllipse(br, cx, cy, diam, diam);
                 if (img != null)
@@ -408,11 +410,6 @@ namespace CoworkingApp.Controls
                         cy + (diam - s2) / 2 + 1,
                         s2, s2);
                 }
-                // Label tipo embaixo
-                var tipoSize = TextRenderer.MeasureText(g, tipo, Theme.FontMicro, Size.Empty, TextFormatFlags.NoPadding);
-                TextRenderer.DrawText(g, tipo, Theme.FontMicro,
-                    new Point((leftBlock.Width - tipoSize.Width) / 2, cy + diam + 4),
-                    tipoColor, TextFormatFlags.NoPadding);
             };
             leftBlock.Resize += (s, e) => leftBlock.Invalidate();
 
