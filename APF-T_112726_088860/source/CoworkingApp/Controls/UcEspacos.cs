@@ -680,15 +680,33 @@ namespace CoworkingApp.Controls
             Color violet = ColorTranslator.FromHtml("#8b5cf6");
             Color tipoColor = tipo == "Flex" ? cyan : tipo == "Fixo" ? indigo : violet;
 
+            // Header: tipo + estado lado-a-lado.
             var tipoPill = new StatusPill
             {
-                Text = tipo, Dock = DockStyle.Top,
-                Height = 22, BackColor = idleBg,
-                Style = StatusPill.PillStyle.Dot,
-                Font = Theme.FontSub,
+                Text = tipo, Height = 22, BackColor = idleBg,
+                Style = StatusPill.PillStyle.Dot, Font = Theme.FontSub,
             };
             tipoPill.SetColors(Color.FromArgb(40, tipoColor), tipoColor);
-            var spAfterTipo = new Panel { Dock = DockStyle.Top, Height = 12, BackColor = idleBg };
+            var estadoPill = new StatusPill
+            {
+                Text = estado, Height = 22, BackColor = idleBg,
+                Style = StatusPill.PillStyle.Dot, Font = Theme.FontSub,
+            };
+            estadoPill.SetColors(EstadoBg(estado), EstadoFg(estado));
+
+            // Widths dinâmicos pelo texto (dot 8 + gap 8 + texto + 4 margem).
+            int tipoW   = 8 + 8 + TextRenderer.MeasureText(tipo,   Theme.FontSub).Width + 4;
+            int estadoW = 8 + 8 + TextRenderer.MeasureText(estado, Theme.FontSub).Width + 4;
+            tipoPill.Dock   = DockStyle.Left; tipoPill.Width   = tipoW;
+            var spBetween   = new Panel { Dock = DockStyle.Left, Width = 16, BackColor = idleBg };
+            estadoPill.Dock = DockStyle.Left; estadoPill.Width = estadoW;
+
+            var headerRow = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
+            headerRow.Controls.Add(estadoPill); // primeiro adicionado = leftmost dos Dock=Left
+            headerRow.Controls.Add(spBetween);
+            headerRow.Controls.Add(tipoPill);
+
+            var spAfterHeader = new Panel { Dock = DockStyle.Top, Height = 14, BackColor = idleBg };
 
             var lblCodigo = new Label
             {
@@ -710,15 +728,6 @@ namespace CoworkingApp.Controls
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
                 Dock = DockStyle.Top, Height = 34, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
-            var spPrice = new Panel { Dock = DockStyle.Top, Height = 6, BackColor = idleBg };
-            var estadoPill = new StatusPill
-            {
-                Text = estado, Dock = DockStyle.Top,
-                Height = 22, BackColor = idleBg,
-                Style = StatusPill.PillStyle.Dot,
-                Font = Theme.FontSub,
-            };
-            estadoPill.SetColors(EstadoBg(estado), EstadoFg(estado));
 
             var footer = new Panel { Dock = DockStyle.Bottom, Height = 40, BackColor = idleBg };
             var btnEdit = MakeIconBtn(IconChar.Pen, Theme.Accent, idleBg, () => OpenPostoEditor(id));
@@ -729,15 +738,13 @@ namespace CoworkingApp.Controls
             footer.Controls.Add(btnDel);   // depois = rightmost
 
             inner.Controls.Add(footer);
-            inner.Controls.Add(estadoPill);
-            inner.Controls.Add(spPrice);
             inner.Controls.Add(lblPreco);
             inner.Controls.Add(spDur);
             inner.Controls.Add(lblEspaco);
             inner.Controls.Add(spNome);
             inner.Controls.Add(lblCodigo);
-            inner.Controls.Add(spAfterTipo);
-            inner.Controls.Add(tipoPill);
+            inner.Controls.Add(spAfterHeader);
+            inner.Controls.Add(headerRow);
             card.Controls.Add(inner);
 
             HookHover(card, idleBg, hoverBg, btnEdit, btnDel);
