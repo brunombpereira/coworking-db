@@ -475,13 +475,23 @@ namespace CoworkingApp.Controls
         private void OpenDetailPopup(int id, string cliente, string tipo, string assunto,
                                       string mensagem, DateTime data, bool jaLida)
         {
-            const int PopupW   = 520;
-            const int PadBody  = 24;
-            int msgW = PopupW - PadBody * 2 - 2;
+            const int PopupW    = 520;
+            const int PadBody   = 24;
+            const int HeaderH   = 56;
+            const int MetaH     = 22;
+            const int SpacerH   = 14;
+            int contentW = PopupW - PadBody * 2 - 2;
+
+            var assuntoFont = new Font(Theme.FontBase.FontFamily, 15f, FontStyle.Bold);
+            int assuntoH = TextRenderer.MeasureText(assunto ?? "—", assuntoFont,
+                new Size(contentW, 1000), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
             int msgH = TextRenderer.MeasureText(mensagem ?? "—", Theme.FontBase,
-                new Size(msgW, 1000), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
-            int popupH = 56 /*header*/ + 32 /*assunto*/ + 22 /*meta*/ + 14 /*sp*/
-                       + Math.Max(20, msgH) + PadBody + 2 /*border*/;
+                new Size(contentW, 1000), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
+            // Buffer extra para descenders e wrap edge cases.
+            assuntoH = Math.Max(32, assuntoH + 8);
+            msgH     = Math.Max(20, msgH + 6);
+
+            int popupH = HeaderH + assuntoH + MetaH + SpacerH + msgH + 4 /*top body padding*/ + PadBody /*bottom*/ + 2 /*border*/;
 
             var dlg = new Form
             {
@@ -530,18 +540,18 @@ namespace CoworkingApp.Controls
             var body = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(PadBody, 4, PadBody, PadBody) };
             var lblAssunto = new Label
             {
-                Text = assunto, Font = new Font(Theme.FontBase.FontFamily, 15f, FontStyle.Bold),
+                Text = assunto, Font = assuntoFont,
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
-                Dock = DockStyle.Top, Height = 32, AutoSize = false,
-                TextAlign = ContentAlignment.MiddleLeft,
+                Dock = DockStyle.Top, Height = assuntoH, AutoSize = false,
+                TextAlign = ContentAlignment.TopLeft,
             };
             var lblMeta = new Label
             {
                 Text = $"{cliente} · {data:dd/MM/yyyy HH:mm}",
                 Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
-                Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Dock = DockStyle.Top, Height = MetaH, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
-            var spacer = new Panel { Dock = DockStyle.Top, Height = 14, BackColor = Theme.CardBg };
+            var spacer = new Panel { Dock = DockStyle.Top, Height = SpacerH, BackColor = Theme.CardBg };
             var lblMsg = new Label
             {
                 Text = mensagem ?? "", Font = Theme.FontBase,
