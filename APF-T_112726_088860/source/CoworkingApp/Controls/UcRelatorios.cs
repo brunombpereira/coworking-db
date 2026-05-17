@@ -43,12 +43,16 @@ namespace CoworkingApp.Controls
         private Chart            _chartOcupacao;
         private Chart            _chartMetodos;
 
+        private bool _anaLoaded = false;
+
         public UcRelatorios()
         {
             BackColor = Theme.PageBg;
             Dock      = DockStyle.Fill;
             BuildUI();
             LoadClientesCombo();
+            // Auto-load Disponibilidade ao abrir o UC (após handle criado).
+            HandleCreated += (s, e) => { try { LoadDispData(); } catch { /* sem BD não rebenta */ } };
         }
 
         // ── BUILD UI ────────────────────────────────────────────────────
@@ -129,6 +133,11 @@ namespace CoworkingApp.Controls
                 if (c.Name == "tabCli")  c.Visible = (t == Tab.Cliente);
                 if (c.Name == "tabAna")  c.Visible = (t == Tab.Analise);
             }
+            // Lazy-load Análise na primeira visita
+            if (t == Tab.Analise && !_anaLoaded)
+            {
+                try { LoadAnaData(); _anaLoaded = true; } catch { /* sem BD */ }
+            }
         }
 
         // ─── TAB 1: Disponibilidade ─────────────────────────────────────
@@ -149,16 +158,24 @@ namespace CoworkingApp.Controls
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 84));  // KPI
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // lista
 
-            // ─── Filtros ──
+            // ─── Filtros (Locations sem overlap) ──────────────────────
             var filterRow = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
-            _segTipo = new SegmentedControl { Segments = new[] { "Sala", "Posto" }, SelectedIndex = 0, Width = 160, Height = 36, Location = new Point(0, 10) };
-            _dtDispData = new ModernDateField { Width = 130, Height = 36, Value = DateTime.Today, Location = new Point(176, 10) };
-            _hIni = MakeHora("09:00", 256);
-            _hFim = MakeHora("10:00", 356);
+            _segTipo = new SegmentedControl
+            {
+                Segments = new[] { "Sala", "Posto" }, SelectedIndex = 0,
+                Width = 160, Height = 36, Location = new Point(0, 10),
+            };
+            _dtDispData = new ModernDateField
+            {
+                Width = 130, Height = 36, Value = DateTime.Today,
+                Location = new Point(176, 10),
+            };
+            _hIni = MakeHora("09:00", 322);
+            _hFim = MakeHora("10:00", 422);
             _btnPesqDisp = new ModernButton
             {
                 Text = "Pesquisar", Style = ModernButton.Variant.Primary, Font = Theme.FontBold,
-                Size = new Size(120, 40), Location = new Point(456, 8),
+                Size = new Size(120, 40), Location = new Point(522, 8),
             };
             _btnPesqDisp.Click += (s, e) => LoadDispData();
             filterRow.Controls.AddRange(new Control[] { _segTipo, _dtDispData, _hIni, _hFim, _btnPesqDisp });
