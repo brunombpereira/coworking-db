@@ -25,28 +25,28 @@ namespace CoworkingApp
         {
             _saveCallback = onSave;
 
-            // ── Form (overlay) ───────────────────────────────────────────────
+            // ── Form (dialog discreto, não overlay) ──────────────────────────
             this.AutoScaleMode       = AutoScaleMode.Dpi;
             this.AutoScaleDimensions = new SizeF(96F, 96F);
             this.FormBorderStyle     = FormBorderStyle.None;
-            this.StartPosition = FormStartPosition.Manual;
-            this.ShowInTaskbar = false;
-            this.BackColor = Theme.ModalOverlay;
-            this.Opacity = Theme.ModalOpacity;
-            this.KeyPreview = true;
-            this.Font = Theme.FontBase;
+            this.StartPosition       = FormStartPosition.CenterParent;
+            this.ShowInTaskbar       = false;
+            this.BackColor           = Theme.CardBorder; // border 1px à volta
+            this.Padding             = new Padding(1);
+            this.KeyPreview          = true;
+            this.Font                = Theme.FontBase;
 
             this.KeyDown += (s, e) =>
             {
                 if (e.KeyCode == Keys.Escape) { DialogResult = DialogResult.Cancel; Close(); }
             };
 
-            // ── Card central ─────────────────────────────────────────────────
+            // ── Card preenche o form (border 1px do Padding do Form fica visível) ─
             _card = new Panel
             {
+                Dock = DockStyle.Fill,
                 BackColor = Theme.CardBg,
-                Width = width,
-                Padding = new Padding(0)
+                Padding = new Padding(0),
             };
 
             // Header
@@ -130,32 +130,29 @@ namespace CoworkingApp
 
             this.Controls.Add(_card);
 
-            this.Load += (s, e) => CenterCard();
+            // Tamanho do form = card width (+2 padding) × altura calculada do
+            // body + header(48) + footer(56) + padding(32) + 2 border.
+            this.Load  += (s, e) => SizeToContent(width);
             this.Shown += (s, e) => content.Focus();
         }
 
         public new DialogResult ShowDialog(IWin32Window owner)
         {
-            // Cobrir o owner
-            if (owner is Form ownerForm)
-            {
-                this.Bounds = ownerForm.Bounds;
-            }
-            else
-            {
-                this.WindowState = FormWindowState.Maximized;
-            }
+            // CenterParent já definido em StartPosition; não esticar para
+            // cobrir o owner.
             return base.ShowDialog(owner);
         }
 
-        private void CenterCard()
+        private void SizeToContent(int cardWidth)
         {
-            // Auto-fit altura do card pelo body preferred + header + footer
             int prefH = _body.PreferredSize.Height;
-            int total = Math.Min(prefH + 48 + 56 + 32, this.Height - 40);
-            _card.Height = Math.Max(180, total);
-            _card.Left = (this.Width - _card.Width) / 2;
-            _card.Top = (this.Height - _card.Height) / 2;
+            // Header 48 + footer 56 + padding body 32 = 136 (matches Padding
+            // do body 16+16=32 em ambos os eixos? confirmar — actualmente
+            // _body tem Padding 16 cada lado = 32 vertical total).
+            int contentH = Math.Min(prefH + 48 + 56 + 32, 600);  // cap 600
+            int formH    = Math.Max(220, contentH) + 2;          // +2 border
+            int formW    = cardWidth + 2;
+            this.Size = new Size(formW, formH);
         }
     }
 }
