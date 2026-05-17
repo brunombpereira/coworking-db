@@ -15,8 +15,12 @@ namespace CoworkingApp.Controls
     public class UcPlanos : UserControl
     {
         private Label _kpiTotal, _kpiSubscritores, _kpiMrr;
-        private FlowLayoutPanel _grid;
+        private Panel _grid;            // contém os pricing cards
         private Panel _emptyState;
+
+        private const int CardWidth   = 280;
+        private const int CardHeight  = 270;
+        private const int CardGap     = 12;
 
         public UcPlanos()
         {
@@ -146,15 +150,14 @@ namespace CoworkingApp.Controls
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 16, 16, 16) };
 
-            _grid = new FlowLayoutPanel
+            _grid = new Panel
             {
-                Dock          = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents  = true,
-                AutoScroll    = true,
-                BackColor     = Theme.CardBg,
-                Visible       = false,
+                Dock       = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor  = Theme.CardBg,
+                Visible    = false,
             };
+            _grid.Resize += (s, e) => RelayoutCards();
 
             _emptyState = BuildEmptyState("Nenhum plano definido", IconChar.ClipboardList);
             _emptyState.Dock = DockStyle.Fill;
@@ -257,6 +260,26 @@ namespace CoworkingApp.Controls
             _grid.Visible        = count > 0;
             _emptyState.Visible  = count == 0;
             _emptyState.Invalidate();
+            RelayoutCards();
+        }
+
+        // Calcula colunas a partir do width visível + posiciona cada card
+        // manualmente. Scrollbar só aparece quando totalHeight > _grid.Height.
+        private void RelayoutCards()
+        {
+            if (_grid == null || _grid.Controls.Count == 0) return;
+            int avail = _grid.ClientSize.Width;
+            int cols  = Math.Max(1, (avail - CardGap) / (CardWidth + CardGap));
+            int i = 0;
+            foreach (Control c in _grid.Controls)
+            {
+                int row = i / cols;
+                int col = i % cols;
+                c.Location = new Point(
+                    CardGap + col * (CardWidth + CardGap),
+                    CardGap + row * (CardHeight + CardGap));
+                i++;
+            }
         }
 
         // ── Plano card (pricing) ────────────────────────────────────────
@@ -283,10 +306,10 @@ namespace CoworkingApp.Controls
 
             var card = new ModernCard
             {
-                Width = 280, Height = 270,
+                Width = CardWidth, Height = CardHeight,
                 BackColor = idleBg, BorderColor = borderIdle,
                 CornerRadius = 14, ShowShadow = false,
-                Margin = new Padding(6),
+                Margin = new Padding(0),  // posição é calculada em RelayoutCards
                 Cursor = Cursors.Hand,
             };
 
