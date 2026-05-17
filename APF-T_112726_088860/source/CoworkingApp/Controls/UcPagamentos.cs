@@ -488,8 +488,65 @@ namespace CoworkingApp.Controls
             row.Controls.Add(leftBlock);
 
             UcEspacos.HookHover(row, idleBg, hoverBg, btnEdit, btnDel);
-            UcEspacos.HookClick(row, btnEdit, btnDel, () => OpenEditor(id));
+            UcEspacos.HookClick(row, btnEdit, btnDel, () =>
+                OpenPagamentoDetail(id, cliente, servico, data, valor, metodo, estado));
             return row;
+        }
+
+        // ── Detail (read-only) ──────────────────────────────────────────
+        private void OpenPagamentoDetail(int id, string cliente, string servico,
+                                          DateTime data, decimal valor, string metodo, string estado)
+        {
+            var body = new Panel { Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+
+            Color metodoColor = MetodoColor(metodo);
+            var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Theme.CardBg };
+            Image img = null;
+            using (var pb = new IconPictureBox { IconChar = MetodoIcon(metodo), IconSize = 24, IconColor = Color.White })
+                if (pb.Image != null) img = (Image)pb.Image.Clone();
+            header.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode     = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                int diam = 56;
+                int cx = 0, cy = (header.Height - diam) / 2;
+                using (var br = new SolidBrush(metodoColor)) g.FillEllipse(br, cx, cy, diam, diam);
+                if (img != null) g.DrawImage(img, cx + (diam - 24) / 2, cy + (diam - 24) / 2 + 1, 24, 24);
+                using (var f = new Font(Theme.FontBase.FontFamily, 18f, FontStyle.Bold))
+                {
+                    TextRenderer.DrawText(g, Theme.FormatEuro(valor), f, new Point(diam + 14, cy + 4),
+                        Theme.TextPrimary, TextFormatFlags.NoPadding);
+                }
+                TextRenderer.DrawText(g, $"{metodo} · {data:dd/MM/yyyy}", Theme.FontSub, new Point(diam + 14, cy + 38),
+                    Theme.TextSecondary, TextFormatFlags.NoPadding);
+            };
+
+            body.Controls.Add(BuildDetailFieldP("Estado",  estado));
+            body.Controls.Add(BuildDetailFieldP("Data",    data.ToString("dd/MM/yyyy")));
+            body.Controls.Add(BuildDetailFieldP("Método",  metodo));
+            body.Controls.Add(BuildDetailFieldP("Serviço", servico));
+            body.Controls.Add(BuildDetailFieldP("Cliente", cliente));
+            body.Controls.Add(header);
+
+            using (var dlg = new FormDialog($"Pagamento #{id}", body, 500, onSave: null))
+                dlg.ShowDialog(FindForm());
+        }
+
+        private static Panel BuildDetailFieldP(string label, string value)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Theme.CardBg, Padding = new Padding(0, 8, 0, 0) };
+            pnl.Controls.Add(new Label
+            {
+                Text = value, Font = Theme.FontBase, ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            pnl.Controls.Add(new Label
+            {
+                Text = label.ToUpper(), Font = Theme.FontMicro, ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 16, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            return pnl;
         }
 
         private static Color MetodoColor(string metodo)
@@ -581,24 +638,24 @@ namespace CoworkingApp.Controls
             }
 
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-            var cmbCliente = UcClientes.AddComboDataSource(tbl, "Cliente *", dsClientes, "nome", "cliente_id");
-            var cmbServico = UcClientes.AddCombo(tbl, "Serviço *", new string[0]);
-            cmbServico.DisplayMember = "label";
-            cmbServico.ValueMember   = "value";
-            var dtData     = UcClientes.AddDate(tbl, "Data pagamento *");
-            var txtValor   = UcClientes.AddField(tbl, "Valor *");
-            var cmbMetodo  = UcClientes.AddCombo(tbl, "Método *", new[] { "Dinheiro", "Cartao", "Transferencia", "MBWay", "PayPal" });
-            var cmbEstado  = UcClientes.AddCombo(tbl, "Estado *", new[] { "Pendente", "Pago", "Cancelado", "Reembolsado" });
+            var cmbCliente = UcClientes.AddModernSelectDataSource(tbl, "Cliente *", dsClientes, "nome", "cliente_id");
+            var cmbServico = UcClientes.AddModernSelect(tbl, "Serviço *", new string[0]);
+            var dtData     = UcClientes.AddModernDateField(tbl, "Data pagamento *");
+            var txtValor   = UcClientes.AddField(tbl, "Valor *", IconChar.EuroSign, placeholder: "120.00");
+            var cmbMetodo  = UcClientes.AddModernSelect(tbl, "Método *", new[] { "Dinheiro", "Cartao", "Transferencia", "MBWay", "PayPal" });
+            var cmbEstado  = UcClientes.AddModernSelect(tbl, "Estado *", new[] { "Pendente", "Pago", "Cancelado", "Reembolsado" });
 
             cmbCliente.SelectedIndexChanged += (s, e) =>
             {
-                if (cmbCliente.SelectedValue == null || cmbCliente.SelectedValue is DBNull) { cmbServico.DataSource = null; return; }
-                cmbServico.DataSource = LoadServicosPorCliente(Convert.ToInt32(cmbCliente.SelectedValue));
+                if (cmbCliente.SelectedValue == null || cmbCliente.SelectedValue is DBNull) return;
+                var dt = LoadServicosPorCliente(Convert.ToInt32(cmbCliente.SelectedValue));
+                cmbServico.BindDataTable(dt, "label", "value");
             };
             cmbServico.SelectedIndexChanged += (s, e) =>
             {
-                if (cmbServico.SelectedItem is DataRowView rv)
-                    txtValor.Text = Convert.ToDecimal(rv["preco"]).ToString(CultureInfo.InvariantCulture);
+                var row = cmbServico.SelectedRawData as DataRow;
+                if (row != null)
+                    txtValor.Text = Convert.ToDecimal(row["preco"]).ToString(CultureInfo.InvariantCulture);
             };
 
             if (id.HasValue)
@@ -620,12 +677,8 @@ namespace CoworkingApp.Controls
                             cmbServico.SelectedValue = svcKey;
                             dtData.Value  = Convert.ToDateTime(r["data_pagamento"]);
                             txtValor.Text = Convert.ToDecimal(r["valor"]).ToString(CultureInfo.InvariantCulture);
-                            var met = r["metodo_pagamento"].ToString();
-                            var idxM = cmbMetodo.Items.IndexOf(met);
-                            cmbMetodo.SelectedIndex = idxM >= 0 ? idxM : 0;
-                            var est = r["estado"].ToString();
-                            var idxE = cmbEstado.Items.IndexOf(est);
-                            cmbEstado.SelectedIndex = idxE >= 0 ? idxE : 0;
+                            cmbMetodo.SelectByDisplay(r["metodo_pagamento"].ToString());
+                            cmbEstado.SelectByDisplay(r["estado"].ToString());
                         }
                     }
                 }
@@ -633,15 +686,16 @@ namespace CoworkingApp.Controls
             else
             {
                 cmbMetodo.SelectedIndex = 0;
-                cmbEstado.SelectedIndex = 1;
-                if (cmbCliente.Items.Count > 0)
+                cmbEstado.SelectByDisplay("Pago");
+                if (cmbCliente.Count > 0)
                 {
+                    int idx0 = cmbCliente.SelectedIndex;
                     cmbCliente.SelectedIndex = -1;
-                    cmbCliente.SelectedIndex = 0;
+                    cmbCliente.SelectedIndex = idx0 >= 0 ? idx0 : 0;
                 }
             }
 
-            using (var dlg = new FormDialog(id.HasValue ? "Editar Pagamento" : "Novo Pagamento", tbl, 460, () =>
+            using (var dlg = new FormDialog(id.HasValue ? "Editar Pagamento" : "Novo Pagamento", tbl, 500, () =>
             {
                 if (cmbCliente.SelectedValue == null || cmbCliente.SelectedValue is DBNull) throw new ApplicationException("Cliente é obrigatório.");
                 if (cmbServico.SelectedValue == null) throw new ApplicationException("Serviço é obrigatório.");
@@ -678,8 +732,8 @@ namespace CoworkingApp.Controls
                     cmd.Parameters.AddWithValue("@r", reservaVal);
                     cmd.Parameters.AddWithValue("@d", dtData.Value.Date);
                     cmd.Parameters.AddWithValue("@v", valor);
-                    cmd.Parameters.AddWithValue("@m", cmbMetodo.SelectedItem.ToString());
-                    cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedItem.ToString());
+                    cmd.Parameters.AddWithValue("@m", cmbMetodo.SelectedText);
+                    cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedText);
                     cmd.ExecuteNonQuery();
                 }
             }))

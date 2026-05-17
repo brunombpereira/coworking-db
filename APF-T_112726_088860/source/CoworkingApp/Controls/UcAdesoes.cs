@@ -478,8 +478,72 @@ namespace CoworkingApp.Controls
             row.Controls.Add(leftBlock);
 
             UcEspacos.HookHover(row, idleBg, hoverBg, btnEdit, btnDel);
-            UcEspacos.HookClick(row, btnEdit, btnDel, () => OpenEditor(id));
+            UcEspacos.HookClick(row, btnEdit, btnDel, () =>
+                OpenAdesaoDetail(id, cliente, plano, tipo, posto, dini, dfim, preco, estado));
             return row;
+        }
+
+        // ── Detail (read-only) ──────────────────────────────────────────
+        private void OpenAdesaoDetail(int id, string cliente, string plano, string tipo,
+                                       string posto, DateTime dini, DateTime? dfim,
+                                       decimal preco, string estado)
+        {
+            var body = new Panel { Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+
+            Color tipoColor = TipoColor(tipo);
+            var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Theme.CardBg };
+            Image img = null;
+            using (var pb = new IconPictureBox { IconChar = TipoIcon(tipo), IconSize = 24, IconColor = Color.White })
+                if (pb.Image != null) img = (Image)pb.Image.Clone();
+            header.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode     = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                int diam = 56;
+                int cx = 0, cy = (header.Height - diam) / 2;
+                using (var br = new SolidBrush(tipoColor)) g.FillEllipse(br, cx, cy, diam, diam);
+                if (img != null) g.DrawImage(img, cx + (diam - 24) / 2, cy + (diam - 24) / 2 + 1, 24, 24);
+                using (var f = new Font(Theme.FontBase.FontFamily, 16f, FontStyle.Bold))
+                {
+                    TextRenderer.DrawText(g, cliente, f, new Point(diam + 14, cy + 4),
+                        Theme.TextPrimary, TextFormatFlags.NoPadding);
+                }
+                TextRenderer.DrawText(g, $"{plano} · {tipo}", Theme.FontSub, new Point(diam + 14, cy + 34),
+                    Theme.TextSecondary, TextFormatFlags.NoPadding);
+            };
+
+            string periodo = dfim.HasValue
+                ? $"{dini:dd/MM/yyyy} → {dfim.Value:dd/MM/yyyy}"
+                : $"desde {dini:dd/MM/yyyy}";
+
+            body.Controls.Add(BuildDetailFieldA("Estado",         estado));
+            body.Controls.Add(BuildDetailFieldA("Preço acordado", Theme.FormatEuro(preco) + " /mês"));
+            body.Controls.Add(BuildDetailFieldA("Período",        periodo));
+            if (!string.IsNullOrEmpty(posto) && posto != "—")
+                body.Controls.Add(BuildDetailFieldA("Posto atribuído", posto));
+            body.Controls.Add(BuildDetailFieldA("Tipo de plano", tipo));
+            body.Controls.Add(BuildDetailFieldA("Plano",         plano));
+            body.Controls.Add(header);
+
+            using (var dlg = new FormDialog($"Adesão #{id}", body, 500, onSave: null))
+                dlg.ShowDialog(FindForm());
+        }
+
+        private static Panel BuildDetailFieldA(string label, string value)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Theme.CardBg, Padding = new Padding(0, 8, 0, 0) };
+            pnl.Controls.Add(new Label
+            {
+                Text = value, Font = Theme.FontBase, ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            pnl.Controls.Add(new Label
+            {
+                Text = label.ToUpper(), Font = Theme.FontMicro, ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 16, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            return pnl;
         }
 
         private static Color TipoColor(string tipo)
@@ -535,16 +599,12 @@ namespace CoworkingApp.Controls
             }
 
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-            var cmbCliente = UcClientes.AddComboDataSource(tbl, "Cliente *", dsClientes, "nome", "cliente_id");
-            var cmbPlano   = UcClientes.AddComboDataSource(tbl, "Plano *", dsPlanos, "nome_plano", "plano_id");
-            var dtInicio   = UcClientes.AddDate(tbl, "Data início *");
-            var cmbPosto   = UcClientes.AddCombo(tbl, "Posto atribuído *", new string[0]);
-            var txtPreco   = UcClientes.AddField(tbl, "Preço acordado *");
-            var cmbEstado  = UcClientes.AddCombo(tbl, "Estado *", new[] { "Pendente", "Ativa", "Suspensa", "Cancelada", "Terminada" });
-            cmbEstado.SelectedIndex = 0;
-
-            cmbPosto.DisplayMember = "label";
-            cmbPosto.ValueMember   = "recurso_id";
+            var cmbCliente = UcClientes.AddModernSelectDataSource(tbl, "Cliente *", dsClientes, "nome", "cliente_id");
+            var cmbPlano   = UcClientes.AddModernSelectDataSource(tbl, "Plano *",   dsPlanos,   "nome_plano", "plano_id");
+            var dtInicio   = UcClientes.AddModernDateField(tbl, "Data início *");
+            var cmbPosto   = UcClientes.AddModernSelect(tbl, "Posto atribuído *", new string[0]);
+            var txtPreco   = UcClientes.AddField(tbl, "Preço acordado *", IconChar.EuroSign, placeholder: "120.00");
+            var cmbEstado  = UcClientes.AddModernSelect(tbl, "Estado *", new[] { "Pendente", "Ativa", "Suspensa", "Cancelada", "Terminada" });
 
             Action<string> loadPostos = (tipo) =>
             {
@@ -556,7 +616,7 @@ namespace CoworkingApp.Controls
                     c.Parameters.AddWithValue("@t", tipo);
                     var dt = new DataTable();
                     a.Fill(dt);
-                    cmbPosto.DataSource = dt;
+                    cmbPosto.BindDataTable(dt, "label", "recurso_id");
                 }
             };
 
@@ -565,15 +625,14 @@ namespace CoworkingApp.Controls
 
             cmbPlano.SelectedIndexChanged += (s, e) =>
             {
-                if (cmbPlano.SelectedItem == null) return;
-                var rv = (DataRowView)cmbPlano.SelectedItem;
-                tipoPlanoSel   = rv["tipo_plano"].ToString();
-                precoMensalSel = Convert.ToDecimal(rv["preco_mensal"]);
+                var row = cmbPlano.SelectedRawData as DataRow;
+                if (row == null) return;
+                tipoPlanoSel   = row["tipo_plano"].ToString();
+                precoMensalSel = Convert.ToDecimal(row["preco_mensal"]);
                 txtPreco.Text  = precoMensalSel.ToString(CultureInfo.InvariantCulture);
                 if (tipoPlanoSel == "Flex")
                 {
                     cmbPosto.Parent.Visible = false;
-                    cmbPosto.DataSource = null;
                 }
                 else
                 {
@@ -601,20 +660,20 @@ namespace CoworkingApp.Controls
                                 cmbPosto.SelectedValue = r["recurso_id"];
                             dtInicio.Value = Convert.ToDateTime(r["data_inicio"]);
                             txtPreco.Text  = Convert.ToDecimal(r["preco_acordado"]).ToString(CultureInfo.InvariantCulture);
-                            var estado = r["estado"].ToString();
-                            var idx = cmbEstado.Items.IndexOf(estado);
-                            cmbEstado.SelectedIndex = idx >= 0 ? idx : 0;
+                            cmbEstado.SelectByDisplay(r["estado"].ToString());
                         }
                     }
                 }
             }
-            else if (cmbPlano.Items.Count > 0)
+            else if (cmbPlano.Count > 0)
             {
+                // Re-trigger SelectedIndexChanged para popular postos.
+                int initialIdx = cmbPlano.SelectedIndex;
                 cmbPlano.SelectedIndex = -1;
-                cmbPlano.SelectedIndex = 0;
+                cmbPlano.SelectedIndex = initialIdx >= 0 ? initialIdx : 0;
             }
 
-            using (var dlg = new FormDialog(id.HasValue ? "Editar Adesão" : "Nova Adesão", tbl, 460, () =>
+            using (var dlg = new FormDialog(id.HasValue ? "Editar Adesão" : "Nova Adesão", tbl, 500, () =>
             {
                 if (cmbCliente.SelectedValue == null || cmbCliente.SelectedValue is DBNull) throw new ApplicationException("Cliente é obrigatório.");
                 if (cmbPlano.SelectedValue   == null || cmbPlano.SelectedValue   is DBNull) throw new ApplicationException("Plano é obrigatório.");
@@ -641,7 +700,7 @@ namespace CoworkingApp.Controls
                     cmd.Parameters.AddWithValue("@r",  recursoVal);
                     cmd.Parameters.AddWithValue("@d",  dtInicio.Value.Date);
                     cmd.Parameters.AddWithValue("@pr", preco);
-                    cmd.Parameters.AddWithValue("@e",  cmbEstado.SelectedItem.ToString());
+                    cmd.Parameters.AddWithValue("@e",  cmbEstado.SelectedText);
                     cmd.ExecuteNonQuery();
                 }
             }))
