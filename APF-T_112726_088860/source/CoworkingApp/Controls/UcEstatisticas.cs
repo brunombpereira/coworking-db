@@ -388,12 +388,26 @@ namespace CoworkingApp.Controls
 
         private void LoadReceitaMensal(SqlConnection conn)
         {
-            var s = _chartReceitaMensal.Series[0];
-            s.Points.Clear();
+            // Limpa COMPLETAMENTE a Series e a Chart Area (alguns artefactos
+            // de labels do framework persistem mesmo após Points.Clear).
+            _chartReceitaMensal.Series.Clear();
+            var area = _chartReceitaMensal.ChartAreas[0];
+            area.AxisX.CustomLabels.Clear();
 
-            // Lê pagamentos pagos um a um e agrega client-side por (ano, mês).
-            // Belt-and-suspenders: mesmo que a query devolva múltiplas linhas
-            // por (ano, mês), o Dictionary garante 1 ponto por mês no chart.
+            var s = new Series("rec")
+            {
+                ChartType            = SeriesChartType.Column,
+                Color                = Theme.Accent,
+                BorderWidth          = 0,
+                IsValueShownAsLabel  = true,
+                LabelFormat          = "€ #,##0",
+                LabelForeColor       = Theme.TextSecondary,
+                Font                 = Theme.FontSub,
+            };
+            s["PointWidth"] = "0.6";
+            _chartReceitaMensal.Series.Add(s);
+
+            // Lê pagamentos pagos e agrega client-side por (ano, mês).
             var byMonth = new SortedDictionary<string, double>();
             using (var cmd = new SqlCommand(@"
                 SELECT data_pagamento, valor
