@@ -7,7 +7,7 @@ using FontAwesome.Sharp;
 
 namespace CoworkingApp
 {
-    public partial class FormMain : DpiAwareForm
+    public partial class FormMain : Form
     {
         public static bool LogoutRequested { get; private set; }
 
@@ -25,7 +25,6 @@ namespace CoworkingApp
             if (_navBtns.Count > 0) _navBtns[0].PerformClick();
         }
 
-        // WM_DPICHANGED é tratado em DpiAwareForm (base class).
 
         private void BuildUI()
         {

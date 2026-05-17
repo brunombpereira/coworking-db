@@ -4,7 +4,7 @@ using System.Windows.Forms;
 
 namespace CoworkingApp
 {
-    public class FormDialog : DpiAwareForm
+    public class FormDialog : Form
     {
         private readonly Panel _card;
         private readonly Panel _body;
@@ -106,7 +106,7 @@ namespace CoworkingApp
                     DialogResult = DialogResult.OK;
                     Close();
                 }
-                catch (System.Data.SqlClient.SqlException ex)
+                catch (Microsoft.Data.SqlClient.SqlException ex)
                 {
                     MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);

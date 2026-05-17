@@ -1,21 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>CoworkingApp</RootNamespace>
     <AssemblyName>CoworkingApp</AssemblyName>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <LangVersion>7.3</LangVersion>
     <Nullable>disable</Nullable>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- LangVersion removido — usa C# 12 (default de net8). -->
+    <!-- ApplicationManifest removido — DPI tratado em Program.cs. -->
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="System.Configuration" />
-    <Reference Include="System.Windows.Forms.DataVisualization" />
-    <Reference Include="System.Web.Extensions" />
-  </ItemGroup>
-  <ItemGroup>
+    <!-- SqlClient: o legacy System.Data.SqlClient não vem em .NET 6+ -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <!-- ConfigurationManager: deixou de ser in-box em .NET 6+ -->
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.0" />
+    <!-- DataVisualization (Charting): community port; Microsoft nunca portou -->
+    <PackageReference Include="WinForms.DataVisualization" Version="1.9.3" />
+    <!-- Icons FontAwesome (suporta .NET 8) -->
     <PackageReference Include="FontAwesome.Sharp" Version="6.6.0" />
   </ItemGroup>
 </Project>

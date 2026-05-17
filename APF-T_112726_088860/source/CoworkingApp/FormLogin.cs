@@ -1,12 +1,12 @@
 using System;
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using System.Drawing;
 using System.Windows.Forms;
 
 namespace CoworkingApp
 {
-    public class FormLogin : DpiAwareForm
+    public class FormLogin : Form
     {
         private TextBox _txtUser;
         private TextBox _txtPwd;
@@ -15,7 +15,6 @@ namespace CoworkingApp
 
         public FormLogin()
         {
-            // Mode antes de Dimensions (senão Dimensions é sobrescrito).
             this.AutoScaleMode       = AutoScaleMode.Dpi;
             this.AutoScaleDimensions = new SizeF(96F, 96F);
             this.Text                = "Coworking — Login";

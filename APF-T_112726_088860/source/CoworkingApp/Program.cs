@@ -8,6 +8,10 @@ namespace CoworkingApp
         [STAThread]
         static void Main()
         {
+            // PerMonitorV2 — em .NET 8 WinForms o auto-handling de
+            // WM_DPICHANGED já funciona out-of-the-box. Tem de ser
+            // chamado ANTES de EnableVisualStyles.
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.ThreadException += (s, e) =>
