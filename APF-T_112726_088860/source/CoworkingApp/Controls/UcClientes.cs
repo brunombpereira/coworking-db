@@ -2,97 +2,499 @@ using System;
 using System.Data;
 using Microsoft.Data.SqlClient;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.Net.Mail;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using FontAwesome.Sharp;
 
 namespace CoworkingApp.Controls
 {
+    /// <summary>
+    /// Clientes redesenhado: stats row (3 KPIs) + toolbar com search +
+    /// lista de cards (avatar + info + acções inline) em vez de DataGridView.
+    /// </summary>
     public class UcClientes : UserControl
     {
-        private DataGridView dgv;
-        private Button btnNovo, btnEditar, btnEliminar;
-        private ModernInput txtSearch;
-        private Label lblCount;
-        private int _selectedId = -1;
+        private Label _kpiTotal, _kpiNovos, _kpiComAdesao;
+        private ModernInput _txtSearch;
+        private Panel _listContainer;
+        private Panel _emptyState;
 
         public UcClientes()
         {
-            this.BackColor = Theme.PageBg;
-            this.Dock = DockStyle.Fill;
+            BackColor = Theme.PageBg;
+            Dock      = DockStyle.Fill;
             BuildUI();
             LoadData();
         }
 
+        // ── UI ──────────────────────────────────────────────────────────
         private void BuildUI()
         {
-            var pnlTitle = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.PageBg, Padding = new Padding(20, 14, 20, 0) };
-            pnlTitle.Controls.Add(new Label { Text = "Clientes", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary, Dock = DockStyle.Fill, AutoSize = false });
-
-            var pnlToolbar = Theme.Toolbar();
-            var flow = Theme.ToolbarFlow();
-            btnNovo     = Theme.BtnPrim("+ Novo");
-            btnEditar   = Theme.BtnGray("Editar");
-            btnEliminar = Theme.BtnRed("Eliminar");
-            btnEditar.Enabled = false;
-            btnEliminar.Enabled = false;
-            btnNovo.Click     += (s, e) => OpenEditor(null);
-            btnEditar.Click   += (s, e) => OpenEditor(_selectedId);
-            btnEliminar.Click += BtnEliminar_Click;
-
-            txtSearch = new ModernInput { Width = 240, Height = 36, Margin = new Padding(12, 0, 0, 0) };
-            txtSearch.Inner.PlaceholderText = "Procurar nome, NIF, email…";
-            txtSearch.TextChanged += (s, e) => LoadData();
-            lblCount = new Label { Font = Theme.FontLabel, ForeColor = Theme.TextSecondary, AutoSize = true, Margin = new Padding(8, 10, 0, 0) };
-
-            flow.Controls.Add(btnNovo);
-            flow.Controls.Add(btnEditar);
-            flow.Controls.Add(btnEliminar);
-            flow.Controls.Add(txtSearch);
-            flow.Controls.Add(lblCount);
-            pnlToolbar.Controls.Add(flow);
-
-            dgv = new DataGridView { Dock = DockStyle.Fill };
-            Theme.StyleGrid(dgv);
-            dgv.SelectionChanged += (s, e) =>
+            // Header (title + Novo Cliente button à direita)
+            var pnlTitle = new Panel
             {
-                if (dgv.SelectedRows.Count == 0) { _selectedId = -1; btnEditar.Enabled = btnEliminar.Enabled = false; return; }
-                _selectedId = Convert.ToInt32(dgv.SelectedRows[0].Cells["ID"].Value);
-                btnEditar.Enabled = btnEliminar.Enabled = true;
+                Dock = DockStyle.Top, Height = 84, BackColor = Theme.PageBg,
+                Padding = new Padding(24, 18, 24, 0),
             };
+            var titleArea = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg };
+            var lblTitle = new Label
+            {
+                Text = "Clientes", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary,
+                Dock = DockStyle.Top, Height = 34, AutoSize = false,
+            };
+            var lblSub = new Label
+            {
+                Text = "Gestão de contas de cliente do coworking",
+                Font = Theme.FontLabel, ForeColor = Theme.TextSecondary,
+                Dock = DockStyle.Top, Height = 22, AutoSize = false,
+                Padding = new Padding(0, 4, 0, 0),
+            };
+            titleArea.Controls.Add(lblSub);
+            titleArea.Controls.Add(lblTitle);
 
-            this.Controls.Add(dgv);
-            this.Controls.Add(pnlToolbar);
-            this.Controls.Add(pnlTitle);
+            var btnNovo = new ModernButton
+            {
+                Text  = "+ Novo Cliente",
+                Style = ModernButton.Variant.Primary,
+                Dock  = DockStyle.Top, Width = 140, Height = 38,
+                Margin = new Padding(0),
+            };
+            btnNovo.Click += (s, e) => OpenEditor(null);
+
+            var btnHolder = new Panel { Dock = DockStyle.Right, Width = 140, BackColor = Theme.PageBg, Padding = new Padding(0, 14, 0, 0) };
+            btnHolder.Controls.Add(btnNovo);
+
+            _txtSearch = new ModernInput { Dock = DockStyle.Top, Height = 38 };
+            _txtSearch.PlaceholderText = "Procurar nome, NIF, email…";
+            _txtSearch.LeadingIcon     = IconChar.MagnifyingGlass;
+            _txtSearch.TextChanged    += (s, e) => LoadData();
+
+            // Holder da search com 20px gap à direita (entre search e botão)
+            var searchHolder = new Panel { Dock = DockStyle.Right, Width = 240, BackColor = Theme.PageBg, Padding = new Padding(0, 14, 20, 0) };
+            searchHolder.Controls.Add(_txtSearch);
+
+            // Em WinForms o ÚLTIMO Dock=Right adicionado fica mais à direita.
+            // Queremos [titleArea ......... search   button] → search PRIMEIRO,
+            // botão DEPOIS (assim o botão fica rightmost).
+            pnlTitle.Controls.Add(titleArea);
+            pnlTitle.Controls.Add(searchHolder);
+            pnlTitle.Controls.Add(btnHolder);
+
+            // Content (stats + lista — search vai DENTRO do card da lista)
+            var content = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+                BackColor = Theme.PageBg, Padding = new Padding(24, 12, 24, 24),
+            };
+            content.RowStyles.Add(new RowStyle(SizeType.Absolute, 110f));   // stats
+            content.RowStyles.Add(new RowStyle(SizeType.Percent,  100f));   // lista
+
+            content.Controls.Add(BuildStatsRow(),  0, 0);
+            content.Controls.Add(BuildListCard(),  0, 1);
+
+            Controls.Add(content);
+            Controls.Add(pnlTitle);
         }
 
+        // ── Stats row ───────────────────────────────────────────────────
+        private Control BuildStatsRow()
+        {
+            var row = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Theme.PageBg };
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+
+            var c1 = BuildKpi("Total de clientes",      IconChar.Users,        out _kpiTotal);
+            var c2 = BuildKpi("Novos este mês",          IconChar.UserPlus,     out _kpiNovos);
+            var c3 = BuildKpi("Com adesão activa",       IconChar.Star,         out _kpiComAdesao);
+            c1.Margin = new Padding(0, 0, 4, 8);
+            c2.Margin = new Padding(4, 0, 4, 8);
+            c3.Margin = new Padding(4, 0, 0, 8);
+            row.Controls.Add(c1, 0, 0);
+            row.Controls.Add(c2, 1, 0);
+            row.Controls.Add(c3, 2, 0);
+            return row;
+        }
+
+        private Control BuildKpi(string title, IconChar icon, out Label valueLbl)
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg, BorderColor = Theme.CardBorder,
+                CornerRadius = 12, ShowShadow = false,
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(18, 14, 18, 12) };
+
+            var iconLbl = new IconPictureBox
+            {
+                IconChar = icon, IconSize = 16, IconColor = Theme.TextSecondary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Right,
+                SizeMode = PictureBoxSizeMode.CenterImage, Size = new Size(28, 24),
+            };
+            var lbl = new Label
+            {
+                Text = title.ToUpperInvariant(), Font = Theme.FontMicro,
+                ForeColor = Theme.TextSecondary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 22, AutoSize = false,
+            };
+            var topLine = new Panel { Dock = DockStyle.Top, Height = 24, BackColor = Theme.CardBg };
+            topLine.Controls.Add(iconLbl);
+            topLine.Controls.Add(lbl);
+
+            valueLbl = new Label
+            {
+                Text = "—", Font = new Font(Theme.FontBase.FontFamily, 24f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(0, 4, 0, 0),
+            };
+
+            inner.Controls.Add(valueLbl);
+            inner.Controls.Add(topLine);
+            card.Controls.Add(inner);
+            return card;
+        }
+
+        // ── List card ───────────────────────────────────────────────────
+        private Control BuildListCard()
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg, BorderColor = Theme.CardBorder,
+                CornerRadius = 12, ShowShadow = false,
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(8, 8, 8, 8) };
+
+            _listContainer = new Panel
+            {
+                Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.CardBg,
+                Visible = false,
+            };
+            _listContainer.Resize += (s, e) => ResizeCards();
+
+            _emptyState = BuildEmptyState("Nenhum cliente encontrado", IconChar.UserSlash);
+            _emptyState.Dock = DockStyle.Fill;
+            _emptyState.BackColor = Theme.CardBg;
+
+            inner.Controls.Add(_listContainer);
+            inner.Controls.Add(_emptyState);
+            card.Controls.Add(inner);
+            return card;
+        }
+
+        private Panel BuildEmptyState(string text, IconChar icon)
+        {
+            var pnl = new Panel { BackColor = Theme.CardBg };
+            Image iconImg = null;
+            pnl.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode     = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                if (iconImg == null)
+                {
+                    using (var pb = new IconPictureBox { IconChar = icon, IconSize = 44, IconColor = Theme.TextMuted })
+                        if (pb.Image != null) iconImg = (Image)pb.Image.Clone();
+                }
+                var textSize = TextRenderer.MeasureText(g, text, Theme.FontBase, Size.Empty, TextFormatFlags.NoPadding);
+                int iconSize = 44, gap = 14;
+                int totalH = iconSize + gap + textSize.Height;
+                int startY = Math.Max(8, (pnl.Height - totalH) / 2);
+                int iconX  = (pnl.Width - iconSize) / 2;
+                int textX  = (pnl.Width - textSize.Width) / 2;
+                if (iconImg != null) g.DrawImage(iconImg, iconX, startY, iconSize, iconSize);
+                TextRenderer.DrawText(g, text, Theme.FontBase, new Point(textX, startY + iconSize + gap),
+                    Theme.TextMuted, TextFormatFlags.NoPadding);
+            };
+            pnl.Resize += (s, e) => pnl.Invalidate();
+            return pnl;
+        }
+
+        // ── Data ────────────────────────────────────────────────────────
         private void LoadData()
         {
             try
             {
                 using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(
-                    @"SELECT cliente_id AS ID, nome AS Nome, nif AS NIF, email AS Email,
-                             telefone AS Telefone, data_registo AS [Registo]
-                      FROM cliente
-                      WHERE @q='' OR nome LIKE '%'+@q+'%' OR nif LIKE '%'+@q+'%' OR email LIKE '%'+@q+'%'
-                      ORDER BY nome", conn))
-                using (var adapter = new SqlDataAdapter(cmd))
                 {
-                    cmd.Parameters.AddWithValue("@q", txtSearch?.Text?.Trim() ?? "");
-                    var dt = new DataTable();
-                    adapter.Fill(dt);
-                    dgv.DataSource = dt;
-                    if (dgv.Columns.Contains("ID")) dgv.Columns["ID"].Visible = false;
-                    lblCount.Text = dt.Rows.Count + " resultados";
+                    // Stats
+                    using (var cmd = new SqlCommand(@"SELECT COUNT(*) FROM cliente", conn))
+                        _kpiTotal.Text = cmd.ExecuteScalar().ToString();
+                    using (var cmd = new SqlCommand(
+                        @"SELECT COUNT(*) FROM cliente
+                          WHERE data_registo >= DATEADD(DAY, 1-DAY(GETDATE()), CAST(GETDATE() AS date))", conn))
+                        _kpiNovos.Text = cmd.ExecuteScalar().ToString();
+                    using (var cmd = new SqlCommand(
+                        @"SELECT COUNT(DISTINCT cliente_id) FROM adesao WHERE estado='Ativa'", conn))
+                        _kpiComAdesao.Text = cmd.ExecuteScalar().ToString();
+
+                    LoadClients(conn);
                 }
             }
             catch (SqlException ex)
             {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
+        private void LoadClients(SqlConnection conn)
+        {
+            _listContainer.Controls.Clear();
+            int y = 0, count = 0;
+            using (var cmd = new SqlCommand(
+                @"SELECT c.cliente_id, c.nome, c.nif, c.email, c.telefone, c.data_registo,
+                        (SELECT COUNT(*) FROM reserva WHERE cliente_id = c.cliente_id)        AS num_reservas,
+                        (SELECT MAX(data_reserva) FROM reserva WHERE cliente_id = c.cliente_id) AS ultima,
+                        CASE WHEN EXISTS (SELECT 1 FROM adesao WHERE cliente_id=c.cliente_id AND estado='Ativa')
+                             THEN 1 ELSE 0 END AS tem_adesao
+                  FROM cliente c
+                  WHERE @q='' OR c.nome LIKE '%'+@q+'%' OR c.nif LIKE '%'+@q+'%' OR c.email LIKE '%'+@q+'%'
+                  ORDER BY c.nome", conn))
+            {
+                cmd.Parameters.AddWithValue("@q", _txtSearch?.Text?.Trim() ?? "");
+                using (var r = cmd.ExecuteReader())
+                {
+                    while (r.Read())
+                    {
+                        var card = BuildClientCard(
+                            id:          Convert.ToInt32(r["cliente_id"]),
+                            nome:        r["nome"].ToString(),
+                            nif:         r["nif"].ToString(),
+                            email:       r["email"].ToString(),
+                            telefone:    r["telefone"] is DBNull ? null : r["telefone"].ToString(),
+                            numReservas: Convert.ToInt32(r["num_reservas"]),
+                            ultimaReserva: r["ultima"] is DBNull ? null : (DateTime?)r["ultima"],
+                            temAdesao:   Convert.ToInt32(r["tem_adesao"]) == 1
+                        );
+                        card.Location = new Point(0, y);
+                        card.Anchor   = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+                        card.Width    = _listContainer.ClientSize.Width;
+                        _listContainer.Controls.Add(card);
+                        y += card.Height + 6;
+                        count++;
+                    }
+                }
+            }
+
+            _listContainer.Visible = count > 0;
+            _emptyState.Visible    = count == 0;
+            _emptyState.Invalidate();
+            ResizeCards();
+        }
+
+        private void ResizeCards()
+        {
+            if (_listContainer == null) return;
+            int w = _listContainer.ClientSize.Width;
+            if (w < 100) return;
+            foreach (Control c in _listContainer.Controls) c.Width = w;
+        }
+
+        // ── Client card ─────────────────────────────────────────────────
+        private Control BuildClientCard(int id, string nome, string nif, string email, string telefone,
+                                        int numReservas, DateTime? ultimaReserva, bool temAdesao)
+        {
+            Color idleBg  = Theme.CardBg;
+            Color hoverBg = MixColors(Theme.CardBg, Color.White, 0.05f);
+
+            var row = new Panel
+            {
+                Height = 76, Margin = new Padding(0, 0, 0, 6),
+                BackColor = idleBg, Cursor = Cursors.Hand,
+            };
+
+            // Avatar
+            var avatarHolder = new Panel { Dock = DockStyle.Left, Width = 64, BackColor = idleBg };
+            var avatar = new AvatarCircle
+            {
+                Initial = nome, CircleColor = Theme.Accent,
+                Size = new Size(44, 44), Location = new Point(10, 16),
+            };
+            avatarHolder.Controls.Add(avatar);
+
+            // Acções à direita (edit + delete) — bg NUNCA muda no hover; só
+            // a cor do próprio ícone. MouseOverBackColor sincronizado com o
+            // estado actual do row (idle ou hover) para evitar o "quadrado".
+            var actions = new Panel { Dock = DockStyle.Right, Width = 100, BackColor = idleBg };
+            var btnEdit = new IconButton
+            {
+                IconChar = IconChar.Pen, IconSize = 18, IconColor = Theme.TextSecondary,
+                FlatStyle = FlatStyle.Flat, BackColor = idleBg, ForeColor = Theme.TextSecondary,
+                Size = new Size(40, 40), Location = new Point(8, 18), Cursor = Cursors.Hand,
+                TabStop = false,
+            };
+            btnEdit.FlatAppearance.BorderSize = 0;
+            btnEdit.FlatAppearance.MouseOverBackColor = idleBg;
+            btnEdit.MouseEnter += (s, e) => btnEdit.IconColor = Theme.Accent;
+            btnEdit.MouseLeave += (s, e) => btnEdit.IconColor = Theme.TextSecondary;
+            btnEdit.Click += (s, e) => OpenEditor(id);
+
+            var btnDelete = new IconButton
+            {
+                IconChar = IconChar.TrashCan, IconSize = 18, IconColor = Theme.TextSecondary,
+                FlatStyle = FlatStyle.Flat, BackColor = idleBg, ForeColor = Theme.TextSecondary,
+                Size = new Size(40, 40), Location = new Point(52, 18), Cursor = Cursors.Hand,
+                TabStop = false,
+            };
+            btnDelete.FlatAppearance.BorderSize = 0;
+            btnDelete.FlatAppearance.MouseOverBackColor = idleBg;
+            btnDelete.MouseEnter += (s, e) => btnDelete.IconColor = Theme.StatusDangerFg;
+            btnDelete.MouseLeave += (s, e) => btnDelete.IconColor = Theme.TextSecondary;
+            btnDelete.Click += (s, e) => DeleteCliente(id, nome);
+
+            actions.Controls.Add(btnEdit);
+            actions.Controls.Add(btnDelete);
+
+            // Stats (reservas + última). Quando numReservas=0 mostramos só
+            // 'Sem reservas' (uma linha), centrado verticalmente. Caso
+            // contrário 'N reservas' + 'Última dd/MM/yyyy'.
+            var statsPanel = new Panel
+            {
+                Dock = DockStyle.Right, Width = 200, BackColor = idleBg,
+            };
+            if (numReservas == 0)
+            {
+                statsPanel.Padding = new Padding(0, 26, 12, 0);  // centrar 1 linha numa altura 76
+                var lblNone = new Label
+                {
+                    Text = "Sem reservas", Font = Theme.FontSub, ForeColor = Theme.TextMuted,
+                    Dock = DockStyle.Top, Height = 24, AutoSize = false,
+                    TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
+                };
+                statsPanel.Controls.Add(lblNone);
+            }
+            else
+            {
+                statsPanel.Padding = new Padding(0, 16, 12, 0);  // centrar 2 linhas (24+20=44)
+                var lblStats1 = new Label
+                {
+                    Text = numReservas + " reserva" + (numReservas == 1 ? "" : "s"),
+                    Font = Theme.FontBold, ForeColor = Theme.TextPrimary,
+                    Dock = DockStyle.Top, Height = 24, AutoSize = false,
+                    TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
+                };
+                var lblStats2 = new Label
+                {
+                    Text = ultimaReserva.HasValue
+                              ? "Última: " + ultimaReserva.Value.ToString("dd/MM/yyyy")
+                              : "—",
+                    Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
+                    Dock = DockStyle.Top, Height = 20, AutoSize = false,
+                    TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
+                };
+                statsPanel.Controls.Add(lblStats2);
+                statsPanel.Controls.Add(lblStats1);
+            }
+
+            // Texto principal (nome + badge inline + email + nif/telefone) — Fill
+            var pnlText = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(0, 6, 0, 0) };
+
+            // Linha do nome — FlowLayoutPanel para meter o badge ao lado
+            var nomeRow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top, Height = 26, AutoSize = false,
+                FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
+                BackColor = idleBg, Padding = new Padding(0),
+            };
+            var lblNome = new Label
+            {
+                Text = nome, Font = new Font(Theme.FontBase.FontFamily, 11.5f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = idleBg,
+                AutoSize = true, TextAlign = ContentAlignment.MiddleLeft,
+                Margin = new Padding(0, 4, 0, 0),
+            };
+            nomeRow.Controls.Add(lblNome);
+
+            if (temAdesao)
+            {
+                var badge = new StatusPill
+                {
+                    Text  = "Com adesão",
+                    Width = 100, Height = 22,
+                    BackColor = idleBg,
+                    Margin = new Padding(10, 3, 0, 0),   // 10px gap + alinhamento vertical c/ nome
+                };
+                badge.SetColors(Theme.StatusSuccessBg, Theme.StatusSuccessFg);
+                nomeRow.Controls.Add(badge);
+            }
+
+            var lblEmail = new Label
+            {
+                Text = email, Font = Theme.FontSub, ForeColor = Theme.TextSecondary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 20, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+            };
+            var lblMeta = new Label
+            {
+                Text = $"NIF {nif}" + (string.IsNullOrEmpty(telefone) ? "" : "  ·  " + telefone),
+                Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 20, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+            };
+            pnlText.Controls.Add(lblMeta);
+            pnlText.Controls.Add(lblEmail);
+            pnlText.Controls.Add(nomeRow);
+
+            // Em WinForms, o ÚLTIMO Dock=Right adicionado fica mais à direita.
+            // Queremos [avatar] [text] [stats] [actions] — actions à direita,
+            // logo é adicionado por ÚLTIMO entre os Right-docked.
+            row.Controls.Add(pnlText);      // Fill
+            row.Controls.Add(statsPanel);   // Right (entre text e actions)
+            row.Controls.Add(actions);      // Right (rightmost — adicionado por último)
+            row.Controls.Add(avatarHolder); // Left
+
+            // Hover unificado — sincroniza também o MouseOverBackColor dos
+            // icon buttons para evitar o flash de "quadrado" quando o cursor
+            // passa sobre o lápis/lixeira (queremos só ver a cor do ícone).
+            void SetHover(bool on)
+            {
+                Color bg = on ? hoverBg : idleBg;
+                row.BackColor = bg;
+                foreach (Control c in row.Controls) PaintChildren(c, bg);
+                btnEdit.FlatAppearance.MouseOverBackColor   = bg;
+                btnDelete.FlatAppearance.MouseOverBackColor = bg;
+            }
+            void Hook(Control c)
+            {
+                c.MouseEnter += (s, e) => SetHover(true);
+                c.MouseLeave += (s, e) =>
+                {
+                    var p = row.PointToClient(System.Windows.Forms.Cursor.Position);
+                    if (!row.ClientRectangle.Contains(p)) SetHover(false);
+                };
+                foreach (Control child in c.Controls) Hook(child);
+            }
+            Hook(row);
+
+            // Click no row (fora dos action buttons) → abre editor
+            void HookRowClick(Control c)
+            {
+                if (c == btnEdit || c == btnDelete) return;
+                c.Click += (s, e) => OpenEditor(id);
+                foreach (Control child in c.Controls) HookRowClick(child);
+            }
+            HookRowClick(row);
+
+            return row;
+        }
+
+        private static void PaintChildren(Control c, Color bg)
+        {
+            c.BackColor = bg;
+            foreach (Control child in c.Controls) PaintChildren(child, bg);
+        }
+
+        private static Color MixColors(Color a, Color b, float t)
+            => Color.FromArgb(
+                (int)(a.R + (b.R - a.R) * t),
+                (int)(a.G + (b.G - a.G) * t),
+                (int)(a.B + (b.B - a.B) * t));
+
+        // ── Edit / Delete ───────────────────────────────────────────────
         private void OpenEditor(int? id)
         {
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
@@ -145,7 +547,41 @@ namespace CoworkingApp.Controls
             }
         }
 
-        // ── Form helpers (template para Tasks 9-13) ──────────────────────────
+        private void DeleteCliente(int id, string nome)
+        {
+            if (MessageBox.Show($"Eliminar o cliente \"{nome}\"?", "Confirmar",
+                                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                return;
+            try
+            {
+                using (var conn = Database.GetConnection())
+                {
+                    using (var chk = new SqlCommand("SELECT COUNT(*) FROM pagamento WHERE cliente_id=@id", conn))
+                    {
+                        chk.Parameters.AddWithValue("@id", id);
+                        if ((int)chk.ExecuteScalar() > 0)
+                        {
+                            MessageBox.Show("Não é possível eliminar — cliente tem pagamentos.", "Aviso",
+                                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                    }
+                    using (var cmd = new SqlCommand("DELETE FROM cliente WHERE cliente_id=@id", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@id", id);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                LoadData();
+            }
+            catch (SqlException ex)
+            {
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // ── Form helpers (template partilhado pelos outros UCs) ──────────
         // Cada helper cria um Panel Dock=Top com label+control e devolve o controlo.
         // Para acesso ao Panel wrapper (ex: esconder a row inteira), usar control.Parent:
         //   var cmb = AddCombo(tbl, "Opcional", new[]{"A","B"});
@@ -193,37 +629,6 @@ namespace CoworkingApp.Controls
             pnl.Controls.Add(Theme.FieldLabel(label));
             tbl.Controls.Add(pnl);
             return dt;
-        }
-
-        private void BtnEliminar_Click(object sender, EventArgs e)
-        {
-            if (_selectedId < 0) return;
-            if (MessageBox.Show("Eliminar cliente?", "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
-            try
-            {
-                using (var conn = Database.GetConnection())
-                {
-                    using (var chk = new SqlCommand("SELECT COUNT(*) FROM pagamento WHERE cliente_id=@id", conn))
-                    {
-                        chk.Parameters.AddWithValue("@id", _selectedId);
-                        if ((int)chk.ExecuteScalar() > 0)
-                        {
-                            MessageBox.Show("Não é possível eliminar — cliente tem pagamentos.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return;
-                        }
-                    }
-                    using (var cmd = new SqlCommand("DELETE FROM cliente WHERE cliente_id=@id", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@id", _selectedId);
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-                LoadData();
-            }
-            catch (SqlException ex)
-            {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
         }
     }
 }

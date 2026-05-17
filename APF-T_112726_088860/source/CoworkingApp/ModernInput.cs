@@ -15,6 +15,11 @@ namespace CoworkingApp
     {
         private readonly TextBox        _inner;
         private          IconPictureBox _trailing;
+        private          IconChar       _leadingIcon = IconChar.None;
+        private          Image          _leadingImage;
+        private const    int            LeadingIconSize    = 18;
+        private const    int            LeadingIconLeftPad = 14;
+        private const    int            LeadingIconGap     = 6;
 
         public int   CornerRadius     { get; set; } = 8;
         public Color BorderColorIdle  { get; set; } = Theme.CardBorder;
@@ -41,6 +46,36 @@ namespace CoworkingApp
         {
             add    => _inner.TextChanged += value;
             remove => _inner.TextChanged -= value;
+        }
+
+        /// <summary>Ícone à esquerda (decorativo — ex.: lupa de pesquisa).
+        /// Pintado manualmente em OnPaint para evitar os offsets internos do
+        /// IconPictureBox + SizeMode.CenterImage, que faziam o glyph FA
+        /// aparecer demasiado em cima.</summary>
+        public IconChar LeadingIcon
+        {
+            get => _leadingIcon;
+            set
+            {
+                if (_leadingIcon == value) return;
+                _leadingIcon = value;
+                _leadingImage?.Dispose();
+                _leadingImage = null;
+                if (value != IconChar.None)
+                {
+                    using (var pb = new IconPictureBox
+                           { IconChar = value, IconSize = LeadingIconSize, IconColor = Theme.TextMuted })
+                    {
+                        if (pb.Image != null) _leadingImage = (Image)pb.Image.Clone();
+                    }
+                }
+                // Reserva espaço à esquerda do TextBox para o icon não sobrepor.
+                int leftPad = (value == IconChar.None)
+                    ? LeadingIconLeftPad
+                    : LeadingIconLeftPad + LeadingIconSize + LeadingIconGap;
+                Padding = new Padding(leftPad, Padding.Top, Padding.Right, Padding.Bottom);
+                Invalidate();
+            }
         }
 
         /// <summary>Ícone clicável à direita (ex.: olho para show/hide password).</summary>
@@ -110,6 +145,42 @@ namespace CoworkingApp
             base.OnClick(e);
         }
 
+        // Re-centra verticalmente o TextBox interno sempre que o Size muda.
+        // O TextBox renderiza o texto no topo do seu Dock=Fill area, por
+        // isso para visualmente centrar o texto no container precisamos de
+        // padding-top calculado a partir da font height.
+        private bool _recentering;
+        protected override void OnSizeChanged(EventArgs e)
+        {
+            base.OnSizeChanged(e);
+            RecenterText();
+        }
+        protected override void OnFontChanged(EventArgs e)
+        {
+            base.OnFontChanged(e);
+            RecenterText();
+        }
+        private void RecenterText()
+        {
+            if (_recentering || _inner == null || Height < 16) return;
+            _recentering = true;
+            try
+            {
+                int fontH    = TextRenderer.MeasureText("Hg", Font).Height;
+                // Top padding = (Height − fontH)/2 → centra o texto verticalmente
+                // (TextBox renderiza text top-aligned, então padding-top empurra
+                // o TextBox para baixo até o texto ficar no centro).
+                int topPad   = Math.Max(2, (Height - fontH) / 2);
+                // Bottom padding tem de deixar pelo menos 16px de client area
+                // para o LeadingIcon/TrailingIcon (16px) não ficar clipado.
+                const int iconMinH = 16;
+                int clientH  = Math.Max(fontH, iconMinH);
+                int botPad   = Math.Max(2, Height - clientH - topPad);
+                Padding = new Padding(Padding.Left, topPad, Padding.Right, botPad);
+            }
+            finally { _recentering = false; }
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e) { /* skip */ }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -135,6 +206,14 @@ namespace CoworkingApp
                 float w           = focused ? 1.6f : 1f;
                 using (var pen = new Pen(borderColor, w))
                     g.DrawPath(pen, path);
+            }
+
+            // Leading icon — pintado manualmente para controlo total de posição.
+            if (_leadingImage != null)
+            {
+                int x = LeadingIconLeftPad;
+                int y = (Height - LeadingIconSize) / 2 + 1;  // +1 compensa padding interno do glyph FA
+                g.DrawImage(_leadingImage, x, y, LeadingIconSize, LeadingIconSize);
             }
         }
     }
