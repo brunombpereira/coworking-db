@@ -36,7 +36,7 @@ namespace CoworkingApp
             MaximizeBox          = false;
             MinimizeBox          = false;
             StartPosition        = FormStartPosition.CenterScreen;
-            ClientSize           = new Size(620, 520);
+            ClientSize           = new Size(620, 560);
             BackColor            = Theme.PageBg;
             ForeColor            = Theme.TextPrimary;
             Font                 = Theme.FontBase;
@@ -65,7 +65,7 @@ namespace CoworkingApp
             // ── Card central ─────────────────────────────────────────────
             var card = new ModernCard
             {
-                Size         = new Size(540, 430),
+                Size         = new Size(540, 470),
                 BackColor    = Theme.CardBg,
                 BorderColor  = Color.Empty,  // sem linha à volta
                 CornerRadius = 14,
@@ -163,6 +163,25 @@ namespace CoworkingApp
             card.Controls.Add(_btnLogin);
             y += _btnLogin.Height + 12;
 
+            // ── Link "Criar conta" ───────────────────────────────────────
+            var lnkRegister = new Label
+            {
+                Text      = "Não tem conta? Criar conta",
+                Font      = Theme.FontSub,
+                ForeColor = Theme.Accent,
+                AutoSize  = false,
+                Size      = new Size(card.Width - padX * 2, 20),
+                Location  = new Point(padX, y),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Theme.CardBg,
+                Cursor    = Cursors.Hand,
+            };
+            lnkRegister.MouseEnter += (s, e) => lnkRegister.Font = new Font(Theme.FontSub, FontStyle.Underline);
+            lnkRegister.MouseLeave += (s, e) => lnkRegister.Font = Theme.FontSub;
+            lnkRegister.Click      += OpenRegister;
+            card.Controls.Add(lnkRegister);
+            y += 24;
+
             // ── Erro ─────────────────────────────────────────────────────
             _lblErro = new Label
             {
@@ -178,6 +197,20 @@ namespace CoworkingApp
             card.Controls.Add(_lblErro);
 
             this.AcceptButton = _btnLogin;
+        }
+
+        private void OpenRegister(object sender, EventArgs e)
+        {
+            using (var reg = new FormRegister())
+            {
+                if (reg.ShowDialog(this) == DialogResult.OK)
+                {
+                    // Registo bem-sucedido — FormRegister fez auto-login via Session.
+                    // Propagamos OK para o Program.cs abrir o FormMain.
+                    DialogResult = DialogResult.OK;
+                    Close();
+                }
+            }
         }
 
         private static void AddLabel(Control parent, int x, int y, string text)

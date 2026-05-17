@@ -32,6 +32,7 @@ namespace CoworkingApp
                 case 51030: case 51031:                        // cancelar com reembolso
                 case 51040: case 51041:                        // lista espera promoção
                 case 51050:                                    // registar pagamento — serviço sem preço
+                case 51060: case 51061:                        // self-registration (password curta, username duplicado)
                 case 52001: case 52002: case 52003:            // auth
                     return ex.Message;
                 default:

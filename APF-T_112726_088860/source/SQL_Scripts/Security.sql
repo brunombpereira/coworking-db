@@ -32,6 +32,11 @@ GO
 -- registar-se em lista de espera, ver notificações.
 GRANT EXECUTE ON sp_login_user             TO app_cliente;
 GRANT EXECUTE ON sp_change_password        TO app_cliente;
+-- Self-registration: visitantes (sem conta) precisam de invocar este SP.
+-- Em produção convém um login SQL "guest" separado; em dev (Windows Auth)
+-- o utilizador já tem as permissões necessárias.
+GRANT EXECUTE ON sp_registar_cliente_completo TO app_cliente;
+GRANT EXECUTE ON sp_registar_cliente_completo TO app_staff;
 GRANT EXECUTE ON sp_criar_reserva_sala     TO app_cliente;
 GRANT EXECUTE ON sp_criar_reserva_posto    TO app_cliente;
 GRANT EXECUTE ON sp_cancelar_reserva       TO app_cliente;
