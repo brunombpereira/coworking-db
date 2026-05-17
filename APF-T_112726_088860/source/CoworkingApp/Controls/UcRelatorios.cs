@@ -91,24 +91,31 @@ namespace CoworkingApp.Controls
         private Control BuildTabBar()
         {
             var bar = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg };
-            // Linha divisória inferior
+            // Linha divisória inferior — full width.
             bar.Paint += (s, e) =>
             {
                 using (var pen = new Pen(Theme.CardBorder, 1f))
                     e.Graphics.DrawLine(pen, 0, bar.Height - 1, bar.Width, bar.Height - 1);
             };
 
-            _tabDisp = new TabButton { Text = "Disponibilidade", Icon = IconChar.MagnifyingGlass, Width = 170, Location = new Point(0, 8) };
-            _tabCli  = new TabButton { Text = "Por Cliente",     Icon = IconChar.User,            Width = 150, Location = new Point(180, 8) };
-            _tabAna  = new TabButton { Text = "Análise",         Icon = IconChar.ChartLine,       Width = 130, Location = new Point(340, 8) };
+            _tabDisp = new TabButton { Text = "Disponibilidade", Icon = IconChar.MagnifyingGlass, Margin = new Padding(0, 6, 4, 0) };
+            _tabCli  = new TabButton { Text = "Por Cliente",     Icon = IconChar.User,            Margin = new Padding(0, 6, 4, 0) };
+            _tabAna  = new TabButton { Text = "Análise",         Icon = IconChar.ChartLine,       Margin = new Padding(0, 6, 0, 0) };
 
             _tabDisp.Click += (s, e) => SwitchTab(Tab.Disponibilidade);
             _tabCli .Click += (s, e) => SwitchTab(Tab.Cliente);
             _tabAna .Click += (s, e) => SwitchTab(Tab.Analise);
 
-            bar.Controls.Add(_tabDisp);
-            bar.Controls.Add(_tabCli);
-            bar.Controls.Add(_tabAna);
+            var flow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.PageBg,
+                FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
+                AutoSize = false, Padding = new Padding(0),
+            };
+            flow.Controls.Add(_tabDisp);
+            flow.Controls.Add(_tabCli);
+            flow.Controls.Add(_tabAna);
+            bar.Controls.Add(flow);
             return bar;
         }
 

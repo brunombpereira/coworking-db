@@ -13,7 +13,12 @@ namespace CoworkingApp
     /// </summary>
     public class TabButton : Control
     {
-        public IconChar Icon { get; set; } = IconChar.None;
+        private IconChar _icon = IconChar.None;
+        public IconChar Icon
+        {
+            get => _icon;
+            set { _icon = value; RecalcSize(); Invalidate(); }
+        }
         public bool Active   { get => _active; set { _active = value; Invalidate(); } }
         private bool _active;
         private bool _hover;
@@ -25,10 +30,37 @@ namespace CoworkingApp
                    | ControlStyles.ResizeRedraw
                    | ControlStyles.UserPaint
                    | ControlStyles.SupportsTransparentBackColor, true);
-            Size      = new Size(130, 38);
+            Height    = 40;
             Font      = new Font(Theme.FontBase.FontFamily, 10f, FontStyle.Bold);
             Cursor    = Cursors.Hand;
             BackColor = Color.Transparent;
+            RecalcSize();
+        }
+
+        protected override void OnTextChanged(EventArgs e)
+        {
+            base.OnTextChanged(e);
+            RecalcSize();
+            Invalidate();
+        }
+        protected override void OnFontChanged(EventArgs e)
+        {
+            base.OnFontChanged(e);
+            RecalcSize();
+        }
+
+        /// <summary>Width = padding + icon (se houver) + texto + padding direita.</summary>
+        private void RecalcSize()
+        {
+            int textW;
+            using (var bmp = new System.Drawing.Bitmap(1, 1))
+            using (var g   = System.Drawing.Graphics.FromImage(bmp))
+                textW = (int)Math.Ceiling(g.MeasureString(Text ?? "", Font).Width);
+
+            int padL    = 14;
+            int padR    = 14;
+            int iconGap = (_icon != IconChar.None) ? 22 /*16 + 6 gap*/ : 0;
+            Width = padL + iconGap + textW + padR;
         }
 
         protected override void OnMouseEnter(EventArgs e) { _hover = true;  Invalidate(); base.OnMouseEnter(e); }
@@ -44,30 +76,49 @@ namespace CoworkingApp
                 using (var bg = new SolidBrush(Parent.BackColor))
                     g.FillRectangle(bg, ClientRectangle);
 
+            // Hover background subtle (excepto na active — já tem accent forte).
+            if (_hover && !_active)
+            {
+                var bgRect = new Rectangle(2, 2, Width - 4, Height - 6);
+                using (var path = ModernCard.RoundedRect(bgRect, 8))
+                using (var br   = new SolidBrush(Theme.AccentSoft))
+                    g.FillPath(br, path);
+            }
+
             Color fg = _active ? Theme.Accent
-                     : _hover  ? Theme.TextPrimary
+                     : _hover  ? Theme.Accent
                                : Theme.TextSecondary;
 
-            int iconLeft = 4;
-            int textLeft = iconLeft;
-            int contentY = (Height - 4 - 16) / 2;
+            // Conteúdo centrado horizontalmente dentro do botão.
+            int textW;
+            using (var bmp = new System.Drawing.Bitmap(1, 1))
+            using (var g2  = System.Drawing.Graphics.FromImage(bmp))
+                textW = (int)Math.Ceiling(g2.MeasureString(Text ?? "", Font).Width);
+            int iconBlock = (Icon != IconChar.None) ? 22 : 0;
+            int contentW  = iconBlock + textW;
+            int startX    = (Width - contentW) / 2;
+            int iconY     = (Height - 4 - 16) / 2;
+
             if (Icon != IconChar.None)
             {
                 using (var pb = new IconPictureBox { IconChar = Icon, IconSize = 16, IconColor = fg })
-                {
                     if (pb.Image != null)
-                        g.DrawImage(pb.Image, iconLeft, contentY, 16, 16);
-                }
-                textLeft = iconLeft + 22;
+                        g.DrawImage(pb.Image, startX, iconY, 16, 16);
             }
-            var textRect = new Rectangle(textLeft, 0, Width - textLeft - 4, Height - 4);
+            var textRect = new Rectangle(startX + iconBlock, 0, textW + 4, Height - 4);
             TextRenderer.DrawText(g, Text, Font, textRect, fg,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
 
+            // Underline accent — 2px arredondado (era 3px square).
             if (_active)
             {
-                using (var brush = new SolidBrush(Theme.Accent))
-                    g.FillRectangle(brush, 0, Height - 3, Width, 3);
+                int underlineH = 2;
+                int underlineW = Math.Max(40, contentW);
+                int underlineX = (Width - underlineW) / 2;
+                var rect = new Rectangle(underlineX, Height - underlineH, underlineW, underlineH);
+                using (var path = ModernCard.RoundedRect(rect, 1))
+                using (var br   = new SolidBrush(Theme.Accent))
+                    g.FillPath(br, path);
             }
         }
     }
