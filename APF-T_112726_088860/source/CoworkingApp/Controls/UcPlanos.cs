@@ -497,16 +497,134 @@ namespace CoworkingApp.Controls
             }
             Hook(card);
 
-            // Click no card (fora dos icons) → editor
+            // Click no card (fora dos icons) → detalhe read-only
             void HookClick(Control c)
             {
                 if (c == btnEdit || c == btnDelete) return;
-                c.Click += (s, e) => OpenEditor(id);
+                c.Click += (s, e) => OpenDetail(id, nome, tipo, preco, duracao, descricao, subs);
                 foreach (Control child in c.Controls) HookClick(child);
             }
             HookClick(card);
 
             return card;
+        }
+
+        // ── Detail (read-only) ──────────────────────────────────────────
+        private void OpenDetail(int id, string nome, string tipo, decimal preco,
+                                 int duracao, string descricao, int subs)
+        {
+            var body = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 1,
+                AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            };
+
+            // Header com avatar tipo + nome
+            Color tipoColor = TipoColor(tipo);
+            var header = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Theme.CardBg };
+            header.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                int diam = 60;
+                int cx = 0, cy = (header.Height - diam) / 2;
+                using (var br = new SolidBrush(tipoColor)) g.FillEllipse(br, cx, cy, diam, diam);
+                using (var pb = new IconPictureBox { IconChar = TipoIcon(tipo), IconSize = 28, IconColor = Color.White })
+                {
+                    if (pb.Image != null)
+                        g.DrawImage(pb.Image, cx + (diam - 28) / 2, cy + (diam - 28) / 2 + 1, 28, 28);
+                }
+                using (var f = new Font(Theme.FontBase.FontFamily, 16f, FontStyle.Bold))
+                {
+                    TextRenderer.DrawText(g, nome, f, new Point(diam + 14, cy + 6),
+                        Theme.TextPrimary, TextFormatFlags.NoPadding);
+                }
+                // chip tipo
+                var pillRect = new Rectangle(diam + 14, cy + 38, 80, 22);
+                using (var path = ModernCard.RoundedRect(pillRect, 11))
+                using (var br = new SolidBrush(Color.FromArgb(40, tipoColor)))
+                    g.FillPath(br, path);
+                TextRenderer.DrawText(g, tipo, Theme.FontMicro, pillRect, tipoColor,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+            };
+
+            // Fields (Dock=Top reverse z → último adicionado = topo).
+            string descTxt = string.IsNullOrEmpty(descricao) ? "—" : descricao;
+            body.Controls.Add(BuildDetailFieldMulti("Descrição", descTxt));
+            body.Controls.Add(BuildDetailField("Subscrições activas", subs.ToString()));
+            body.Controls.Add(BuildDetailField("Duração", duracao == 1 ? "1 mês" : $"{duracao} meses"));
+            body.Controls.Add(BuildDetailField("Preço mensal", Theme.FormatEuro(preco)));
+            body.Controls.Add(header);
+
+            using (var dlg = new FormDialog($"Plano — {nome}", body, 460, onSave: null))
+            {
+                var btnEditar = new ModernButton
+                {
+                    Text = "Editar plano", Style = ModernButton.Variant.Primary,
+                    Font = Theme.FontBold, Size = new Size(150, 36),
+                };
+                btnEditar.Click += (s, e) => { dlg.DialogResult = DialogResult.OK; dlg.Close(); };
+                if (dlg.Footer != null)
+                {
+                    foreach (Control flow in dlg.Footer.Controls)
+                    {
+                        if (flow is FlowLayoutPanel flp) { flp.Controls.Add(btnEditar); break; }
+                    }
+                }
+                if (dlg.ShowDialog(this.FindForm()) == DialogResult.OK)
+                    OpenEditor(id);
+            }
+        }
+
+        private static Color TipoColor(string tipo) =>
+            tipo == "Flex"    ? ColorTranslator.FromHtml("#06b6d4") :
+            tipo == "Fixo"    ? Theme.Accent :
+            tipo == "Privado" ? ColorTranslator.FromHtml("#8b5cf6") :
+                                Theme.Accent;
+        private static IconChar TipoIcon(string tipo) =>
+            tipo == "Flex"    ? IconChar.PersonRunning :
+            tipo == "Fixo"    ? IconChar.Chair :
+            tipo == "Privado" ? IconChar.DoorClosed :
+                                IconChar.Star;
+
+        private static Panel BuildDetailField(string label, string value)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Theme.CardBg, Padding = new Padding(0, 8, 0, 0) };
+            pnl.Controls.Add(new Label
+            {
+                Text = value, Font = Theme.FontBase, ForeColor = Theme.TextPrimary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 24,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            pnl.Controls.Add(new Label
+            {
+                Text = label.ToUpper(), Font = Theme.FontMicro, ForeColor = Theme.TextMuted,
+                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 16,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            return pnl;
+        }
+
+        private static Panel BuildDetailFieldMulti(string label, string value)
+        {
+            int valH = TextRenderer.MeasureText(value, Theme.FontBase,
+                new Size(420, 1000), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
+            valH = Math.Max(24, valH + 8);
+            var pnl = new Panel { Dock = DockStyle.Top, Height = valH + 24, BackColor = Theme.CardBg, Padding = new Padding(0, 8, 0, 0) };
+            pnl.Controls.Add(new Label
+            {
+                Text = value, Font = Theme.FontBase, ForeColor = Theme.TextPrimary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = valH,
+                AutoSize = false, TextAlign = ContentAlignment.TopLeft,
+            });
+            pnl.Controls.Add(new Label
+            {
+                Text = label.ToUpper(), Font = Theme.FontMicro, ForeColor = Theme.TextMuted,
+                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 16,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            return pnl;
         }
 
         private static Color MixColors(Color a, Color b, float t)
@@ -519,11 +637,11 @@ namespace CoworkingApp.Controls
         private void OpenEditor(int? id)
         {
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-            var txtNome    = UcClientes.AddField(tbl, "Nome *");
-            var cmbTipo    = UcClientes.AddCombo(tbl, "Tipo *", new[] { "Flex", "Fixo", "Privado" });
-            var txtPreco   = UcClientes.AddField(tbl, "Preço mensal *");
-            var txtDuracao = UcClientes.AddField(tbl, "Duração (meses) *");
-            var txtDesc    = UcClientes.AddField(tbl, "Descrição");
+            var txtNome    = UcClientes.AddField(tbl, "Nome *",            IconChar.Star,      placeholder: "Flex Mensal");
+            var cmbTipo    = UcClientes.AddCombo(tbl, "Tipo *",            new[] { "Flex", "Fixo", "Privado" });
+            var txtPreco   = UcClientes.AddField(tbl, "Preço mensal *",    IconChar.EuroSign,   placeholder: "120.00");
+            var txtDuracao = UcClientes.AddField(tbl, "Duração (meses) *", IconChar.CalendarDays, placeholder: "1");
+            var txtDesc    = UcClientes.AddField(tbl, "Descrição",         IconChar.AlignLeft, placeholder: "Acesso livre a postos Flex");
 
             cmbTipo.SelectedIndex = 0;
 
@@ -549,7 +667,7 @@ namespace CoworkingApp.Controls
                 }
             }
 
-            using (var dlg = new FormDialog(id.HasValue ? "Editar Plano" : "Novo Plano", tbl, 380, () =>
+            using (var dlg = new FormDialog(id.HasValue ? "Editar Plano" : "Novo Plano", tbl, 480, () =>
             {
                 if (string.IsNullOrWhiteSpace(txtNome.Text)) throw new ApplicationException("Nome é obrigatório.");
                 if (cmbTipo.SelectedItem == null) throw new ApplicationException("Tipo é obrigatório.");
