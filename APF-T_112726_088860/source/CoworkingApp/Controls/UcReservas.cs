@@ -486,7 +486,7 @@ namespace CoworkingApp.Controls
             actions.Controls.Add(btnCancel);
 
             // ─── Right info (Dock=Right): valor + estado dot ──────────
-            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 180, BackColor = idleBg, Padding = new Padding(0, 22, 16, 0) };
+            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 210, BackColor = idleBg, Padding = new Padding(0, 22, 16, 0) };
             var lblValor = new Label
             {
                 Text = Theme.FormatEuro(valor),

@@ -29,12 +29,14 @@ namespace CoworkingApp
         public PillStyle Style { get; set; } = PillStyle.Filled;
 
         /// <summary>Largura necessária para Dot pill com determinado texto/font.
-        /// Mede com NoPadding (para bater com o paint do StatusPill) + buffer.</summary>
+        /// Mede com NoPadding + buffer generoso (TextRenderer.MeasureText
+        /// pode subestimar ligeiramente vs DrawText).</summary>
         public static int MeasureDotWidth(string text, Font font)
         {
-            int textW = TextRenderer.MeasureText(text ?? "", font, Size.Empty,
-                TextFormatFlags.NoPadding | TextFormatFlags.SingleLine).Width;
-            return 8 /*dot*/ + 8 /*gap*/ + textW + 8 /*right buffer*/;
+            // Sem NoPadding para garantir margem suficiente — preferimos
+            // pill um pouco mais largo a texto cortado.
+            int textW = TextRenderer.MeasureText(text ?? "", font).Width;
+            return 8 /*dot*/ + 8 /*gap*/ + textW + 12 /*right buffer*/;
         }
 
         public StatusPill()

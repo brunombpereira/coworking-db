@@ -423,7 +423,7 @@ namespace CoworkingApp.Controls
             actions.Controls.Add(btnDel);
 
             // ─── Right info: preço + estado ───────────────────────────
-            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 200, BackColor = idleBg, Padding = new Padding(0, 22, 16, 0) };
+            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 230, BackColor = idleBg, Padding = new Padding(0, 22, 16, 0) };
             var lblPreco = new Label
             {
                 Text = Theme.FormatEuro(preco) + " /mês",
