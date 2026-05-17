@@ -17,12 +17,12 @@ namespace CoworkingApp.Controls
         private Label _kpiTotal, _kpiPorLer, _kpiLidas;
 
         // Toolbar
-        private ToggleChip _chkSoPorLer;
-        private ModernButton _btnRefresh, _btnMarcarTodas;
+        private SegmentedControl _segFiltro;
+        private IconButton _btnRefresh;
+        private ModernButton _btnMarcarTodas;
 
         // Lista
-        private Panel _listHost;
-        private Panel _listInner;
+        private ScrollableList _list;
         private Panel _empty;
 
         // Data cache
@@ -81,34 +81,41 @@ namespace CoworkingApp.Controls
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
 
-            // Esquerda: ToggleChip "Só por ler"
-            _chkSoPorLer = new ToggleChip
+            // Esquerda: SegmentedControl "Só por ler / Todas"
+            _segFiltro = new SegmentedControl
             {
-                Text    = "Só por ler",
-                Checked = true,
-                Width   = 130, Height = 36,
-                Anchor  = AnchorStyles.Top | AnchorStyles.Left,
+                Segments      = new[] { "Só por ler", "Todas" },
+                SelectedIndex = 0,
+                Width         = 220, Height = 36,
+                Anchor        = AnchorStyles.Top | AnchorStyles.Left,
             };
-            _chkSoPorLer.CheckedChanged += (s, e) => RenderRows();
+            _segFiltro.SelectedIndexChanged += (s, e) => RenderRows();
 
-            // Direita: botão Refresh + Marcar todas
-            _btnRefresh = new ModernButton
+            // Direita: Refresh (icon) + Marcar todas (button compacto)
+            _btnRefresh = new IconButton
             {
-                Text = "Refrescar", Style = ModernButton.Variant.Secondary,
-                Font = Theme.FontBold, Size = new Size(110, 40),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                IconChar  = IconChar.RotateRight, IconSize = 16,
+                IconColor = Theme.TextSecondary, ForeColor = Theme.TextSecondary,
+                FlatStyle = FlatStyle.Flat, Size = new Size(36, 36),
+                BackColor = Theme.FieldBg, Cursor = Cursors.Hand, TabStop = false,
+                Anchor    = AnchorStyles.Top | AnchorStyles.Right,
             };
-            _btnRefresh.Click += (s, e) => Carregar();
+            _btnRefresh.FlatAppearance.BorderColor = Theme.CardBorder;
+            _btnRefresh.FlatAppearance.BorderSize  = 1;
+            _btnRefresh.FlatAppearance.MouseOverBackColor = Theme.AccentSoft;
+            _btnRefresh.MouseEnter += (s, e) => _btnRefresh.IconColor = Theme.Accent;
+            _btnRefresh.MouseLeave += (s, e) => _btnRefresh.IconColor = Theme.TextSecondary;
+            _btnRefresh.Click      += (s, e) => Carregar();
 
             _btnMarcarTodas = new ModernButton
             {
                 Text = "Marcar todas lidas", Style = ModernButton.Variant.Primary,
-                Font = Theme.FontBold, Size = new Size(190, 40),
+                Font = Theme.FontBold, Size = new Size(160, 36),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
             };
             _btnMarcarTodas.Click += (s, e) => MarcarTodasLidas();
 
-            inner.Controls.Add(_chkSoPorLer);
+            inner.Controls.Add(_segFiltro);
             inner.Controls.Add(_btnMarcarTodas);
             inner.Controls.Add(_btnRefresh);
             card.Controls.Add(inner);
@@ -119,8 +126,8 @@ namespace CoworkingApp.Controls
                 int cy = dr.Y + (dr.Height - _btnMarcarTodas.Height) / 2;
                 _btnMarcarTodas.Location = new Point(dr.Right - _btnMarcarTodas.Width, cy);
                 _btnRefresh    .Location = new Point(_btnMarcarTodas.Location.X - _btnRefresh.Width - 8, cy);
-                int chipY = dr.Y + (dr.Height - _chkSoPorLer.Height) / 2;
-                _chkSoPorLer.Location = new Point(dr.X, chipY);
+                int segY = dr.Y + (dr.Height - _segFiltro.Height) / 2;
+                _segFiltro.Location = new Point(dr.X, segY);
             }
             inner.SizeChanged   += (s, e) => Relayout();
             inner.HandleCreated += (s, e) => Relayout();
@@ -197,15 +204,14 @@ namespace CoworkingApp.Controls
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(10) };
 
-            _listHost = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, AutoScroll = true, Visible = false };
-            _listInner = new Panel { Dock = DockStyle.Top, BackColor = Theme.CardBg, Height = 0 };
-            _listHost.Controls.Add(_listInner);
-            _listHost.Resize += (s, e) => ResizeItems();
+            _list = new ScrollableList { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Visible = false };
+            _list.Content.BackColor = Theme.CardBg;
+            _list.Resize += (s, e) => RenderRows();
 
             _empty = BuildEmptyState("Sem notificações", IconChar.Bell);
             _empty.Dock = DockStyle.Fill;
 
-            inner.Controls.Add(_listHost);
+            inner.Controls.Add(_list);
             inner.Controls.Add(_empty);
             card.Controls.Add(inner);
             return card;
@@ -235,14 +241,6 @@ namespace CoworkingApp.Controls
             };
             pnl.Resize += (s, e) => pnl.Invalidate();
             return pnl;
-        }
-
-        private void ResizeItems()
-        {
-            if (_listInner == null) return;
-            int w = _listHost.ClientSize.Width;
-            _listInner.Width = w;
-            foreach (Control c in _listInner.Controls) c.Width = w;
         }
 
         // ── Data ────────────────────────────────────────────────────────
@@ -282,10 +280,10 @@ namespace CoworkingApp.Controls
 
         private void RenderRows()
         {
-            if (_allRows == null) return;
+            if (_allRows == null || _list == null) return;
 
-            _listInner.SuspendLayout();
-            _listInner.Controls.Clear();
+            _list.Content.SuspendLayout();
+            _list.Content.Controls.Clear();
 
             int total = _allRows.Rows.Count;
             int lidas = 0, porLer = 0;
@@ -298,17 +296,18 @@ namespace CoworkingApp.Controls
             _kpiPorLer.Text = porLer.ToString();
             _kpiLidas .Text = lidas.ToString();
 
-            // Filter por-ler
+            // Filter: 0 = Só por ler, 1 = Todas
+            bool soPorLer = (_segFiltro.SelectedIndex == 0);
             var rowsView = new List<DataRow>();
             foreach (DataRow r in _allRows.Rows)
             {
                 bool lida = Convert.ToBoolean(r["lida"]);
-                if (_chkSoPorLer.Checked && lida) continue;
+                if (soPorLer && lida) continue;
                 rowsView.Add(r);
             }
 
             int y = 0;
-            int width = Math.Max(600, _listHost.ClientSize.Width);
+            int width = Math.Max(600, _list.ClientSize.Width - 20);
             foreach (var r in rowsView)
             {
                 int id        = Convert.ToInt32(r["id"]);
@@ -323,15 +322,15 @@ namespace CoworkingApp.Controls
                 card.Location = new Point(0, y);
                 card.Width    = width;
                 card.Anchor   = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-                _listInner.Controls.Add(card);
+                _list.Content.Controls.Add(card);
                 y += card.Height + 8;
             }
-            _listInner.Height = y;
-            _listInner.ResumeLayout();
+            _list.Content.ResumeLayout();
+            _list.UpdateLayout(y);
 
-            _listHost.Visible = rowsView.Count > 0;
-            _empty   .Visible = rowsView.Count == 0;
-            _empty   .Invalidate();
+            _list .Visible = rowsView.Count > 0;
+            _empty.Visible = rowsView.Count == 0;
+            _empty.Invalidate();
         }
 
         // ── Card ────────────────────────────────────────────────────────
@@ -344,7 +343,7 @@ namespace CoworkingApp.Controls
 
             var row = new Panel
             {
-                Height = 84, BackColor = idleBg, Cursor = Cursors.Default,
+                Height = 84, BackColor = idleBg, Cursor = Cursors.Hand,
                 Margin = new Padding(0, 0, 0, 6),
             };
 
@@ -449,7 +448,7 @@ namespace CoworkingApp.Controls
             row.Controls.Add(rightInfo);
             row.Controls.Add(iconBlock);
 
-            // hover subtle (sem botão de ação principal — só visual)
+            // Hover + click → popup detalhe (com auto-mark-read).
             void Hook(Control c)
             {
                 c.MouseEnter += (s, e) => SetBg(true);
@@ -458,6 +457,9 @@ namespace CoworkingApp.Controls
                     var p = row.PointToClient(System.Windows.Forms.Cursor.Position);
                     if (!row.ClientRectangle.Contains(p)) SetBg(false);
                 };
+                // O botão "marcar lida" tem o seu próprio handler → não propagar click.
+                if (!(c is IconButton))
+                    c.Click += (s, e) => OpenDetailPopup(id, cliente, tipo, assunto, mensagem, data, lida);
                 foreach (Control x in c.Controls) Hook(x);
             }
             void SetBg(bool on)
@@ -469,6 +471,87 @@ namespace CoworkingApp.Controls
             Hook(row);
 
             return row;
+        }
+
+        private void OpenDetailPopup(int id, string cliente, string tipo, string assunto,
+                                      string mensagem, DateTime data, bool jaLida)
+        {
+            var dlg = new Form
+            {
+                FormBorderStyle = FormBorderStyle.None,
+                StartPosition   = FormStartPosition.CenterParent,
+                BackColor       = Theme.CardBorder,
+                Padding         = new Padding(1),
+                Size            = new Size(520, 320),
+                ShowInTaskbar   = false,
+            };
+            {
+                var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(24) };
+
+                // Close hint top right
+                var btnClose = new IconButton
+                {
+                    IconChar = IconChar.Xmark, IconSize = 16, IconColor = Theme.TextSecondary,
+                    FlatStyle = FlatStyle.Flat, Size = new Size(30, 30),
+                    BackColor = Theme.CardBg, Cursor = Cursors.Hand, TabStop = false,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                };
+                btnClose.FlatAppearance.BorderSize = 0;
+                btnClose.MouseEnter += (s, e) => btnClose.IconColor = Theme.StatusDangerFg;
+                btnClose.MouseLeave += (s, e) => btnClose.IconColor = Theme.TextSecondary;
+                btnClose.Click      += (s, e) => dlg.Close();
+                btnClose.Location = new Point(inner.Width - btnClose.Width - 8, 8);
+
+                // Tipo badge dot-style
+                var tipoPill = new StatusPill
+                {
+                    Text = tipo, Height = 22, BackColor = Theme.CardBg,
+                    Style = StatusPill.PillStyle.Dot, Font = Theme.FontSub,
+                    Dock = DockStyle.Top,
+                };
+                tipoPill.SetColors(Color.FromArgb(40, TipoColor(tipo)), TipoColor(tipo));
+
+                var lblAssunto = new Label
+                {
+                    Text = assunto, Font = new Font(Theme.FontBase.FontFamily, 16f, FontStyle.Bold),
+                    ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                    Dock = DockStyle.Top, Height = 36, AutoSize = false,
+                    TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(0, 12, 0, 0),
+                };
+                var lblMeta = new Label
+                {
+                    Text = $"{cliente} · {data:dd/MM/yyyy HH:mm}",
+                    Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
+                    Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                };
+                var lblMsg = new Label
+                {
+                    Text = mensagem ?? "", Font = Theme.FontBase,
+                    ForeColor = Theme.TextSecondary, BackColor = Theme.CardBg,
+                    Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.TopLeft,
+                    Padding = new Padding(0, 16, 0, 0),
+                };
+
+                inner.Controls.Add(lblMsg);
+                inner.Controls.Add(lblMeta);
+                inner.Controls.Add(lblAssunto);
+                inner.Controls.Add(tipoPill);
+                inner.Controls.Add(btnClose);
+                dlg.Controls.Add(inner);
+
+                // Auto-mark-read ao fechar (botão X, click fora, ESC).
+                dlg.FormClosed += (s, e) =>
+                {
+                    if (!jaLida) MarcarLida(id);
+                    dlg.Dispose();
+                };
+                // Click fora → fechar (Deactivate dispara quando perde foco).
+                dlg.Deactivate += (s, e) => dlg.Close();
+                dlg.KeyPreview = true;
+                dlg.KeyDown   += (s, e) => { if (e.KeyCode == Keys.Escape) dlg.Close(); };
+
+                dlg.Show(FindForm());
+            }
         }
 
         private static Color TipoColor(string tipo)
