@@ -1,85 +1,257 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
-using Microsoft.Data.SqlClient;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using System.Globalization;
 using System.Windows.Forms;
+using FontAwesome.Sharp;
+using Microsoft.Data.SqlClient;
 
 namespace CoworkingApp.Controls
 {
     public class UcAdesoes : UserControl
     {
-        private DataGridView dgv;
-        private Button btnNovo, btnEditar, btnEliminar;
-        private ComboBox cmbFiltroCliente, cmbFiltroEstado;
-        private int _selectedId = -1;
+        // KPIs
+        private Label _kpiTotal, _kpiAtivas, _kpiReceita, _kpiPendentes;
+
+        // Toolbar
+        private ModernSelect _cmbCliente, _cmbEstado;
+        private ModernButton _btnNova;
+
+        // Lista
+        private ScrollableList _list;
+        private Panel _empty;
+
+        // Cache
+        private DataTable _allRows;
 
         public UcAdesoes()
         {
-            this.BackColor = Theme.PageBg;
-            this.Dock = DockStyle.Fill;
+            BackColor = Theme.PageBg;
+            Dock      = DockStyle.Fill;
             BuildUI();
             LoadFiltroClientes();
             LoadData();
         }
 
+        // ── BUILD UI ────────────────────────────────────────────────────
         private void BuildUI()
         {
-            var pnlTitle = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.PageBg, Padding = new Padding(20, 14, 20, 0) };
-            pnlTitle.Controls.Add(new Label { Text = "Adesões", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary, Dock = DockStyle.Fill, AutoSize = false });
-
-            var pnlToolbar = Theme.Toolbar();
-            var flow = Theme.ToolbarFlow();
-            btnNovo = Theme.BtnPrim("+ Novo");
-            btnEditar = Theme.BtnGray("Editar");
-            btnEliminar = Theme.BtnRed("Eliminar");
-            btnEditar.Enabled = false;
-            btnEliminar.Enabled = false;
-            btnNovo.Click += (s, e) => OpenEditor(null);
-            btnEditar.Click += (s, e) => OpenEditor(_selectedId);
-            btnEliminar.Click += BtnEliminar_Click;
-
-            cmbFiltroCliente = new ComboBox { Width = 180, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Margin = new Padding(8, 4, 0, 0), BackColor = Theme.FieldBg, ForeColor = Theme.TextPrimary };
-            cmbFiltroEstado = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat, Margin = new Padding(4, 4, 0, 0), BackColor = Theme.FieldBg, ForeColor = Theme.TextPrimary };
-            cmbFiltroEstado.Items.AddRange(new object[] { "(Todos)", "Pendente", "Ativa", "Suspensa", "Cancelada", "Terminada" });
-            cmbFiltroEstado.SelectedIndex = 0;
-            cmbFiltroCliente.SelectedIndexChanged += (s, e) => LoadData();
-            cmbFiltroEstado.SelectedIndexChanged += (s, e) => LoadData();
-
-            flow.Controls.Add(btnNovo);
-            flow.Controls.Add(btnEditar);
-            flow.Controls.Add(btnEliminar);
-            flow.Controls.Add(cmbFiltroCliente);
-            flow.Controls.Add(cmbFiltroEstado);
-            pnlToolbar.Controls.Add(flow);
-
-            dgv = new DataGridView { Dock = DockStyle.Fill };
-            Theme.StyleGrid(dgv);
-            dgv.SelectionChanged += (s, e) =>
+            var root = new TableLayoutPanel
             {
-                if (dgv.SelectedRows.Count == 0) { _selectedId = -1; btnEditar.Enabled = btnEliminar.Enabled = false; return; }
-                _selectedId = Convert.ToInt32(dgv.SelectedRows[0].Cells["ID"].Value);
-                btnEditar.Enabled = btnEliminar.Enabled = true;
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
+                BackColor = Theme.PageBg,
+                Padding = new Padding(20, 16, 20, 16),
             };
-            dgv.CellFormatting += (s, e) =>
-            {
-                if (dgv.Columns.Count == 0 || e.Value == null) return;
-                Theme.ApplyStatusColor(e, "Estado", dgv);
-                if (dgv.Columns[e.ColumnIndex].Name == "Preço Acordado")
-                {
-                    if (decimal.TryParse(e.Value.ToString(), out decimal val))
-                    {
-                        e.Value = Theme.FormatEuro(val);
-                        e.FormattingApplied = true;
-                    }
-                }
-            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));   // title
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));   // toolbar
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // KPIs
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // list
 
-            this.Controls.Add(dgv);
-            this.Controls.Add(pnlToolbar);
-            this.Controls.Add(pnlTitle);
+            root.Controls.Add(BuildTitle(),   0, 0);
+            root.Controls.Add(BuildToolbar(), 0, 1);
+            root.Controls.Add(BuildKpis(),    0, 2);
+            root.Controls.Add(BuildList(),    0, 3);
+
+            Controls.Add(root);
         }
 
+        private Control BuildTitle()
+        {
+            var pnl = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg };
+            pnl.Controls.Add(new Label
+            {
+                Text = "Adesões", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary,
+                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            return pnl;
+        }
+
+        // ── Toolbar ─────────────────────────────────────────────────────
+        private Control BuildToolbar()
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+                Margin = new Padding(0, 0, 0, 12),
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
+
+            // Botão Nova (direita)
+            _btnNova = new ModernButton
+            {
+                Text = "+ Nova Adesão", Style = ModernButton.Variant.Primary,
+                Font = Theme.FontBold, Size = new Size(150, 40),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            };
+            _btnNova.Click += (s, e) => OpenEditor(null);
+
+            // Filtros (esquerda)
+            _cmbCliente = new ModernSelect { Width = 190, Height = 36, Margin = new Padding(0) };
+            _cmbCliente.SelectedIndexChanged += (s, e) => RenderRows();
+
+            _cmbEstado = new ModernSelect { Width = 140, Height = 36, Margin = new Padding(0) };
+            _cmbEstado.AddItems("(Todos)", "Pendente", "Ativa", "Suspensa", "Cancelada", "Terminada");
+            _cmbEstado.SelectedIndexChanged += (s, e) => RenderRows();
+
+            var flow = new FlowLayoutPanel
+            {
+                AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
+                BackColor = Theme.CardBg, Padding = new Padding(0),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left,
+            };
+            flow.Controls.Add(MakeFilterLabel("Cliente"));
+            flow.Controls.Add(_cmbCliente);
+            flow.Controls.Add(MakeFilterLabel("Estado"));
+            flow.Controls.Add(_cmbEstado);
+
+            inner.Controls.Add(flow);
+            inner.Controls.Add(_btnNova);
+            card.Controls.Add(inner);
+
+            void Relayout()
+            {
+                var dr = inner.DisplayRectangle;
+                int btnY = dr.Y + (dr.Height - _btnNova.Height) / 2;
+                _btnNova.Location = new Point(dr.Right - _btnNova.Width, btnY);
+                int flowY = dr.Y + (dr.Height - flow.Height) / 2;
+                flow.Location = new Point(dr.X, flowY);
+            }
+            inner.SizeChanged   += (s, e) => Relayout();
+            flow.SizeChanged    += (s, e) => Relayout();
+            inner.HandleCreated += (s, e) => Relayout();
+
+            return card;
+        }
+
+        private Label MakeFilterLabel(string text)
+        {
+            return new Label
+            {
+                Text = text,
+                Font = new Font(Theme.FontBase.FontFamily, 9f, FontStyle.Bold),
+                ForeColor = Theme.TextMuted,
+                AutoSize = true, TextAlign = ContentAlignment.MiddleLeft,
+                BackColor = Theme.CardBg,
+                Margin = new Padding(text == "Cliente" ? 0 : 18, 14, 8, 0),
+            };
+        }
+
+        // ── KPIs ────────────────────────────────────────────────────────
+        private Control BuildKpis()
+        {
+            var grid = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
+                BackColor = Theme.PageBg, Margin = new Padding(0, 0, 0, 12),
+            };
+            for (int i = 0; i < 4; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            var k1 = BuildKpi("Total adesões",  IconChar.Star,         Theme.Accent,           out _kpiTotal);
+            var k2 = BuildKpi("Ativas",         IconChar.CircleCheck,  Theme.StatusSuccessFg,  out _kpiAtivas);
+            var k3 = BuildKpi("Receita mensal", IconChar.EuroSign,     Theme.Accent,           out _kpiReceita);
+            var k4 = BuildKpi("Pendentes",      IconChar.Clock,        Theme.StatusWarningFg,  out _kpiPendentes);
+            k4.Margin = new Padding(0);
+            grid.Controls.Add(k1, 0, 0);
+            grid.Controls.Add(k2, 1, 0);
+            grid.Controls.Add(k3, 2, 0);
+            grid.Controls.Add(k4, 3, 0);
+            return grid;
+        }
+
+        private Control BuildKpi(string label, IconChar icon, Color iconColor, out Label valueLbl)
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+                Margin = new Padding(0, 0, 12, 0),
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(18, 14, 18, 14) };
+
+            var topLine = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = Theme.CardBg };
+            topLine.Controls.Add(new Label
+            {
+                Text = label, Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Fill, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 0, 0, 0),
+            });
+            topLine.Controls.Add(new IconPictureBox
+            {
+                IconChar = icon, IconSize = 16, IconColor = iconColor,
+                BackColor = Theme.CardBg, Dock = DockStyle.Left, Width = 22,
+                SizeMode = PictureBoxSizeMode.CenterImage,
+            });
+
+            valueLbl = new Label
+            {
+                Text = "—", Font = new Font(Theme.FontBase.FontFamily, 24f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(0, 4, 0, 0),
+            };
+            inner.Controls.Add(valueLbl);
+            inner.Controls.Add(topLine);
+            card.Controls.Add(inner);
+            return card;
+        }
+
+        // ── Lista ───────────────────────────────────────────────────────
+        private Control BuildList()
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(10) };
+
+            _list = new ScrollableList { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Visible = false };
+            _list.Content.BackColor = Theme.CardBg;
+            _list.Resize += (s, e) => RenderRows();
+
+            _empty = BuildEmptyState("Sem adesões no filtro selecionado", IconChar.Star);
+            _empty.Dock = DockStyle.Fill;
+
+            inner.Controls.Add(_list);
+            inner.Controls.Add(_empty);
+            card.Controls.Add(inner);
+            return card;
+        }
+
+        private Panel BuildEmptyState(string text, IconChar icon)
+        {
+            var pnl = new Panel { BackColor = Theme.CardBg };
+            Image iconImg = null;
+            pnl.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                if (iconImg == null)
+                {
+                    using (var pb = new IconPictureBox { IconChar = icon, IconSize = 44, IconColor = Theme.TextMuted })
+                        if (pb.Image != null) iconImg = (Image)pb.Image.Clone();
+                }
+                var ts = TextRenderer.MeasureText(g, text, Theme.FontBase, Size.Empty, TextFormatFlags.NoPadding);
+                int iconSize = 44, gap = 14, totalH = iconSize + gap + ts.Height;
+                int startY = Math.Max(8, (pnl.Height - totalH) / 2);
+                int iconX = (pnl.Width - iconSize) / 2;
+                int textX = (pnl.Width - ts.Width) / 2;
+                if (iconImg != null) g.DrawImage(iconImg, iconX, startY, iconSize, iconSize);
+                TextRenderer.DrawText(g, text, Theme.FontBase, new Point(textX, startY + iconSize + gap),
+                    Theme.TextMuted, TextFormatFlags.NoPadding);
+            };
+            pnl.Resize += (s, e) => pnl.Invalidate();
+            return pnl;
+        }
+
+        // ── Data ────────────────────────────────────────────────────────
         private void LoadFiltroClientes()
         {
             try
@@ -92,12 +264,9 @@ namespace CoworkingApp.Controls
                     adapter.Fill(dt);
                     var rowTodos = dt.NewRow();
                     rowTodos["cliente_id"] = DBNull.Value;
-                    rowTodos["nome"] = "(Todos)";
+                    rowTodos["nome"]       = "(Todos)";
                     dt.Rows.InsertAt(rowTodos, 0);
-                    cmbFiltroCliente.DataSource = dt;
-                    cmbFiltroCliente.DisplayMember = "nome";
-                    cmbFiltroCliente.ValueMember = "cliente_id";
-                    cmbFiltroCliente.SelectedIndex = 0;
+                    _cmbCliente.BindDataTable(dt, "nome", "cliente_id");
                 }
             }
             catch (SqlException) { /* ignore */ }
@@ -107,54 +276,258 @@ namespace CoworkingApp.Controls
         {
             try
             {
-                var whereParts = new System.Collections.Generic.List<string>();
-                string estadoFiltro = cmbFiltroEstado?.SelectedIndex > 0 ? cmbFiltroEstado.Text : null;
-                if (estadoFiltro != null) whereParts.Add("a.estado = @e");
-                bool filtraCliente = cmbFiltroCliente?.SelectedIndex > 0
-                    && cmbFiltroCliente.SelectedValue != null
-                    && !(cmbFiltroCliente.SelectedValue is DBNull);
-                if (filtraCliente) whereParts.Add("a.cliente_id = @c");
-                string where = whereParts.Count > 0 ? "WHERE " + string.Join(" AND ", whereParts) : "";
-
-                string sql = $@"
-                    SELECT a.adesao_id AS ID, c.nome AS Cliente, p.nome_plano AS Plano,
-                           p.tipo_plano AS Tipo,
-                           CASE WHEN a.recurso_id IS NULL THEN '—' ELSE COALESCE(po.codigo, 'Sala '+s.nome) END AS Posto,
-                           CONVERT(varchar,a.data_inicio,103) AS [Data Início],
-                           CONVERT(varchar,a.data_fim,103) AS [Data Fim],
-                           a.preco_acordado AS [Preço Acordado],
-                           a.estado AS Estado
+                string sql = @"
+                    SELECT a.adesao_id AS id, c.nome AS cliente, c.cliente_id AS cliente_id,
+                           p.nome_plano AS plano, p.tipo_plano AS tipo,
+                           CASE WHEN a.recurso_id IS NULL THEN '—'
+                                ELSE COALESCE(po.codigo, 'Sala ' + s.nome) END AS posto,
+                           a.data_inicio AS dini, a.data_fim AS dfim,
+                           a.preco_acordado AS preco, a.estado AS estado
                     FROM adesao a
-                    JOIN cliente c ON a.cliente_id=c.cliente_id
-                    JOIN plano p ON a.plano_id=p.plano_id
-                    LEFT JOIN posto po ON a.recurso_id=po.recurso_id
-                    LEFT JOIN sala s ON a.recurso_id=s.recurso_id
-                    {where}
+                    JOIN cliente c    ON a.cliente_id = c.cliente_id
+                    JOIN plano p      ON a.plano_id = p.plano_id
+                    LEFT JOIN posto po ON a.recurso_id = po.recurso_id
+                    LEFT JOIN sala s  ON a.recurso_id = s.recurso_id
                     ORDER BY a.data_inicio DESC";
-
                 using (var conn = Database.GetConnection())
-                using (var cmd = new SqlCommand(sql, conn))
+                using (var cmd  = new SqlCommand(sql, conn))
+                using (var da   = new SqlDataAdapter(cmd))
                 {
-                    if (estadoFiltro != null) cmd.Parameters.AddWithValue("@e", estadoFiltro);
-                    if (filtraCliente) cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbFiltroCliente.SelectedValue));
-                    using (var adapter = new SqlDataAdapter(cmd))
-                    {
-                        var dt = new DataTable();
-                        adapter.Fill(dt);
-                        dgv.DataSource = dt;
-                        if (dgv.Columns.Contains("ID")) dgv.Columns["ID"].Visible = false;
-                    }
+                    _allRows = new DataTable();
+                    da.Fill(_allRows);
                 }
+                RenderRows();
             }
             catch (SqlException ex)
             {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
+        private void RenderRows()
+        {
+            if (_allRows == null || _list == null) return;
+
+            _list.Content.SuspendLayout();
+            _list.Content.Controls.Clear();
+
+            // KPIs sobre TUDO (não sobre o filtrado)
+            int total = _allRows.Rows.Count;
+            int ativas = 0, pendentes = 0;
+            decimal receita = 0;
+            foreach (DataRow r in _allRows.Rows)
+            {
+                string estado = r["estado"].ToString();
+                if (estado == "Ativa")     { ativas++;    receita += Convert.ToDecimal(r["preco"]); }
+                if (estado == "Pendente")  { pendentes++; }
+            }
+            _kpiTotal    .Text = total.ToString();
+            _kpiAtivas   .Text = ativas.ToString();
+            _kpiReceita  .Text = Theme.FormatEuro(receita);
+            _kpiPendentes.Text = pendentes.ToString();
+
+            // Filter
+            string estadoFiltro = (_cmbEstado.SelectedIndex > 0) ? _cmbEstado.SelectedText : null;
+            int? cliFiltro = (_cmbCliente.SelectedIndex > 0 && _cmbCliente.SelectedValue != null
+                              && !(_cmbCliente.SelectedValue is DBNull))
+                ? (int?)Convert.ToInt32(_cmbCliente.SelectedValue) : null;
+
+            var rowsView = new List<DataRow>();
+            foreach (DataRow r in _allRows.Rows)
+            {
+                if (estadoFiltro != null && r["estado"].ToString() != estadoFiltro) continue;
+                if (cliFiltro.HasValue && Convert.ToInt32(r["cliente_id"]) != cliFiltro.Value) continue;
+                rowsView.Add(r);
+            }
+
+            int y = 0;
+            int width = Math.Max(600, _list.ClientSize.Width - 20);
+            foreach (var r in rowsView)
+            {
+                int id        = Convert.ToInt32(r["id"]);
+                string cli    = r["cliente"].ToString();
+                string plano  = r["plano"].ToString();
+                string tipo   = r["tipo"].ToString();
+                string posto  = r["posto"].ToString();
+                DateTime dini = Convert.ToDateTime(r["dini"]);
+                DateTime? dfim = r["dfim"] is DBNull ? (DateTime?)null : Convert.ToDateTime(r["dfim"]);
+                decimal preco = Convert.ToDecimal(r["preco"]);
+                string estado = r["estado"].ToString();
+
+                var card = BuildAdesaoCard(id, cli, plano, tipo, posto, dini, dfim, preco, estado);
+                card.Location = new Point(0, y);
+                card.Width    = width;
+                card.Anchor   = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+                _list.Content.Controls.Add(card);
+                y += card.Height + 8;
+            }
+            _list.Content.ResumeLayout();
+            _list.UpdateLayout(y);
+
+            _list .Visible = rowsView.Count > 0;
+            _empty.Visible = rowsView.Count == 0;
+            _empty.Invalidate();
+        }
+
+        // ── Card ────────────────────────────────────────────────────────
+        private Control BuildAdesaoCard(int id, string cliente, string plano, string tipo,
+                                         string posto, DateTime dini, DateTime? dfim,
+                                         decimal preco, string estado)
+        {
+            Color idleBg  = Theme.CardBg;
+            Color hoverBg = UcEspacos.MixColors(Theme.CardBg, Color.White, 0.05f);
+            Color tipoColor = TipoColor(tipo);
+
+            var row = new Panel
+            {
+                Height = 96, BackColor = idleBg, Cursor = Cursors.Hand,
+                Margin = new Padding(0, 0, 0, 8),
+            };
+
+            // ─── Esquerda: bloco tipo plano (ícone + nome tipo) ───────
+            var leftBlock = new Panel { Dock = DockStyle.Left, Width = 84, BackColor = idleBg };
+            Image img = null;
+            using (var pb = new IconPictureBox
+                   { IconChar = TipoIcon(tipo), IconSize = 22, IconColor = Color.White })
+                if (pb.Image != null) img = (Image)pb.Image.Clone();
+            leftBlock.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                int diam = 44;
+                int cx = (leftBlock.Width - diam) / 2;
+                int cy = (leftBlock.Height - diam) / 2 - 8;
+                using (var br = new SolidBrush(tipoColor))
+                    g.FillEllipse(br, cx, cy, diam, diam);
+                if (img != null)
+                {
+                    int s2 = 22;
+                    g.DrawImage(img,
+                        cx + (diam - s2) / 2,
+                        cy + (diam - s2) / 2 + 1,
+                        s2, s2);
+                }
+                // Label tipo embaixo
+                var tipoSize = TextRenderer.MeasureText(g, tipo, Theme.FontMicro, Size.Empty, TextFormatFlags.NoPadding);
+                TextRenderer.DrawText(g, tipo, Theme.FontMicro,
+                    new Point((leftBlock.Width - tipoSize.Width) / 2, cy + diam + 4),
+                    tipoColor, TextFormatFlags.NoPadding);
+            };
+            leftBlock.Resize += (s, e) => leftBlock.Invalidate();
+
+            // ─── Direita: ações ───────────────────────────────────────
+            var actions = new Panel { Dock = DockStyle.Right, Width = 90, BackColor = idleBg };
+            var btnEdit = UcEspacos.MakeIconBtn(IconChar.Pen, Theme.Accent, idleBg, () => OpenEditor(id));
+            var btnDel  = UcEspacos.MakeIconBtn(IconChar.TrashCan, Theme.StatusDangerFg, idleBg, () => EliminarAdesao(id));
+            btnEdit.Location = new Point(8, 30);
+            btnDel .Location = new Point(46, 30);
+            actions.Controls.Add(btnEdit);
+            actions.Controls.Add(btnDel);
+
+            // ─── Right info: preço + estado ───────────────────────────
+            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 200, BackColor = idleBg, Padding = new Padding(0, 22, 16, 0) };
+            var lblPreco = new Label
+            {
+                Text = Theme.FormatEuro(preco) + " /mês",
+                Font = new Font(Theme.FontBase.FontFamily, 14f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+            };
+            var estadoHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
+            var estadoPill = new StatusPill
+            {
+                Text = estado, Height = 22, BackColor = idleBg, Font = Theme.FontSub,
+                Style = StatusPill.PillStyle.Dot,
+            };
+            estadoPill.SetColors(EstadoBg(estado), EstadoFg(estado));
+            int eW = 8 + 8 + TextRenderer.MeasureText(estado, Theme.FontSub).Width + 4;
+            estadoPill.Dock  = DockStyle.Right;
+            estadoPill.Width = eW;
+            estadoHolder.Controls.Add(estadoPill);
+
+            rightInfo.Controls.Add(estadoHolder);
+            rightInfo.Controls.Add(lblPreco);
+
+            // ─── Centro: cliente + plano + posto + período ────────────
+            var middle = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(12, 18, 12, 0) };
+            var lblCliente = new Label
+            {
+                Text = cliente, Font = new Font(Theme.FontBase.FontFamily, 12f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            string subLine = posto == "—" ? plano : $"{plano} · Posto {posto}";
+            var lblPlano = new Label
+            {
+                Text = subLine, Font = Theme.FontSub, ForeColor = Theme.TextSecondary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 20, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            string periodoTxt = dfim.HasValue
+                ? $"{dini:dd/MM/yyyy} → {dfim.Value:dd/MM/yyyy}"
+                : $"desde {dini:dd/MM/yyyy}";
+            var lblPeriodo = new Label
+            {
+                Text = periodoTxt, Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 18, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            middle.Controls.Add(lblPeriodo);
+            middle.Controls.Add(lblPlano);
+            middle.Controls.Add(lblCliente);
+
+            row.Controls.Add(middle);
+            row.Controls.Add(rightInfo);
+            row.Controls.Add(actions);
+            row.Controls.Add(leftBlock);
+
+            UcEspacos.HookHover(row, idleBg, hoverBg, btnEdit, btnDel);
+            UcEspacos.HookClick(row, btnEdit, btnDel, () => OpenEditor(id));
+            return row;
+        }
+
+        private static Color TipoColor(string tipo)
+        {
+            if (tipo == "Flex")    return ColorTranslator.FromHtml("#06b6d4");
+            if (tipo == "Fixo")    return Theme.Accent;
+            if (tipo == "Privado") return ColorTranslator.FromHtml("#8b5cf6");
+            return Theme.Accent;
+        }
+        private static IconChar TipoIcon(string tipo)
+        {
+            if (tipo == "Flex")    return IconChar.PersonRunning;
+            if (tipo == "Fixo")    return IconChar.Chair;
+            if (tipo == "Privado") return IconChar.DoorClosed;
+            return IconChar.Star;
+        }
+
+        private static Color EstadoBg(string estado)
+        {
+            switch (estado)
+            {
+                case "Pendente":   return Theme.StatusWarningBg;
+                case "Ativa":      return Theme.StatusSuccessBg;
+                case "Suspensa":   return Theme.StatusOrangeBg;
+                case "Cancelada":  return Theme.StatusDangerBg;
+                case "Terminada":  return Theme.StatusNeutralBg;
+                default:            return Theme.StatusNeutralBg;
+            }
+        }
+        private static Color EstadoFg(string estado)
+        {
+            switch (estado)
+            {
+                case "Pendente":   return Theme.StatusWarningFg;
+                case "Ativa":      return Theme.StatusSuccessFg;
+                case "Suspensa":   return Theme.StatusOrangeFg;
+                case "Cancelada":  return Theme.StatusDangerFg;
+                case "Terminada":  return Theme.StatusNeutralFg;
+                default:            return Theme.StatusNeutralFg;
+            }
+        }
+
+        // ── Editor (mantido — só refactor cosmético) ────────────────────
         private void OpenEditor(int? id)
         {
-            // Carregar combos data
             DataTable dsClientes, dsPlanos;
             using (var conn = Database.GetConnection())
             {
@@ -173,11 +546,9 @@ namespace CoworkingApp.Controls
             var cmbEstado  = UcClientes.AddCombo(tbl, "Estado *", new[] { "Pendente", "Ativa", "Suspensa", "Cancelada", "Terminada" });
             cmbEstado.SelectedIndex = 0;
 
-            // ValueMember para cmbPosto
             cmbPosto.DisplayMember = "label";
-            cmbPosto.ValueMember = "recurso_id";
+            cmbPosto.ValueMember   = "recurso_id";
 
-            // Helper para carregar postos de um tipo
             Action<string> loadPostos = (tipo) =>
             {
                 using (var conn = Database.GetConnection())
@@ -199,9 +570,9 @@ namespace CoworkingApp.Controls
             {
                 if (cmbPlano.SelectedItem == null) return;
                 var rv = (DataRowView)cmbPlano.SelectedItem;
-                tipoPlanoSel = rv["tipo_plano"].ToString();
+                tipoPlanoSel   = rv["tipo_plano"].ToString();
                 precoMensalSel = Convert.ToDecimal(rv["preco_mensal"]);
-                txtPreco.Text = precoMensalSel.ToString(CultureInfo.InvariantCulture);
+                txtPreco.Text  = precoMensalSel.ToString(CultureInfo.InvariantCulture);
                 if (tipoPlanoSel == "Flex")
                 {
                     cmbPosto.Parent.Visible = false;
@@ -214,7 +585,6 @@ namespace CoworkingApp.Controls
                 }
             };
 
-            // Pre-load se editing
             if (id.HasValue)
             {
                 using (var conn = Database.GetConnection())
@@ -228,15 +598,12 @@ namespace CoworkingApp.Controls
                         if (r.Read())
                         {
                             cmbCliente.SelectedValue = r["cliente_id"];
-                            cmbPlano.SelectedValue = r["plano_id"];
-                            // SelectedIndexChanged já triggered — carrega postos se necessário
+                            cmbPlano.SelectedValue   = r["plano_id"];
                             tipoPlanoSel = r["tipo_plano"].ToString();
                             if (tipoPlanoSel != "Flex" && r["recurso_id"] != DBNull.Value)
-                            {
                                 cmbPosto.SelectedValue = r["recurso_id"];
-                            }
                             dtInicio.Value = Convert.ToDateTime(r["data_inicio"]);
-                            txtPreco.Text = Convert.ToDecimal(r["preco_acordado"]).ToString(CultureInfo.InvariantCulture);
+                            txtPreco.Text  = Convert.ToDecimal(r["preco_acordado"]).ToString(CultureInfo.InvariantCulture);
                             var estado = r["estado"].ToString();
                             var idx = cmbEstado.Items.IndexOf(estado);
                             cmbEstado.SelectedIndex = idx >= 0 ? idx : 0;
@@ -244,20 +611,16 @@ namespace CoworkingApp.Controls
                     }
                 }
             }
-            else
+            else if (cmbPlano.Items.Count > 0)
             {
-                // Force SelectedIndexChanged to fire even if SelectedIndex was already 0
-                if (cmbPlano.Items.Count > 0)
-                {
-                    cmbPlano.SelectedIndex = -1;
-                    cmbPlano.SelectedIndex = 0;
-                }
+                cmbPlano.SelectedIndex = -1;
+                cmbPlano.SelectedIndex = 0;
             }
 
             using (var dlg = new FormDialog(id.HasValue ? "Editar Adesão" : "Nova Adesão", tbl, 460, () =>
             {
                 if (cmbCliente.SelectedValue == null || cmbCliente.SelectedValue is DBNull) throw new ApplicationException("Cliente é obrigatório.");
-                if (cmbPlano.SelectedValue == null || cmbPlano.SelectedValue is DBNull) throw new ApplicationException("Plano é obrigatório.");
+                if (cmbPlano.SelectedValue   == null || cmbPlano.SelectedValue   is DBNull) throw new ApplicationException("Plano é obrigatório.");
                 if (!decimal.TryParse(txtPreco.Text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal preco) || preco < 0)
                     throw new ApplicationException("Preço acordado inválido.");
 
@@ -272,45 +635,45 @@ namespace CoworkingApp.Controls
                 var sql = id.HasValue
                     ? "UPDATE adesao SET cliente_id=@c, plano_id=@p, recurso_id=@r, data_inicio=@d, preco_acordado=@pr, estado=@e WHERE adesao_id=@id"
                     : "INSERT INTO adesao (cliente_id, plano_id, recurso_id, data_inicio, preco_acordado, estado) VALUES (@c,@p,@r,@d,@pr,@e)";
-
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(sql, conn))
                 {
                     if (id.HasValue) cmd.Parameters.AddWithValue("@id", id.Value);
-                    cmd.Parameters.AddWithValue("@c", Convert.ToInt32(cmbCliente.SelectedValue));
-                    cmd.Parameters.AddWithValue("@p", Convert.ToInt32(cmbPlano.SelectedValue));
-                    cmd.Parameters.AddWithValue("@r", recursoVal);
-                    cmd.Parameters.AddWithValue("@d", dtInicio.Value.Date);
+                    cmd.Parameters.AddWithValue("@c",  Convert.ToInt32(cmbCliente.SelectedValue));
+                    cmd.Parameters.AddWithValue("@p",  Convert.ToInt32(cmbPlano.SelectedValue));
+                    cmd.Parameters.AddWithValue("@r",  recursoVal);
+                    cmd.Parameters.AddWithValue("@d",  dtInicio.Value.Date);
                     cmd.Parameters.AddWithValue("@pr", preco);
-                    cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedItem.ToString());
+                    cmd.Parameters.AddWithValue("@e",  cmbEstado.SelectedItem.ToString());
                     cmd.ExecuteNonQuery();
                 }
             }))
             {
-                if (dlg.ShowDialog(this.FindForm()) == DialogResult.OK) LoadData();
+                if (dlg.ShowDialog(FindForm()) == DialogResult.OK) LoadData();
             }
         }
 
-        private void BtnEliminar_Click(object sender, EventArgs e)
+        private void EliminarAdesao(int id)
         {
-            if (_selectedId < 0) return;
-            if (MessageBox.Show("Eliminar adesão?", "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            if (MessageBox.Show("Eliminar adesão?", "Confirmar",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
             try
             {
                 using (var conn = Database.GetConnection())
                 {
                     using (var chk = new SqlCommand("SELECT COUNT(*) FROM pagamento WHERE adesao_id=@id", conn))
                     {
-                        chk.Parameters.AddWithValue("@id", _selectedId);
+                        chk.Parameters.AddWithValue("@id", id);
                         if ((int)chk.ExecuteScalar() > 0)
                         {
-                            MessageBox.Show("Não é possível eliminar — adesão tem pagamentos.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            MessageBox.Show("Não é possível eliminar — adesão tem pagamentos.", "Aviso",
+                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             return;
                         }
                     }
                     using (var cmd = new SqlCommand("DELETE FROM adesao WHERE adesao_id=@id", conn))
                     {
-                        cmd.Parameters.AddWithValue("@id", _selectedId);
+                        cmd.Parameters.AddWithValue("@id", id);
                         cmd.ExecuteNonQuery();
                     }
                 }
@@ -318,7 +681,8 @@ namespace CoworkingApp.Controls
             }
             catch (SqlException ex)
             {
-                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
