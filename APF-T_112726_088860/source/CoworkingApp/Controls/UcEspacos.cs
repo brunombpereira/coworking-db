@@ -385,30 +385,23 @@ namespace CoworkingApp.Controls
 
             var row = new Panel { Height = 96, Margin = new Padding(0, 0, 0, 6), BackColor = idleBg, Cursor = Cursors.Hand };
 
-            // Avatar circle (pintado no Paint para o HookHover não destruir o
-            // bg accent — Hook só recursa BackColor, não interfere com OnPaint).
+            // Só ícone Building branco — sem circle/fundo. Pintado no Paint
+            // para o HookHover (PaintAll de BackColor) não interferir.
             var avatarHolder = new Panel { Dock = DockStyle.Left, Width = 72, BackColor = idleBg };
             Image buildingImg = null;
+            const int iconSz = 36;
             using (var pb = new IconPictureBox
-                   { IconChar = IconChar.Building, IconSize = 22, IconColor = Color.White })
+                   { IconChar = IconChar.Building, IconSize = iconSz, IconColor = Color.White })
                 if (pb.Image != null) buildingImg = (Image)pb.Image.Clone();
             avatarHolder.Paint += (s, e) =>
             {
+                if (buildingImg == null) return;
                 var g = e.Graphics;
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                int diam = 44;
-                int cx   = (avatarHolder.Width  - diam) / 2;
-                int cy   = (avatarHolder.Height - diam) / 2;
-                using (var br = new SolidBrush(Theme.Accent))
-                    g.FillEllipse(br, cx, cy, diam, diam);
-                if (buildingImg != null)
-                {
-                    int iconSz = 22;
-                    g.DrawImage(buildingImg,
-                        cx + (diam - iconSz) / 2,
-                        cy + (diam - iconSz) / 2 + 1,
-                        iconSz, iconSz);
-                }
+                g.SmoothingMode     = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                int x = (avatarHolder.Width  - iconSz) / 2;
+                int y = (avatarHolder.Height - iconSz) / 2;
+                g.DrawImage(buildingImg, x, y, iconSz, iconSz);
             };
             avatarHolder.Resize += (s, e) => avatarHolder.Invalidate();
 
@@ -548,8 +541,9 @@ namespace CoworkingApp.Controls
             var estadoPill = new StatusPill
             {
                 Text = estado, Dock = DockStyle.Top,
-                Height = 24, BackColor = idleBg,
-                AutoWidthFromText = true,
+                Height = 22, BackColor = idleBg,
+                Style = StatusPill.PillStyle.Dot,
+                Font = Theme.FontSub,
             };
             estadoPill.SetColors(EstadoBg(estado), EstadoFg(estado));
             var spAfterPill = new Panel { Dock = DockStyle.Top, Height = 12, BackColor = idleBg };
@@ -689,8 +683,9 @@ namespace CoworkingApp.Controls
             var tipoPill = new StatusPill
             {
                 Text = tipo, Dock = DockStyle.Top,
-                Height = 24, BackColor = idleBg,
-                AutoWidthFromText = true,
+                Height = 22, BackColor = idleBg,
+                Style = StatusPill.PillStyle.Dot,
+                Font = Theme.FontSub,
             };
             tipoPill.SetColors(Color.FromArgb(40, tipoColor), tipoColor);
             var spAfterTipo = new Panel { Dock = DockStyle.Top, Height = 12, BackColor = idleBg };
@@ -720,7 +715,8 @@ namespace CoworkingApp.Controls
             {
                 Text = estado, Dock = DockStyle.Top,
                 Height = 22, BackColor = idleBg,
-                AutoWidthFromText = true,
+                Style = StatusPill.PillStyle.Dot,
+                Font = Theme.FontSub,
             };
             estadoPill.SetColors(EstadoBg(estado), EstadoFg(estado));
 

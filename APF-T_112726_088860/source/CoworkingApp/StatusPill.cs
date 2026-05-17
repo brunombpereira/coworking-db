@@ -23,6 +23,11 @@ namespace CoworkingApp
         /// <summary>Padding horizontal interno do pill (à volta do texto).</summary>
         public int HorizontalPadding { get; set; } = 12;
 
+        public enum PillStyle { Filled, Dot }
+        /// <summary>Filled = pill com bg + texto. Dot = pequeno círculo na cor
+        /// _pillFg + texto na cor _pillFg (estilo Linear/Vercel, sem fundo).</summary>
+        public PillStyle Style { get; set; } = PillStyle.Filled;
+
         public StatusPill()
         {
             SetStyle(ControlStyles.OptimizedDoubleBuffer
@@ -58,6 +63,23 @@ namespace CoworkingApp
             {
                 using (var bg = new SolidBrush(Parent.BackColor))
                     g.FillRectangle(bg, ClientRectangle);
+            }
+
+            // Dot style: pequeno círculo + texto, sem fundo.
+            if (Style == PillStyle.Dot)
+            {
+                int dotSize = 8;
+                int dotX    = 0;
+                int dotY    = (Height - dotSize) / 2;
+                using (var br = new SolidBrush(_pillFg))
+                    g.FillEllipse(br, dotX, dotY, dotSize, dotSize);
+
+                int textX = dotSize + 8;
+                var textRect = new Rectangle(textX, 0, Width - textX, Height);
+                TextRenderer.DrawText(g, Text, Font, textRect, _pillFg,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter
+                  | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
+                return;
             }
 
             // Pill — altura 22 centrada
