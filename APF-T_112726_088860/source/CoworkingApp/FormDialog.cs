@@ -178,23 +178,12 @@ namespace CoworkingApp
 
         private void CenterInContentArea(Form parent)
         {
-            // Procurar a property ContentArea por reflection (não dependemos
-            // de FormMain directamente para evitar circular reference).
-            Rectangle area;
-            var prop = parent.GetType().GetProperty("ContentArea",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
-            if (prop != null && prop.GetValue(parent) is Control contentCtrl)
-            {
-                area = contentCtrl.RectangleToScreen(contentCtrl.ClientRectangle);
-            }
-            else
-            {
-                area = parent.Bounds;
-            }
-            // Garantir que o form já tem tamanho válido (SizeToContent corre
-            // no Load — chamamos aqui para que Location esteja correcto antes
-            // do Show).
-            if (this.Width  <= 0 || this.Height <= 0) return;
+            // Centrar no rectangle do form inteiro (incluindo sidebar). O user
+            // quer 'centro visual da app' nos eixos X e Y, sem desconto da
+            // sidebar. DesktopBounds é o rectangle do form como aparece no
+            // ecrã (inclui title bar do Windows).
+            if (this.Width <= 0 || this.Height <= 0) return;
+            Rectangle area = parent.DesktopBounds;
             this.Location = new Point(
                 area.X + (area.Width  - this.Width)  / 2,
                 area.Y + (area.Height - this.Height) / 2);
