@@ -390,10 +390,22 @@ namespace CoworkingApp.Controls
         {
             var s = _chartReceitaMensal.Series[0];
             s.Points.Clear();
+            // Query directa à tabela pagamento — agregada por (ano, mês) para
+            // garantir 1 linha por mês. A vw_receita_mensal estava a devolver
+            // múltiplas linhas para o mesmo mês (provavelmente split por
+            // método) e o chart empilhava-as como pontos sobrepostos.
             using (var cmd = new SqlCommand(@"
-                SELECT TOP 12 CAST(ano AS varchar) + '/' + RIGHT('0'+CAST(mes AS varchar),2) AS m,
-                              receita_total
-                FROM vw_receita_mensal
+                SELECT TOP 12 mes_label, total
+                FROM (
+                    SELECT YEAR(data_pagamento)  AS ano,
+                           MONTH(data_pagamento) AS mes,
+                           CAST(YEAR(data_pagamento) AS varchar) + '/' +
+                                RIGHT('0' + CAST(MONTH(data_pagamento) AS varchar), 2) AS mes_label,
+                           SUM(valor) AS total
+                    FROM pagamento
+                    WHERE estado = 'Pago'
+                    GROUP BY YEAR(data_pagamento), MONTH(data_pagamento)
+                ) x
                 ORDER BY ano, mes", conn))
             using (var rdr = cmd.ExecuteReader())
             {
