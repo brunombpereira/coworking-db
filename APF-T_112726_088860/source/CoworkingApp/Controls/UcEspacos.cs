@@ -72,7 +72,9 @@ namespace CoworkingApp.Controls
             });
             titleArea.Controls.Add(new Label
             {
-                Text = "Espaços & Recursos", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary,
+                // && para escapar — & sozinho é interpretado como mnemonic
+                // accelerator e sublinha a próxima letra (e não aparece).
+                Text = "Espaços && Recursos", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary,
                 Dock = DockStyle.Top, Height = 34, AutoSize = false,
             });
 
@@ -553,7 +555,7 @@ namespace CoworkingApp.Controls
                 Text = Theme.FormatEuro(preco) + " /hora",
                 Font = new Font(Theme.FontBase.FontFamily, 18f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 28, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Dock = DockStyle.Top, Height = 34, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
             var lblCap = new Label
             {
@@ -688,7 +690,7 @@ namespace CoworkingApp.Controls
                 Text = Theme.FormatEuro(preco) + " /dia",
                 Font = new Font(Theme.FontBase.FontFamily, 18f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 28, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Dock = DockStyle.Top, Height = 34, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
             var estadoPill = new StatusPill
             {
