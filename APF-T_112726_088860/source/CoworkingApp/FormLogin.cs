@@ -40,10 +40,11 @@ namespace CoworkingApp
 
         public FormLogin()
         {
-            SetStyle(ControlStyles.AllPaintingInWmPaint
-                   | ControlStyles.OptimizedDoubleBuffer
-                   | ControlStyles.ResizeRedraw
-                   | ControlStyles.UserPaint, true);
+            // Sem UserPaint! No form, isso pode fazer o background não ser
+            // pintado em forms borderless e mostrar o que estiver por baixo.
+            SetStyle(ControlStyles.OptimizedDoubleBuffer
+                   | ControlStyles.AllPaintingInWmPaint
+                   | ControlStyles.ResizeRedraw, true);
 
             Text                 = "Coworking — Login";
             FormBorderStyle      = FormBorderStyle.None;
@@ -104,12 +105,12 @@ namespace CoworkingApp
 
         private void BuildUI()
         {
-            // ── Title bar custom (32px alto) ─────────────────────────────
+            // ── Title bar custom (32px alto) — BackColor opaco ──────────
             var titleBar = new Panel
             {
                 Dock      = DockStyle.Top,
                 Height    = 32,
-                BackColor = Color.Transparent,
+                BackColor = NeonStyle.BgDeep,
             };
             titleBar.MouseDown += TitleBar_MouseDown;
 
@@ -118,7 +119,7 @@ namespace CoworkingApp
                 IconChar           = IconChar.Xmark,
                 IconColor          = NeonStyle.TextSecondary,
                 IconSize           = 16,
-                BackColor          = Color.Transparent,
+                BackColor          = NeonStyle.BgDeep,
                 ForeColor          = NeonStyle.TextSecondary,
                 FlatStyle          = FlatStyle.Flat,
                 Size               = new Size(40, 32),
@@ -127,18 +128,18 @@ namespace CoworkingApp
                 TabStop            = false,
             };
             btnClose.FlatAppearance.BorderSize       = 0;
-            btnClose.FlatAppearance.MouseOverBackColor = NeonStyle.WithAlpha(NeonStyle.NeonRed, 60);
+            btnClose.FlatAppearance.MouseOverBackColor = NeonStyle.NeonRed;
             btnClose.Click            += (s, e) => Close();
-            btnClose.MouseEnter       += (s, e) => btnClose.IconColor = NeonStyle.NeonRed;
+            btnClose.MouseEnter       += (s, e) => btnClose.IconColor = Color.White;
             btnClose.MouseLeave       += (s, e) => btnClose.IconColor = NeonStyle.TextSecondary;
             titleBar.Controls.Add(btnClose);
 
-            // Brand pequena no canto esquerdo do title bar
             var brandSmall = new Label
             {
                 Text      = "  ◆  COWORKING",
                 Font      = NeonStyle.FontCapsBold,
                 ForeColor = NeonStyle.TextMuted,
+                BackColor = NeonStyle.BgDeep,
                 Dock      = DockStyle.Left,
                 Width     = 200,
                 TextAlign = ContentAlignment.MiddleLeft,
@@ -177,7 +178,7 @@ namespace CoworkingApp
                 Size       = new Size(card.Width - padX * 2, 44),
                 Location   = new Point(padX, y),
                 TextAlign  = ContentAlignment.MiddleLeft,
-                BackColor  = Color.Transparent,
+                BackColor  = NeonStyle.CardBg,
             };
             card.Controls.Add(lblHero);
             y += lblHero.Height + 2;
@@ -190,7 +191,7 @@ namespace CoworkingApp
                 AutoSize  = false,
                 Size      = new Size(card.Width - padX * 2, 18),
                 Location  = new Point(padX, y),
-                BackColor = Color.Transparent,
+                BackColor = NeonStyle.CardBg,
             };
             card.Controls.Add(lblSub);
             y += lblSub.Height + NeonStyle.Sp6;
@@ -221,7 +222,7 @@ namespace CoworkingApp
             {
                 Font      = NeonStyle.FontCaption,
                 ForeColor = NeonStyle.NeonRed,
-                BackColor = Color.Transparent,
+                BackColor = NeonStyle.CardBg,
                 AutoSize  = false,
                 Size      = new Size(card.Width - padX * 2, 20),
                 Location  = new Point(padX, y),
@@ -239,13 +240,13 @@ namespace CoworkingApp
         {
             int startY = y;
 
-            // Linha icon + label
+            // Linha icon + label — BackColor explícito (sem dependência de transparência)
             var iconLbl = new IconPictureBox
             {
                 IconChar         = icon,
                 IconColor        = NeonStyle.NeonCyan,
                 IconSize         = 12,
-                BackColor        = Color.Transparent,
+                BackColor        = NeonStyle.CardBg,
                 Size             = new Size(14, 14),
                 Location         = new Point(x, y + 2),
                 SizeMode         = PictureBoxSizeMode.AutoSize,
@@ -259,7 +260,7 @@ namespace CoworkingApp
                 ForeColor  = NeonStyle.TextSecondary,
                 AutoSize   = true,
                 Location   = new Point(x + 20, y),
-                BackColor  = Color.Transparent,
+                BackColor  = NeonStyle.CardBg,
             };
             parent.Controls.Add(lbl);
             y += 22;

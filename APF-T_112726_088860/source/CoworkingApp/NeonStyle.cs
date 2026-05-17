@@ -10,11 +10,14 @@ namespace CoworkingApp
     {
         // ── Background ───────────────────────────────────────────────────
         // Quase preto, com leve tinta azul-violeta → dá profundidade ao neon.
+        // Tudo OPACO — em forms borderless do WinForms, cores com alpha em
+        // BackColor de controlos podem deixar passar o que está por baixo da
+        // janela (não há composição correcta sem layered windows).
         public static readonly Color BgDeep    = Color.FromArgb(0x08, 0x08, 0x12);
         public static readonly Color BgBase    = Color.FromArgb(0x0a, 0x0a, 0x14);
         public static readonly Color BgRaised  = Color.FromArgb(0x14, 0x14, 0x1f);
-        public static readonly Color CardBg    = Color.FromArgb(0xc0, 0x18, 0x18, 0x28);
-        public static readonly Color CardInner = Color.FromArgb(0x60, 0x28, 0x28, 0x40);
+        public static readonly Color CardBg    = Color.FromArgb(0x18, 0x18, 0x28);
+        public static readonly Color CardInner = Color.FromArgb(0x1f, 0x1f, 0x32);
 
         // ── Neon accents ─────────────────────────────────────────────────
         public static readonly Color NeonCyan    = Color.FromArgb(0x00, 0xd9, 0xff);
