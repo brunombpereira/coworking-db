@@ -102,7 +102,8 @@ namespace CoworkingApp
                 Padding = new Padding(0, 12, 18, 12),
                 AutoSize = true
             };
-            // Se onSave for null → modo read-only: só botão 'Fechar'.
+            // Modo read-only (onSave=null): sem footer — só a cruz X no
+            // header fecha o dialog.
             bool readOnly = (onSave == null);
             if (!readOnly)
             {
@@ -126,15 +127,18 @@ namespace CoworkingApp
                             MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
                 };
+                var btnCancel = Theme.BtnGray("Cancelar");
+                btnCancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
                 flow.Controls.Add(btnSave);
+                flow.Controls.Add(btnCancel);
+                pnlFooter.Controls.Add(flow);
             }
-            var btnCancel = Theme.BtnGray(readOnly ? "Fechar" : "Cancelar");
-            btnCancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
-            flow.Controls.Add(btnCancel);
-            pnlFooter.Controls.Add(flow);
-            // Expor o footer para que callers possam adicionar acções (ex.
-            // 'Editar dados' num detalhe read-only).
-            Footer = pnlFooter;
+            else
+            {
+                pnlFooter.Visible = false;
+            }
+            // Footer continua exposto para casos especiais; null se readonly.
+            Footer = readOnly ? null : pnlFooter;
 
             // Compose
             _card.Controls.Add(_body);
@@ -184,8 +188,6 @@ namespace CoworkingApp
             if (this.Width <= 0 || this.Height <= 0) return;
             Rectangle area = parent.RectangleToScreen(parent.ClientRectangle);
 
-            // Procurar uma status bar Dock=Bottom no parent para descontar
-            // da Height (assim o centro Y fica entre title bar e status bar).
             int statusH = 0;
             foreach (Control c in parent.Controls)
             {
@@ -197,19 +199,21 @@ namespace CoworkingApp
             }
             area = new Rectangle(area.X, area.Y, area.Width, area.Height - statusH);
 
-            this.Location = new Point(
-                area.X + (area.Width  - this.Width)  / 2,
-                area.Y + (area.Height - this.Height) / 2);
+            // Slight bias para top-left: 40% no eixo Y (em vez de 50%) e
+            // -32 px no eixo X. Dá uma posição visualmente menos centrada
+            // ao meio absoluto e mais próxima do canto superior esquerdo.
+            int x = area.X + (area.Width  - this.Width)  / 2 - 32;
+            int y = area.Y + (int)((area.Height - this.Height) * 0.4);
+            this.Location = new Point(x, y);
         }
 
         private void SizeToContent(int cardWidth)
         {
             int prefH = _body.PreferredSize.Height;
-            // Header 48 + footer 56 + padding body 32 = 136 (matches Padding
-            // do body 16+16=32 em ambos os eixos? confirmar — actualmente
-            // _body tem Padding 16 cada lado = 32 vertical total).
-            int contentH = Math.Min(prefH + 48 + 56 + 32, 600);  // cap 600
-            int formH    = Math.Max(220, contentH) + 2;          // +2 border
+            // Header 48 + footer 56 (se visível) + padding body 32.
+            int footerH = (Footer != null && Footer.Visible) ? 56 : 0;
+            int contentH = Math.Min(prefH + 48 + footerH + 32, 600);  // cap 600
+            int formH    = Math.Max(220, contentH) + 2;               // +2 border
             int formW    = cardWidth + 2;
             this.Size = new Size(formW, formH);
         }
