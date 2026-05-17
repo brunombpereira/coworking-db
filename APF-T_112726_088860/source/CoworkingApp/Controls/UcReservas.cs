@@ -388,13 +388,27 @@ namespace CoworkingApp.Controls
             _listInner.SuspendLayout();
             _listInner.Controls.Clear();
 
-            int y = 0;
+            // KPIs sobre TODAS as linhas — cap só na renderização.
             int total = 0, confirm = 0, pend = 0;
             decimal receita = 0;
-            int width = Math.Max(600, _listHost.ClientSize.Width);
-
-            foreach (DataRow r in dt.Rows)
+            foreach (DataRow rr in dt.Rows)
             {
+                total++;
+                string estR = rr["estado"].ToString();
+                if (estR == "Confirmada") confirm++;
+                else if (estR == "Pendente") pend++;
+                if (estR != "Cancelada") receita += Convert.ToDecimal(rr["valor"]);
+            }
+
+            // Cap render — proteção contra Win32 handle exhaustion.
+            const int MaxRender = 80;
+            int rendered = Math.Min(dt.Rows.Count, MaxRender);
+
+            int y = 0;
+            int width = Math.Max(600, _listHost.ClientSize.Width);
+            for (int idx = 0; idx < rendered; idx++)
+            {
+                DataRow r = dt.Rows[idx];
                 int     id        = Convert.ToInt32(r["id"]);
                 string  cliente   = r["cliente"].ToString();
                 string  recurso   = r["recurso"].ToString();
@@ -412,11 +426,20 @@ namespace CoworkingApp.Controls
                 card.Anchor   = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
                 _listInner.Controls.Add(card);
                 y += card.Height + 8;
-
-                total++;
-                if (estado == "Confirmada") confirm++;
-                else if (estado == "Pendente") pend++;
-                if (estado != "Cancelada") receita += valor;
+            }
+            if (dt.Rows.Count > MaxRender)
+            {
+                var more = new Label
+                {
+                    Text = $"+ {dt.Rows.Count - MaxRender} reservas mais antigas não mostradas",
+                    Font = Theme.FontSub, ForeColor = Theme.TextMuted,
+                    BackColor = Theme.CardBg, Height = 30,
+                    Location = new Point(0, y), Width = width,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                };
+                _listInner.Controls.Add(more);
+                y += more.Height;
             }
 
             _listInner.Height = y;
