@@ -23,9 +23,13 @@ namespace CoworkingApp
             LogoutRequested = false;
             InitializeComponent();
             BuildUI();
-            if (_navBtns.Count > 0) _navBtns[0].PerformClick();
 
-            // Reaplica title bar dark quando o tema mudar (toggle no footer).
+            // Entrar directamente no Dashboard + activar o botão na sidebar.
+            // Explícito em vez de PerformClick (mais robusto contra ordem
+            // de eventos / state inicial).
+            Navigate<UcDashboard>();
+            if (_navBtns.Count > 0) SetActive(_navBtns[0]);
+
             ThemeManager.ThemeChanged += ApplyDwmTitleBar;
         }
 
@@ -198,158 +202,57 @@ namespace CoworkingApp
         }
 
         // ── Footer avatar com menu de perfil/tema/sair ──────────────────
-        private Panel BuildAvatarFooter()
+        private Control BuildAvatarFooter()
         {
-            var footer = new Panel
+            var footer = new AvatarFooter
             {
-                Dock      = DockStyle.Bottom,
-                Height    = 64,
-                BackColor = Theme.SidebarBg,
-                Cursor    = Cursors.Hand,
+                Dock         = DockStyle.Bottom,
+                Username     = Session.Username ?? "?",
+                AccentColor  = Theme.Accent,
+                BackColor    = Theme.SidebarBg,
+                HoverColor   = Theme.SidebarBgActive,
+                TextColor    = Color.White,
+                ChevronColor = Theme.SidebarText,
             };
-
-            // Linha divisória subtil
-            var divider = new Panel
-            {
-                Dock      = DockStyle.Top,
-                Height    = 1,
-                BackColor = Color.FromArgb(30, Theme.SidebarText),
-            };
-            footer.Controls.Add(divider);
-
-            var avatar = new AvatarCircle
-            {
-                Initial     = Session.Username ?? "?",
-                CircleColor = Theme.Accent,
-                Size        = new Size(36, 36),
-                Location    = new Point(16, 14),
-            };
-            footer.Controls.Add(avatar);
-
-            var lblName = new Label
-            {
-                Text      = Session.Username ?? "—",
-                ForeColor = Color.White,
-                Font      = new Font(Theme.FontBase.FontFamily, 10f, FontStyle.Bold),
-                BackColor = Theme.SidebarBg,
-                AutoSize  = false,
-                Size      = new Size(140, 20),
-                Location  = new Point(60, 22),
-                TextAlign = ContentAlignment.MiddleLeft,
-            };
-            footer.Controls.Add(lblName);
-
-            var chevron = new IconPictureBox
-            {
-                IconChar  = IconChar.EllipsisVertical,
-                IconColor = Theme.SidebarText,
-                IconSize  = 16,
-                Size      = new Size(20, 22),
-                Location  = new Point(190, 22),
-                SizeMode  = PictureBoxSizeMode.CenterImage,
-                BackColor = Theme.SidebarBg,
-            };
-            footer.Controls.Add(chevron);
-
-            // ContextMenuStrip
-            var menu = BuildProfileMenu();
-
-            void ShowMenu()
-            {
-                menu.Show(footer, new Point(footer.Width - menu.Width - 4,
-                                            -menu.Height + 4));
-            }
-            footer.Click  += (s, e) => ShowMenu();
-            avatar.Click  += (s, e) => ShowMenu();
-            lblName.Click += (s, e) => ShowMenu();
-            chevron.Click += (s, e) => ShowMenu();
-
-            // Hover feedback (subtle background change)
-            void SetHover(bool on)
-            {
-                Color bg = on ? Theme.SidebarBgActive : Theme.SidebarBg;
-                footer.BackColor  = bg;
-                lblName.BackColor = bg;
-                chevron.BackColor = bg;
-                divider.BackColor = Color.FromArgb(30, Theme.SidebarText);
-            }
-            footer.MouseEnter += (s, e) => SetHover(true);
-            footer.MouseLeave += (s, e) => SetHover(false);
-
+            footer.Click += (s, e) => ShowProfilePopup(footer);
             return footer;
         }
 
-        private ContextMenuStrip BuildProfileMenu()
+        private void ShowProfilePopup(Control anchor)
         {
-            var menu = new ContextMenuStrip
+            var items = new System.Collections.Generic.List<ProfilePopup.MenuItemDef>
             {
-                BackColor       = Theme.CardBg,
-                ForeColor       = Theme.TextPrimary,
-                Font            = Theme.FontBase,
-                ShowImageMargin = true,
-                RenderMode      = ToolStripRenderMode.Professional,
-                Renderer        = new DarkMenuRenderer(),
+                new ProfilePopup.MenuItemDef
+                {
+                    Text      = "Perfil",
+                    Icon      = IconChar.User,
+                    IconColor = Theme.TextSecondary,
+                    OnClick   = () => Navigate<UcPerfil>(),
+                },
+                new ProfilePopup.MenuItemDef
+                {
+                    Text      = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro",
+                    Icon      = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon  : IconChar.Sun,
+                    IconColor = Theme.TextSecondary,
+                    OnClick   = () => ThemeManager.Toggle(),
+                },
+                new ProfilePopup.MenuItemDef { IsSeparator = true },
+                new ProfilePopup.MenuItemDef
+                {
+                    Text      = "Sair",
+                    Icon      = IconChar.SignOutAlt,
+                    IconColor = Theme.StatusDangerFg,
+                    OnClick   = () => { LogoutRequested = true; this.Close(); },
+                },
             };
 
-            var miPerfil = new ToolStripMenuItem("Perfil")
-            {
-                Image     = IconToImage(IconChar.User, 16, Theme.TextSecondary),
-                ForeColor = Theme.TextPrimary,
-            };
-            miPerfil.Click += (s, e) => Navigate<UcPerfil>();
-
-            string themeText = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro";
-            IconChar themeIcon = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun;
-            var miTema = new ToolStripMenuItem(themeText)
-            {
-                Image     = IconToImage(themeIcon, 16, Theme.TextSecondary),
-                ForeColor = Theme.TextPrimary,
-            };
-            miTema.Click += (s, e) =>
-            {
-                ThemeManager.Toggle();
-                miTema.Text  = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro";
-                miTema.Image = IconToImage(
-                    ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun,
-                    16, Theme.TextSecondary);
-            };
-
-            var miSair = new ToolStripMenuItem("Sair")
-            {
-                Image     = IconToImage(IconChar.SignOutAlt, 16, Theme.StatusDangerFg),
-                ForeColor = Theme.TextPrimary,
-            };
-            miSair.Click += (s, e) =>
-            {
-                LogoutRequested = true;
-                this.Close();
-            };
-
-            menu.Items.Add(miPerfil);
-            menu.Items.Add(miTema);
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(miSair);
-            return menu;
-        }
-
-        private static Image IconToImage(IconChar icon, int size, Color color)
-        {
-            // Render via IconPictureBox + DrawToBitmap (mais fiável que ler pb.Image
-            // directamente, que pode ser null antes do primeiro paint).
-            using (var pb = new IconPictureBox
-                   {
-                       IconChar  = icon,
-                       IconSize  = size,
-                       IconColor = color,
-                       Size      = new Size(size, size),
-                       BackColor = Theme.CardBg,
-                       SizeMode  = PictureBoxSizeMode.AutoSize,
-                   })
-            {
-                var bmp = new Bitmap(size, size);
-                pb.DrawToBitmap(bmp, new Rectangle(0, 0, size, size));
-                return bmp;
-            }
+            var popup = new ProfilePopup(items);
+            // Posicionar logo acima do footer, alinhado à esquerda da sidebar
+            var screenAnchor = anchor.PointToScreen(Point.Empty);
+            popup.Location = new Point(
+                screenAnchor.X + 8,
+                screenAnchor.Y - popup.Height - 4);
+            popup.Show(this);
         }
 
         private void AddSectionLabel(FlowLayoutPanel container, string text)
