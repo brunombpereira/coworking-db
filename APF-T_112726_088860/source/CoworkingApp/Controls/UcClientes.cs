@@ -150,14 +150,14 @@ namespace CoworkingApp.Controls
         // Para acesso ao Panel wrapper (ex: esconder a row inteira), usar control.Parent:
         //   var cmb = AddCombo(tbl, "Opcional", new[]{"A","B"});
         //   cmb.Parent.Visible = false;
-        internal static TextBox AddField(TableLayoutPanel tbl, string label)
+        internal static ModernInput AddField(TableLayoutPanel tbl, string label)
         {
-            var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 10) };
-            var txt = Theme.Field();
-            pnl.Controls.Add(txt);
+            var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 12) };
+            var input = new ModernInput { Dock = DockStyle.Top, Height = 38 };
+            pnl.Controls.Add(input);
             pnl.Controls.Add(Theme.FieldLabel(label));
             tbl.Controls.Add(pnl);
-            return txt;
+            return input;
         }
 
         internal static ComboBox AddCombo(TableLayoutPanel tbl, string label, string[] items)
