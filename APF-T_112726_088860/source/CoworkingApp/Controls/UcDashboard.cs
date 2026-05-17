@@ -24,6 +24,7 @@ namespace CoworkingApp.Controls
         private Chart _chartReceita;
         private Chart _chartMetodos;
         private FlowLayoutPanel _flpProximas;
+        private bool _proximasWidthSubscribed;
 
         // Paleta modern (indigo family + emerald accent)
         private static readonly Color[] Palette =
@@ -57,14 +58,15 @@ namespace CoworkingApp.Controls
             {
                 Text = "Dashboard", Font = Theme.FontTitle,
                 ForeColor = Theme.TextPrimary, Dock = DockStyle.Top,
-                Height = 30, AutoSize = false,
+                Height = 34, AutoSize = false,
             };
             var lblSub = new Label
             {
                 Text      = "Visão geral · " + DateTime.Now.ToString("dd 'de' MMMM 'de' yyyy"),
                 Font      = Theme.FontLabel,
                 ForeColor = Theme.TextSecondary,
-                Dock      = DockStyle.Top, Height = 18, AutoSize = false,
+                Dock      = DockStyle.Top, Height = 22, AutoSize = false,
+                Padding   = new Padding(0, 4, 0, 0),
             };
             pnlTitle.Controls.Add(lblSub);
             pnlTitle.Controls.Add(lblTitle);
@@ -154,14 +156,40 @@ namespace CoworkingApp.Controls
                 BackColor = card.BackColor,
             };
 
-            // Sparkline retirado — total de heights (top 24 + value 38 + delta 18 +
-            // spark 40 = 120) excedia a altura interna do card (≈104), o que tapava
-            // o valor. Com 4 KPIs equal-width não há espaço para sparkline neste
-            // size; manter só value + delta deixa o card limpo.
             inner.Controls.Add(deltaLbl);
             inner.Controls.Add(valueLbl);
             inner.Controls.Add(topLine);
             card.Controls.Add(inner);
+
+            // Hover: bg ligeiramente mais claro (acende) + cursor hand.
+            Color idleBg  = card.BackColor;
+            Color hoverBg = isAccent
+                ? MixColors(idleBg, Color.White, 0.05f)
+                : MixColors(idleBg, Color.White, 0.06f);
+
+            void SetCardHover(bool on)
+            {
+                Color bg = on ? hoverBg : idleBg;
+                card.BackColor    = bg;
+                inner.BackColor   = bg;
+                topLine.BackColor = bg;
+                iconLbl.BackColor = bg;
+                lbl.BackColor     = bg;
+                valueLbl.BackColor = bg;
+                deltaLbl.BackColor = bg;
+            }
+            void HookCard(Control c)
+            {
+                c.Cursor      = Cursors.Hand;
+                c.MouseEnter += (s, e) => SetCardHover(true);
+                c.MouseLeave += (s, e) =>
+                {
+                    var p = card.PointToClient(System.Windows.Forms.Cursor.Position);
+                    if (!card.ClientRectangle.Contains(p)) SetCardHover(false);
+                };
+                foreach (Control child in c.Controls) HookCard(child);
+            }
+            HookCard(card);
             return card;
         }
 
@@ -272,9 +300,16 @@ namespace CoworkingApp.Controls
 
             _flpProximas = new FlowLayoutPanel
             {
-                Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown,
-                WrapContents = false, AutoScroll = true, BackColor = Theme.CardBg,
+                Dock          = DockStyle.Fill,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents  = false,
+                AutoScroll    = true,
+                BackColor     = Theme.CardBg,
             };
+            // Quando o FLP é redimensionado (ex.: form maximizado), os items
+            // têm de ajustar a sua Width para caber na ClientSize. Caso
+            // contrário a scrollbar horizontal aparece e dispara a vertical.
+            _flpProximas.Resize += (s, e) => ResizeProximasItems();
 
             inner.Controls.Add(_flpProximas);
             inner.Controls.Add(header);
@@ -426,6 +461,16 @@ namespace CoworkingApp.Controls
             _chartMetodos.Legends.Add(legend);
         }
 
+        private void ResizeProximasItems()
+        {
+            if (_flpProximas == null) return;
+            // Largura útil: ClientSize já desconta scrollbar quando visível.
+            int w = _flpProximas.ClientSize.Width - 2;
+            if (w < 100) return;
+            foreach (Control c in _flpProximas.Controls)
+                c.Width = w;
+        }
+
         private void LoadProximas(SqlConnection conn)
         {
             _flpProximas.Controls.Clear();
@@ -496,6 +541,8 @@ namespace CoworkingApp.Controls
                 empty.Controls.Add(emptyLbl);
                 _flpProximas.Controls.Add(empty);
             }
+
+            ResizeProximasItems();   // fixa Width dos items para caber sem h-scroll
         }
 
         private Control BuildProximaItem(string cliente, string recurso, string tipo,
