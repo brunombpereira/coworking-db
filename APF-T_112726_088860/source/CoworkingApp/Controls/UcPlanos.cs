@@ -15,8 +15,11 @@ namespace CoworkingApp.Controls
     public class UcPlanos : UserControl
     {
         private Label _kpiTotal, _kpiSubscritores, _kpiMrr;
-        private Panel _grid;            // contém os pricing cards
-        private Panel _emptyState;
+        private Panel           _gridHost;     // container scrollable
+        private TableLayoutPanel _grid;        // cells × cards
+        private Panel           _emptyState;
+        private System.Collections.Generic.List<Control> _pendingCards
+            = new System.Collections.Generic.List<Control>();
 
         private const int CardWidth   = 280;
         private const int CardHeight  = 270;
@@ -150,23 +153,30 @@ namespace CoworkingApp.Controls
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 16, 16, 16) };
 
-            _grid = new Panel
+            // Host = panel scrollable. Grid = TableLayoutPanel auto-sized
+            // que cresce em altura conforme se adicionam linhas — scrollbar
+            // do host só aparece quando totalHeight > host.Height.
+            _gridHost = new Panel
             {
                 Dock       = DockStyle.Fill,
                 AutoScroll = true,
                 BackColor  = Theme.CardBg,
                 Visible    = false,
             };
-            // Hook a múltiplos eventos para garantir relayout em qualquer
-            // momento que o tamanho efectivo mude.
-            _grid.SizeChanged    += (s, e) => RelayoutCards();
-            _grid.ClientSizeChanged += (s, e) => RelayoutCards();
-            _grid.Layout         += (s, e) => RelayoutCards();
+            _grid = new TableLayoutPanel
+            {
+                AutoSize     = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                BackColor    = Theme.CardBg,
+                Dock         = DockStyle.Top,   // largura = host width, altura ajusta
+            };
+            _gridHost.Controls.Add(_grid);
+            _gridHost.SizeChanged += (s, e) => RebuildGridColumns();
 
             _emptyState = BuildEmptyState("Nenhum plano definido", IconChar.ClipboardList);
             _emptyState.Dock = DockStyle.Fill;
 
-            inner.Controls.Add(_grid);
+            inner.Controls.Add(_gridHost);
             inner.Controls.Add(_emptyState);
             card.Controls.Add(inner);
             return card;
@@ -237,8 +247,7 @@ namespace CoworkingApp.Controls
 
         private void LoadPlanos(SqlConnection conn)
         {
-            _grid.SuspendLayout();
-            _grid.Controls.Clear();
+            _pendingCards.Clear();
             int count = 0;
             using (var cmd = new SqlCommand(
                 @"SELECT p.plano_id, p.nome_plano, p.tipo_plano, p.preco_mensal,
@@ -250,7 +259,7 @@ namespace CoworkingApp.Controls
             {
                 while (r.Read())
                 {
-                    _grid.Controls.Add(BuildPlanoCard(
+                    _pendingCards.Add(BuildPlanoCard(
                         id:        Convert.ToInt32(r["plano_id"]),
                         nome:      r["nome_plano"].ToString(),
                         tipo:      r["tipo_plano"].ToString(),
@@ -262,38 +271,52 @@ namespace CoworkingApp.Controls
                     count++;
                 }
             }
-            _grid.Visible        = count > 0;
+            _gridHost.Visible    = count > 0;
             _emptyState.Visible  = count == 0;
             _emptyState.Invalidate();
-            RelayoutCards();
-            _grid.ResumeLayout(true);
-            _grid.PerformLayout();
+            RebuildGridColumns();
         }
 
-        // Calcula colunas a partir do width visível + posiciona cada card
-        // manualmente. Scrollbar só aparece quando totalHeight > _grid.Height.
-        private bool _relaying;
-        private void RelayoutCards()
+        // Reconstrói as colunas do TableLayoutPanel baseado na largura
+        // disponível e re-distribui os cards. Cada cell tem AbsoluteSize
+        // do card → posições deterministicas, sem race conditions.
+        private bool _rebuilding;
+        private void RebuildGridColumns()
         {
-            if (_relaying || _grid == null || _grid.Controls.Count == 0) return;
-            int avail = _grid.ClientSize.Width;
-            if (avail < CardWidth + CardGap) return;  // ainda não tem tamanho real
-            _relaying = true;
+            if (_rebuilding || _grid == null || _gridHost == null) return;
+            int avail = _gridHost.ClientSize.Width;
+            if (avail < CardWidth + CardGap) return;
+            _rebuilding = true;
             try
             {
-                int cols  = Math.Max(1, (avail - CardGap) / (CardWidth + CardGap));
-                int i = 0;
-                foreach (Control c in _grid.Controls)
+                _grid.SuspendLayout();
+                _grid.Controls.Clear();
+                _grid.RowStyles.Clear();
+                _grid.ColumnStyles.Clear();
+                _grid.RowCount = 0;
+                _grid.ColumnCount = 0;
+
+                int cols = Math.Max(1, (avail - CardGap) / (CardWidth + CardGap));
+                _grid.ColumnCount = cols;
+                for (int c = 0; c < cols; c++)
+                    _grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, CardWidth + CardGap));
+
+                int rows = (_pendingCards.Count + cols - 1) / cols;
+                _grid.RowCount = Math.Max(1, rows);
+                for (int r = 0; r < _grid.RowCount; r++)
+                    _grid.RowStyles.Add(new RowStyle(SizeType.Absolute, CardHeight + CardGap));
+
+                for (int i = 0; i < _pendingCards.Count; i++)
                 {
                     int row = i / cols;
                     int col = i % cols;
-                    c.Location = new Point(
-                        CardGap + col * (CardWidth + CardGap),
-                        CardGap + row * (CardHeight + CardGap));
-                    i++;
+                    var card = _pendingCards[i];
+                    card.Margin = new Padding(0, 0, CardGap, CardGap);
+                    _grid.Controls.Add(card, col, row);
                 }
+                _grid.ResumeLayout(true);
             }
-            finally { _relaying = false; }
+            finally { _rebuilding = false; }
         }
 
         // ── Plano card (pricing) ────────────────────────────────────────
