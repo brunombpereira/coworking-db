@@ -34,6 +34,9 @@ namespace CoworkingApp
                 case 51050:                                    // registar pagamento — serviço sem preço
                 case 51060: case 51061:                        // self-registration (password curta, username duplicado)
                 case 52001: case 52002: case 52003:            // auth
+                case 52010: case 52011:                        // admin_create_user (role inválida, password curta)
+                case 52012: case 52013:                        // admin_reset_password
+                case 52014:                                    // admin_toggle_user_active
                     return ex.Message;
                 default:
                     return "Erro ao comunicar com a base de dados.";

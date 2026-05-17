@@ -96,6 +96,15 @@ GO
 GRANT CONTROL ON DATABASE::CoworkingDB TO app_admin;
 GO
 
+-- Mesmo com CONTROL, deixamos explícitas as SPs de administração de
+-- utilizadores (documentação + portabilidade se um dia trocar a role).
+GRANT EXECUTE ON sp_admin_create_user        TO app_admin;
+GRANT EXECUTE ON sp_admin_reset_password     TO app_admin;
+GRANT EXECUTE ON sp_admin_toggle_user_active TO app_admin;
+GRANT EXECUTE ON sp_desativar_utilizador     TO app_admin;
+GRANT SELECT  ON vw_utilizadores_listagem    TO app_admin;
+GO
+
 -- =====================================================================
 -- 4) Logins/users de exemplo (executar apenas em dev, password trocar!)
 -- =====================================================================
