@@ -483,13 +483,24 @@ namespace CoworkingApp.Controls
             int contentW = PopupW - PadBody * 2 - 2;
 
             var assuntoFont = new Font(Theme.FontBase.FontFamily, 15f, FontStyle.Bold);
-            int assuntoH = TextRenderer.MeasureText(assunto ?? "—", assuntoFont,
-                new Size(contentW, 1000), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
-            int msgH = TextRenderer.MeasureText(mensagem ?? "—", Theme.FontBase,
-                new Size(contentW, 1000), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
-            // Buffer extra para descenders e wrap edge cases.
-            assuntoH = Math.Max(32, assuntoH + 8);
-            msgH     = Math.Max(20, msgH + 6);
+
+            // Medir com Label real (usa o mesmo wrap engine que vai renderizar).
+            int MeasureLabel(string text, Font font, int width)
+            {
+                using (var tmp = new Label
+                {
+                    Text = text ?? "—", Font = font, AutoSize = true,
+                    MaximumSize = new Size(width, 0),
+                })
+                {
+                    return tmp.PreferredSize.Height;
+                }
+            }
+
+            int assuntoH = MeasureLabel(assunto,  assuntoFont,    contentW) + 8;
+            int msgH     = MeasureLabel(mensagem, Theme.FontBase, contentW) + 12;
+            assuntoH = Math.Max(32, assuntoH);
+            msgH     = Math.Max(20, msgH);
 
             int popupH = HeaderH + assuntoH + MetaH + SpacerH + msgH + 4 /*top body padding*/ + PadBody /*bottom*/ + 2 /*border*/;
 
