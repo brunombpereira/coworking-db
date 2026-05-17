@@ -529,13 +529,13 @@ namespace CoworkingApp.Controls
             rankBlock.Resize += (s, e) => rankBlock.Invalidate();
 
             // Valor à direita
-            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 120, BackColor = idleBg, Padding = new Padding(0, 14, 12, 0) };
+            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 120, BackColor = idleBg, Padding = new Padding(0, 11, 12, 0) };
             rightInfo.Controls.Add(new Label
             {
                 Text = Theme.FormatEuro(receita),
                 Font = new Font(Theme.FontBase.FontFamily, 12f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+                Dock = DockStyle.Top, Height = 28, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
             });
 
             // Centro: nome + barra progress
