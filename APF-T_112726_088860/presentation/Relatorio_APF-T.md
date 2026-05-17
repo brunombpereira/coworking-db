@@ -66,7 +66,12 @@ A aplicação nunca executa SQL ad-hoc — todas as operações passam por SPs c
 
 **Posto via adesão.** O atributo `adesao.recurso_id` (NULL para Flex, NOT NULL para Fixo/Privado) materializa a regra "Fixo/Privado têm posto atribuído". Trigger T9 enforça a coerência tipo_plano↔tipo_posto. Alternativa rejeitada: tabela ponte `adesao_posto` — overhead sem ganho expressivo.
 
-**Pagamento como XOR.** A constraint `ck_pagamento_servico` garante que `adesao_id` e `reserva_id` são mutuamente exclusivos e que pelo menos um está preenchido. Triggers T6/T8 validam valor e cliente.
+**Pagamento como XOR + snapshot de preço.** A constraint `ck_pagamento_servico` garante que `adesao_id` e `reserva_id` são mutuamente exclusivos e que pelo menos um está preenchido. Em resposta à pergunta do professor *"qual o preço?"*, o `pagamento` carrega ainda uma coluna `preco_servico_snapshot DECIMAL(10,2) NOT NULL`, que fotografa o preço do serviço subjacente (`reserva.valor` ou `adesao.preco_acordado`) no momento da criação. A ligação ao valor cobrado deixa de viver apenas no trigger e passa a ser explícita no schema:
+- `ck_pagamento_valor_snapshot CHECK (valor = preco_servico_snapshot)` — o que se paga tem de ser o que se cobrou.
+- Trigger T6 — `preco_servico_snapshot` tem de coincidir com o preço actual do serviço no momento da inserção.
+- Trigger T8 — `cliente_id` tem de ser o titular do serviço.
+
+Esta redundância controlada protege o histórico contra futuras alterações de preço (alinhada com `adesao.preco_acordado`) e dá ao auditor uma única coluna para responder à pergunta acima.
 
 ## 4. Normalização
 
@@ -81,7 +86,7 @@ Todas as tabelas estão em **BCNF**:
 | `posto` | análogo a sala | BCNF. |
 | `adesao` | `adesao_id → cliente_id, plano_id, ...` | 3NF/BCNF. Notar: `preco_acordado` é snapshot — duplica `plano.preco_mensal` no momento do INSERT mas justifica-se porque o preço pode mudar e a adesão tem de preservar o valor histórico (data temporal). Esta "redundância controlada" é decisão consciente. |
 | `reserva` | `reserva_id → cliente_id, recurso_id, data, horas, ...` | BCNF. |
-| `pagamento` | `pagamento_id → ...` | BCNF. |
+| `pagamento` | `pagamento_id → cliente_id, valor, preco_servico_snapshot, ...` | BCNF. `preco_servico_snapshot` é redundância controlada (snapshot do preço do serviço no momento do pagamento — paralelo a `adesao.preco_acordado`). |
 
 Não existe violação 3→BCNF porque as únicas DFs não-triviais saem ou de PKs ou de UNIQUE keys (candidate keys), pelo que toda DF tem lado esquerdo superkey.
 

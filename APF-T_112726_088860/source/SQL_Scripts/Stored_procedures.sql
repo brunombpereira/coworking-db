@@ -217,8 +217,11 @@ BEGIN
         THROW 51031, 'Reserva já está cancelada.', 1;
     END
 
-    SET @inicio_dt = CAST(@data_reserva AS DATETIME2)
-                   + CAST(COALESCE(@hora_inicio, '00:00') AS DATETIME2);
+    -- DATETIME2 não suporta operador +; combinar via DATEADD a partir da meia-noite.
+    DECLARE @h TIME = COALESCE(@hora_inicio, '00:00:00');
+    SET @inicio_dt = DATEADD(SECOND,
+                             DATEDIFF(SECOND, CAST('00:00:00' AS TIME), @h),
+                             CAST(@data_reserva AS DATETIME2));
     SET @antecedencia_h = DATEDIFF(HOUR, SYSDATETIME(), @inicio_dt);
 
     SELECT TOP 1 @perc = perc_reembolso
@@ -366,20 +369,40 @@ END;
 GO
 
 -- Registar pagamento ---------------------------------------------------
+-- Lê o preço do serviço (reserva.valor ou adesao.preco_acordado) e
+-- preserva-o em preco_servico_snapshot. Se @valor for NULL usa o
+-- snapshot; caso contrário tem de ser igual (CHECK
+-- ck_pagamento_valor_snapshot) — passa-se @valor explicitamente quando
+-- se quer rejeitar discrepâncias por engano da app.
 CREATE OR ALTER PROCEDURE sp_registar_pagamento
     @cliente_id       INTEGER,
-    @valor            DECIMAL(10,2),
     @metodo_pagamento NVARCHAR(40),
-    @adesao_id        INTEGER = NULL,
-    @reserva_id       INTEGER = NULL,
-    @pagamento_id     INTEGER OUTPUT
+    @adesao_id        INTEGER       = NULL,
+    @reserva_id       INTEGER       = NULL,
+    @valor            DECIMAL(10,2) = NULL,
+    @pagamento_id     INTEGER       OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO pagamento (cliente_id, valor, metodo_pagamento,
-                           estado, adesao_id, reserva_id)
-    VALUES (@cliente_id, @valor, @metodo_pagamento,
-            'Pago', @adesao_id, @reserva_id);
+
+    DECLARE @snapshot DECIMAL(10,2);
+
+    IF @adesao_id IS NOT NULL
+        SELECT @snapshot = preco_acordado FROM adesao WHERE adesao_id = @adesao_id;
+    ELSE IF @reserva_id IS NOT NULL
+        SELECT @snapshot = valor          FROM reserva WHERE reserva_id = @reserva_id;
+
+    IF @snapshot IS NULL
+    BEGIN
+        THROW 51050, 'Não foi possível determinar o preço do serviço (adesão/reserva inexistente?).', 1;
+    END
+
+    IF @valor IS NULL SET @valor = @snapshot;
+
+    INSERT INTO pagamento (cliente_id, valor, preco_servico_snapshot,
+                           metodo_pagamento, estado, adesao_id, reserva_id)
+    VALUES (@cliente_id, @valor, @snapshot,
+            @metodo_pagamento, 'Pago', @adesao_id, @reserva_id);
 
     SET @pagamento_id = SCOPE_IDENTITY();
 END;

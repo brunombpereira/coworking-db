@@ -180,20 +180,7 @@ WHERE a.estado = 'Ativa'
                      AND DATEADD(DAY, 30, CAST(GETDATE() AS DATE));
 GO
 
--- Histórico de uma reserva (temporal — requer Temporal_tables.sql) ---
--- Nota: esta view só funciona depois de aplicado SYSTEM_VERSIONING.
-CREATE VIEW vw_reservas_historico
-AS
-SELECT
-    reserva_id,
-    cliente_id,
-    recurso_id,
-    data_reserva,
-    estado,
-    valor
-FROM reserva
-FOR SYSTEM_TIME ALL;
-GO
+-- vw_reservas_historico está em Temporal_tables.sql (depende de SYSTEM_VERSIONING)
 
 -- Notificações por ler -----------------------------------------------
 CREATE VIEW vw_notificacoes_por_ler

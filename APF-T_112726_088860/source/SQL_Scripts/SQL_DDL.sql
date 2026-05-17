@@ -3,13 +3,16 @@
 -- DDL: criação da base de dados e tabelas (modelo recurso supertype +
 --      posto via adesão).
 -- Para a base de dados ficar completa, executar pela seguinte ordem:
---   1) SQL_DDL.sql
---   2) Indexes.sql
---   3) Triggers.sql
---   4) Views.sql
---   5) User_defined_functions.sql
---   6) Stored_procedures.sql
---   7) SQL_DML.sql           (dados de teste)
+--   1)  SQL_DDL.sql
+--   2)  Indexes.sql
+--   3)  Triggers.sql
+--   4)  Views.sql
+--   5)  User_defined_functions.sql
+--   6)  Stored_procedures.sql
+--   7)  Auth.sql
+--   8)  Temporal_tables.sql   (também cria vw_reservas_historico)
+--   9)  Security.sql
+--   10) SQL_DML.sql           (dados de teste; depende de Auth)
 -- Drop_tables.sql faz teardown completo.
 -- =====================================================================
 
@@ -139,11 +142,17 @@ CREATE TABLE reserva (
 GO
 
 -- pagamento -----------------------------------------------------------
+-- preco_servico_snapshot fotografa o preço do serviço (reserva.valor ou
+-- adesao.preco_acordado) no momento do pagamento. Torna a ligação ao
+-- valor cobrado explícita no schema (correção do prof.: "Qual o preço?")
+-- em vez de viver só no trigger T6.
 CREATE TABLE pagamento (
     pagamento_id     INTEGER       IDENTITY(1,1) PRIMARY KEY,
     cliente_id       INTEGER       NOT NULL REFERENCES cliente(cliente_id),
     data_pagamento   DATE          NOT NULL DEFAULT CAST(GETDATE() AS DATE),
     valor            DECIMAL(10,2) NOT NULL CHECK (valor > 0),
+    preco_servico_snapshot DECIMAL(10,2) NOT NULL
+        CHECK (preco_servico_snapshot > 0),
     metodo_pagamento NVARCHAR(40)  NOT NULL
         CHECK (metodo_pagamento IN ('Dinheiro','Cartao','Transferencia','MBWay','PayPal')),
     estado           NVARCHAR(30)  NOT NULL DEFAULT 'Pendente'
@@ -153,7 +162,8 @@ CREATE TABLE pagamento (
     CONSTRAINT ck_pagamento_servico CHECK (
         (CASE WHEN adesao_id  IS NULL THEN 0 ELSE 1 END) +
         (CASE WHEN reserva_id IS NULL THEN 0 ELSE 1 END) = 1
-    )
+    ),
+    CONSTRAINT ck_pagamento_valor_snapshot CHECK (valor = preco_servico_snapshot)
 );
 GO
 

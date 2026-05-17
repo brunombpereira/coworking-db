@@ -269,9 +269,23 @@ namespace CoworkingApp.Controls
                 if (svc.StartsWith("A:")) adesaoVal = int.Parse(svc.Substring(2));
                 else if (svc.StartsWith("R:")) reservaVal = int.Parse(svc.Substring(2));
 
+                // preco_servico_snapshot lido sempre do serviço — o trigger T6
+                // garante que coincide; o CHECK ck_pagamento_valor_snapshot
+                // rejeita @v se não bater certo com o preço actual.
+                const string snapshotExpr = @"COALESCE(
+                        (SELECT preco_acordado FROM adesao  WHERE adesao_id  = @a),
+                        (SELECT valor          FROM reserva WHERE reserva_id = @r))";
                 var sql = id.HasValue
-                    ? "UPDATE pagamento SET cliente_id=@c, adesao_id=@a, reserva_id=@r, data_pagamento=@d, valor=@v, metodo_pagamento=@m, estado=@e WHERE pagamento_id=@id"
-                    : "INSERT INTO pagamento (cliente_id, adesao_id, reserva_id, data_pagamento, valor, metodo_pagamento, estado) VALUES (@c,@a,@r,@d,@v,@m,@e)";
+                    ? $@"UPDATE pagamento
+                            SET cliente_id=@c, adesao_id=@a, reserva_id=@r,
+                                data_pagamento=@d, valor=@v,
+                                preco_servico_snapshot={snapshotExpr},
+                                metodo_pagamento=@m, estado=@e
+                          WHERE pagamento_id=@id"
+                    : $@"INSERT INTO pagamento
+                            (cliente_id, adesao_id, reserva_id, data_pagamento,
+                             valor, preco_servico_snapshot, metodo_pagamento, estado)
+                          VALUES (@c,@a,@r,@d,@v,{snapshotExpr},@m,@e)";
 
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(sql, conn))

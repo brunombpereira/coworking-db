@@ -77,13 +77,14 @@ GRANT SELECT ON vw_reservas_historico           TO app_staff;
 GO
 
 -- app_staff: pode invocar UDFs.
-GRANT SELECT ON OBJECT::fn_recurso_disponivel       TO app_staff;
-GRANT SELECT ON OBJECT::fn_receita_cliente          TO app_staff;
-GRANT SELECT ON OBJECT::fn_reservas_cliente_periodo TO app_staff;
-GRANT SELECT ON OBJECT::fn_taxa_ocupacao_espaco     TO app_staff;
-GRANT SELECT ON OBJECT::fn_calc_reembolso           TO app_staff;
-GRANT SELECT ON OBJECT::fn_receita_periodo          TO app_staff;
-GRANT SELECT ON OBJECT::fn_clientes_inativos        TO app_staff;
+-- Scalar functions exigem EXECUTE; inline TVFs exigem SELECT.
+GRANT EXECUTE ON OBJECT::fn_recurso_disponivel       TO app_staff;
+GRANT EXECUTE ON OBJECT::fn_receita_cliente          TO app_staff;
+GRANT EXECUTE ON OBJECT::fn_taxa_ocupacao_espaco     TO app_staff;
+GRANT EXECUTE ON OBJECT::fn_calc_reembolso           TO app_staff;
+GRANT EXECUTE ON OBJECT::fn_receita_periodo          TO app_staff;
+GRANT SELECT  ON OBJECT::fn_reservas_cliente_periodo TO app_staff;
+GRANT SELECT  ON OBJECT::fn_clientes_inativos        TO app_staff;
 GO
 
 -- app_admin: tudo (DDL + DML direto, para administração).

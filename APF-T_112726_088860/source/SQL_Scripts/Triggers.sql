@@ -1,6 +1,8 @@
 -- =====================================================================
 -- Triggers da CoworkingDB
--- T1..T12 — regras de negócio que ultrapassam CHECK constraints simples
+-- T1..T16 — regras de negócio que ultrapassam CHECK constraints simples
+-- (T10 foi removido; lógica migrada para sp_criar_adesao por
+-- incompatibilidade com SYSTEM_VERSIONING).
 -- =====================================================================
 USE CoworkingDB;
 GO
@@ -134,7 +136,10 @@ BEGIN
 END;
 GO
 
--- T6: pagamento.valor deve corresponder ao preço do serviço ----------
+-- T6: snapshot do pagamento tem de coincidir com o preço actual ------
+-- valor = preco_servico_snapshot já é garantido por CHECK constraint
+-- ck_pagamento_valor_snapshot. Este trigger valida a outra metade da
+-- ligação: snapshot == preço do serviço referenciado.
 CREATE TRIGGER trg_pagamento_valor_correto
 ON pagamento AFTER INSERT, UPDATE
 AS
@@ -145,22 +150,22 @@ BEGIN
         FROM inserted i
         JOIN reserva r ON i.reserva_id = r.reserva_id
         WHERE i.reserva_id IS NOT NULL
-          AND i.valor <> r.valor
+          AND i.preco_servico_snapshot <> r.valor
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50005, 'O valor do pagamento não corresponde ao valor da reserva.', 1;
+        THROW 50005, 'O snapshot do pagamento não corresponde ao valor da reserva.', 1;
     END
     IF EXISTS (
         SELECT 1
         FROM inserted i
         JOIN adesao a ON i.adesao_id = a.adesao_id
         WHERE i.adesao_id IS NOT NULL
-          AND i.valor <> a.preco_acordado
+          AND i.preco_servico_snapshot <> a.preco_acordado
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        THROW 50006, 'O valor do pagamento não corresponde ao preço acordado da adesão.', 1;
+        THROW 50006, 'O snapshot do pagamento não corresponde ao preço acordado da adesão.', 1;
     END
 END;
 GO

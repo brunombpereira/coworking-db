@@ -4,7 +4,7 @@ using System.Windows.Forms;
 
 namespace CoworkingApp
 {
-    public class FormDialog : Form
+    public class FormDialog : DpiAwareForm
     {
         private readonly Panel _card;
         private readonly Panel _body;
@@ -26,7 +26,9 @@ namespace CoworkingApp
             _saveCallback = onSave;
 
             // ── Form (overlay) ───────────────────────────────────────────────
-            this.FormBorderStyle = FormBorderStyle.None;
+            this.AutoScaleMode       = AutoScaleMode.Dpi;
+            this.AutoScaleDimensions = new SizeF(96F, 96F);
+            this.FormBorderStyle     = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.Manual;
             this.ShowInTaskbar = false;
             this.BackColor = Theme.ModalOverlay;

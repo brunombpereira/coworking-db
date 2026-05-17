@@ -51,6 +51,25 @@ ALTER TABLE pagamento
 GO
 
 -- =====================================================================
+-- Views dependentes de SYSTEM_VERSIONING
+-- =====================================================================
+-- Definida aqui (e não em Views.sql) porque FOR SYSTEM_TIME exige que a
+-- tabela já esteja system-versioned. GRANT em Security.sql.
+GO
+CREATE OR ALTER VIEW vw_reservas_historico
+AS
+SELECT
+    reserva_id,
+    cliente_id,
+    recurso_id,
+    data_reserva,
+    estado,
+    valor
+FROM reserva
+FOR SYSTEM_TIME ALL;
+GO
+
+-- =====================================================================
 -- Exemplos de consultas temporais (apenas referência — não executam aqui)
 -- =====================================================================
 -- Estado da tabela num momento passado:

@@ -78,11 +78,13 @@ IF @df = '2026-10-01' BEGIN SET @passed += 1; PRINT 'T5 OK (data_fim=2026-10-01)
 ELSE BEGIN SET @failed += 1; PRINT 'T5 FAIL — data_fim=' + ISNULL(CAST(@df AS NVARCHAR(20)),'NULL'); END
 ROLLBACK;
 
--- T6: pagamento com valor errado (reserva) ---------------------------
+-- T6: pagamento com snapshot errado (reserva) -----------------------
+-- valor=snapshot=999.99 (passa CHECK ck_pagamento_valor_snapshot) mas o
+-- snapshot 999.99 não coincide com reserva.valor (30.00) → T6 dispara.
 BEGIN TRY
     BEGIN TRAN;
-    INSERT INTO pagamento (cliente_id, valor, metodo_pagamento, estado, reserva_id)
-    VALUES (4, 999.99, 'Cartao', 'Pago', 1);
+    INSERT INTO pagamento (cliente_id, valor, preco_servico_snapshot, metodo_pagamento, estado, reserva_id)
+    VALUES (4, 999.99, 999.99, 'Cartao', 'Pago', 1);
     ROLLBACK;
     SET @failed += 1; PRINT 'T6 FAIL';
 END TRY
@@ -110,8 +112,8 @@ END CATCH
 -- T8: pagamento com cliente_id inconsistente -------------------------
 BEGIN TRY
     BEGIN TRAN;
-    INSERT INTO pagamento (cliente_id, valor, metodo_pagamento, estado, reserva_id)
-    VALUES (1, 30.00, 'Cartao', 'Pago', 1); -- reserva 1 é do cliente 4
+    INSERT INTO pagamento (cliente_id, valor, preco_servico_snapshot, metodo_pagamento, estado, reserva_id)
+    VALUES (1, 30.00, 30.00, 'Cartao', 'Pago', 1); -- reserva 1 é do cliente 4
     ROLLBACK;
     SET @failed += 1; PRINT 'T8 FAIL';
 END TRY

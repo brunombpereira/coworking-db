@@ -121,16 +121,17 @@ VALUES (4, 4, '2026-05-05', NULL, NULL, 12.00, 'Confirmada');
 GO
 
 -- pagamentos (6)
--- T6  (valor correto): pagamento.valor = adesao.preco_acordado ou reserva.valor.
+-- T6  (snapshot correto): preco_servico_snapshot = adesao.preco_acordado ou reserva.valor.
+-- ck_pagamento_valor_snapshot: pagamento.valor = preco_servico_snapshot.
 -- T8  (cliente consistente): pagamento.cliente_id = titular adesão/reserva.
 -- ck_pagamento_servico: exactamente um de adesao_id/reserva_id NOT NULL.
-INSERT INTO pagamento (cliente_id, valor, metodo_pagamento, estado, adesao_id, reserva_id, data_pagamento) VALUES
- (1, 120.00, 'MBWay',         'Pago', 1, NULL, '2026-04-01'),  -- Ana adesão Flex
- (2, 200.00, 'Transferencia', 'Pago', 2, NULL, '2026-04-15'),  -- Bruno adesão Fixo
- (3, 350.00, 'Cartao',        'Pago', 3, NULL, '2026-02-01'),  -- Carla adesão Privado
- (4,  30.00, 'Cartao',        'Pago', NULL, 1, '2026-05-04'),  -- Diogo reserva Sala A
- (4,  88.00, 'PayPal',        'Pago', NULL, 3, '2026-05-08'),  -- Diogo reserva Sala B
- (4,  12.00, 'Dinheiro',      'Pago', NULL, 4, '2026-05-05'); -- Diogo day pass posto Flex
+INSERT INTO pagamento (cliente_id, valor, preco_servico_snapshot, metodo_pagamento, estado, adesao_id, reserva_id, data_pagamento) VALUES
+ (1, 120.00, 120.00, 'MBWay',         'Pago', 1,    NULL, '2026-04-01'),  -- Ana adesão Flex
+ (2, 200.00, 200.00, 'Transferencia', 'Pago', 2,    NULL, '2026-04-15'),  -- Bruno adesão Fixo
+ (3, 350.00, 350.00, 'Cartao',        'Pago', 3,    NULL, '2026-02-01'),  -- Carla adesão Privado
+ (4,  30.00,  30.00, 'Cartao',        'Pago', NULL, 1,    '2026-05-04'),  -- Diogo reserva Sala A
+ (4,  88.00,  88.00, 'PayPal',        'Pago', NULL, 3,    '2026-05-08'),  -- Diogo reserva Sala B
+ (4,  12.00,  12.00, 'Dinheiro',      'Pago', NULL, 4,    '2026-05-05'); -- Diogo day pass posto Flex
 GO
 
 -- =====================================================================

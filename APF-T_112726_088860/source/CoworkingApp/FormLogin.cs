@@ -6,7 +6,7 @@ using System.Windows.Forms;
 
 namespace CoworkingApp
 {
-    public class FormLogin : Form
+    public class FormLogin : DpiAwareForm
     {
         private TextBox _txtUser;
         private TextBox _txtPwd;
@@ -15,16 +15,19 @@ namespace CoworkingApp
 
         public FormLogin()
         {
-            this.Text            = "Coworking — Login";
-            this.StartPosition   = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
-            this.MaximizeBox     = false;
-            this.MinimizeBox     = false;
-            this.Size            = new Size(420, 360);
-            this.BackColor       = Theme.PageBg;
-            this.Font            = Theme.FontBase;
+            // Mode antes de Dimensions (senão Dimensions é sobrescrito).
+            this.AutoScaleMode       = AutoScaleMode.Dpi;
+            this.AutoScaleDimensions = new SizeF(96F, 96F);
+            this.Text                = "Coworking — Login";
+            this.StartPosition       = FormStartPosition.CenterScreen;
+            this.FormBorderStyle     = FormBorderStyle.FixedSingle;
+            this.MaximizeBox         = false;
+            this.MinimizeBox         = false;
+            this.Size                = new Size(420, 360);
+            this.BackColor           = Theme.PageBg;
+            this.Font                = Theme.FontBase;
             BuildUI();
-            this.AcceptButton    = _btnLogin;
+            this.AcceptButton        = _btnLogin;
         }
 
         private void BuildUI()

@@ -24,7 +24,12 @@ EXEC sp_criar_reserva_sala
      @data_reserva = DATEADD(DAY, 3, CAST(SYSDATETIME() AS DATE)),
      @hora_inicio = '10:00', @hora_fim = '12:00',
      @reserva_id = @rid OUTPUT;
-EXEC sp_registar_pagamento 5, 44.00, 'Cartao', NULL, @rid, @pagamento_id = @rid OUTPUT;
+EXEC sp_registar_pagamento
+     @cliente_id       = 5,
+     @metodo_pagamento = 'Cartao',
+     @reserva_id       = @rid,
+     @valor            = 44.00,
+     @pagamento_id     = @rid OUTPUT;
 
 -- recapturar reserva_id correto
 SELECT TOP 1 @rid = reserva_id FROM reserva
