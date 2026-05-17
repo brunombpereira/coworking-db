@@ -91,18 +91,17 @@ namespace CoworkingApp.Controls
             };
             _segFiltro.SelectedIndexChanged += (s, e) => RenderRows();
 
-            // Direita: Refresh (icon) + Marcar todas (button compacto)
+            // Direita: Refresh (só ícone, sem border/bg) + Marcar todas compacto
             _btnRefresh = new IconButton
             {
-                IconChar  = IconChar.RotateRight, IconSize = 16,
+                IconChar  = IconChar.RotateRight, IconSize = 18,
                 IconColor = Theme.TextSecondary, ForeColor = Theme.TextSecondary,
                 FlatStyle = FlatStyle.Flat, Size = new Size(36, 36),
-                BackColor = Theme.FieldBg, Cursor = Cursors.Hand, TabStop = false,
+                BackColor = Theme.CardBg, Cursor = Cursors.Hand, TabStop = false,
                 Anchor    = AnchorStyles.Top | AnchorStyles.Right,
             };
-            _btnRefresh.FlatAppearance.BorderColor = Theme.CardBorder;
-            _btnRefresh.FlatAppearance.BorderSize  = 1;
-            _btnRefresh.FlatAppearance.MouseOverBackColor = Theme.AccentSoft;
+            _btnRefresh.FlatAppearance.BorderSize         = 0;
+            _btnRefresh.FlatAppearance.MouseOverBackColor = Theme.CardBg;
             _btnRefresh.MouseEnter += (s, e) => _btnRefresh.IconColor = Theme.Accent;
             _btnRefresh.MouseLeave += (s, e) => _btnRefresh.IconColor = Theme.TextSecondary;
             _btnRefresh.Click      += (s, e) => Carregar();
@@ -482,76 +481,80 @@ namespace CoworkingApp.Controls
                 StartPosition   = FormStartPosition.CenterParent,
                 BackColor       = Theme.CardBorder,
                 Padding         = new Padding(1),
-                Size            = new Size(520, 320),
+                Size            = new Size(560, 360),
                 ShowInTaskbar   = false,
             };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+
+            // ─── Header (Dock=Top) com tipo pill + botão X ──────────
+            var header = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.CardBg, Padding = new Padding(24, 16, 16, 0) };
+            var tipoPill = new StatusPill
             {
-                var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(24) };
+                Text = tipo, Height = 24, Width = 200, BackColor = Theme.CardBg,
+                Style = StatusPill.PillStyle.Dot, Font = Theme.FontSub,
+                Location = new Point(24, 18),
+            };
+            tipoPill.SetColors(Color.FromArgb(40, TipoColor(tipo)), TipoColor(tipo));
 
-                // Close hint top right
-                var btnClose = new IconButton
-                {
-                    IconChar = IconChar.Xmark, IconSize = 16, IconColor = Theme.TextSecondary,
-                    FlatStyle = FlatStyle.Flat, Size = new Size(30, 30),
-                    BackColor = Theme.CardBg, Cursor = Cursors.Hand, TabStop = false,
-                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                };
-                btnClose.FlatAppearance.BorderSize = 0;
-                btnClose.MouseEnter += (s, e) => btnClose.IconColor = Theme.StatusDangerFg;
-                btnClose.MouseLeave += (s, e) => btnClose.IconColor = Theme.TextSecondary;
-                btnClose.Click      += (s, e) => dlg.Close();
-                btnClose.Location = new Point(inner.Width - btnClose.Width - 8, 8);
+            var btnClose = new IconButton
+            {
+                IconChar = IconChar.Xmark, IconSize = 22, IconColor = Theme.TextSecondary,
+                FlatStyle = FlatStyle.Flat, Size = new Size(40, 40),
+                BackColor = Theme.CardBg, Cursor = Cursors.Hand, TabStop = false,
+                Location = new Point(dlg.Width - 1 - 40 - 12, 10),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            };
+            btnClose.FlatAppearance.BorderSize         = 0;
+            btnClose.FlatAppearance.MouseOverBackColor = Theme.CardBg;
+            btnClose.MouseEnter += (s, e) => btnClose.IconColor = Theme.StatusDangerFg;
+            btnClose.MouseLeave += (s, e) => btnClose.IconColor = Theme.TextSecondary;
+            btnClose.Click      += (s, e) => dlg.Close();
 
-                // Tipo badge dot-style
-                var tipoPill = new StatusPill
-                {
-                    Text = tipo, Height = 22, BackColor = Theme.CardBg,
-                    Style = StatusPill.PillStyle.Dot, Font = Theme.FontSub,
-                    Dock = DockStyle.Top,
-                };
-                tipoPill.SetColors(Color.FromArgb(40, TipoColor(tipo)), TipoColor(tipo));
+            header.Controls.Add(tipoPill);
+            header.Controls.Add(btnClose);
 
-                var lblAssunto = new Label
-                {
-                    Text = assunto, Font = new Font(Theme.FontBase.FontFamily, 16f, FontStyle.Bold),
-                    ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
-                    Dock = DockStyle.Top, Height = 36, AutoSize = false,
-                    TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(0, 12, 0, 0),
-                };
-                var lblMeta = new Label
-                {
-                    Text = $"{cliente} · {data:dd/MM/yyyy HH:mm}",
-                    Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
-                    Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-                };
-                var lblMsg = new Label
-                {
-                    Text = mensagem ?? "", Font = Theme.FontBase,
-                    ForeColor = Theme.TextSecondary, BackColor = Theme.CardBg,
-                    Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.TopLeft,
-                    Padding = new Padding(0, 16, 0, 0),
-                };
+            // ─── Corpo (Dock=Fill) com assunto + meta + mensagem ────
+            var body = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(24, 8, 24, 24) };
+            var lblAssunto = new Label
+            {
+                Text = assunto, Font = new Font(Theme.FontBase.FontFamily, 16f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 32, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+            };
+            var lblMeta = new Label
+            {
+                Text = $"{cliente} · {data:dd/MM/yyyy HH:mm}",
+                Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            var spacer = new Panel { Dock = DockStyle.Top, Height = 14, BackColor = Theme.CardBg };
+            var lblMsg = new Label
+            {
+                Text = mensagem ?? "", Font = Theme.FontBase,
+                ForeColor = Theme.TextSecondary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.TopLeft,
+            };
+            body.Controls.Add(lblMsg);
+            body.Controls.Add(spacer);
+            body.Controls.Add(lblMeta);
+            body.Controls.Add(lblAssunto);
 
-                inner.Controls.Add(lblMsg);
-                inner.Controls.Add(lblMeta);
-                inner.Controls.Add(lblAssunto);
-                inner.Controls.Add(tipoPill);
-                inner.Controls.Add(btnClose);
-                dlg.Controls.Add(inner);
+            inner.Controls.Add(body);
+            inner.Controls.Add(header);
+            dlg.Controls.Add(inner);
 
-                // Auto-mark-read ao fechar (botão X, click fora, ESC).
-                dlg.FormClosed += (s, e) =>
-                {
-                    if (!jaLida) MarcarLida(id);
-                    dlg.Dispose();
-                };
-                // Click fora → fechar (Deactivate dispara quando perde foco).
-                dlg.Deactivate += (s, e) => dlg.Close();
-                dlg.KeyPreview = true;
-                dlg.KeyDown   += (s, e) => { if (e.KeyCode == Keys.Escape) dlg.Close(); };
+            // Auto-mark-read ao fechar (botão X, click fora, ESC).
+            dlg.FormClosed += (s, e) =>
+            {
+                if (!jaLida) MarcarLida(id);
+                dlg.Dispose();
+            };
+            dlg.Deactivate += (s, e) => dlg.Close();
+            dlg.KeyPreview = true;
+            dlg.KeyDown   += (s, e) => { if (e.KeyCode == Keys.Escape) dlg.Close(); };
 
-                dlg.Show(FindForm());
-            }
+            dlg.Show(FindForm());
         }
 
         private static Color TipoColor(string tipo)
