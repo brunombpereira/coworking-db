@@ -19,7 +19,7 @@ namespace CoworkingApp.Controls
     {
         private Label _kpiTotal, _kpiNovos, _kpiComAdesao;
         private ModernInput _txtSearch;
-        private Panel _listContainer;
+        private ScrollableList _listContainer;
         private Panel _emptyState;
 
         public UcClientes()
@@ -168,12 +168,11 @@ namespace CoworkingApp.Controls
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(8, 8, 8, 8) };
 
-            _listContainer = new Panel
+            _listContainer = new ScrollableList
             {
-                Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.CardBg,
-                Visible = false,
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg, Visible = false,
             };
-            _listContainer.Resize += (s, e) => ResizeCards();
+            _listContainer.Content.BackColor = Theme.CardBg;
 
             _emptyState = BuildEmptyState("Nenhum cliente encontrado", IconChar.UserSlash);
             _emptyState.Dock = DockStyle.Fill;
@@ -243,8 +242,12 @@ namespace CoworkingApp.Controls
 
         private void LoadClients(SqlConnection conn)
         {
-            _listContainer.Controls.Clear();
-            int y = 0, count = 0;
+            _listContainer.Content.SuspendLayout();
+            _listContainer.Content.Controls.Clear();
+
+            var cards = new System.Collections.Generic.List<Control>();
+            int totalH = 0;
+            int count = 0;
             using (var cmd = new SqlCommand(
                 @"SELECT c.cliente_id, c.nome, c.nif, c.email, c.telefone, c.data_registo,
                         (SELECT COUNT(*) FROM reserva WHERE cliente_id = c.cliente_id)        AS num_reservas,
@@ -270,28 +273,22 @@ namespace CoworkingApp.Controls
                             ultimaReserva: r["ultima"] is DBNull ? null : (DateTime?)r["ultima"],
                             temAdesao:   Convert.ToInt32(r["tem_adesao"]) == 1
                         );
-                        card.Location = new Point(0, y);
-                        card.Anchor   = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-                        card.Width    = _listContainer.ClientSize.Width;
-                        _listContainer.Controls.Add(card);
-                        y += card.Height + 6;
+                        card.Dock = DockStyle.Top;
+                        cards.Add(card);
+                        totalH += card.Height + 6;
                         count++;
                     }
                 }
             }
+            // Adicionar reverse — Dock=Top processa em reverse z-order.
+            for (int i = cards.Count - 1; i >= 0; i--)
+                _listContainer.Content.Controls.Add(cards[i]);
+            _listContainer.Content.ResumeLayout();
+            _listContainer.UpdateLayout(totalH);
 
             _listContainer.Visible = count > 0;
             _emptyState.Visible    = count == 0;
             _emptyState.Invalidate();
-            ResizeCards();
-        }
-
-        private void ResizeCards()
-        {
-            if (_listContainer == null) return;
-            int w = _listContainer.ClientSize.Width;
-            if (w < 100) return;
-            foreach (Control c in _listContainer.Controls) c.Width = w;
         }
 
         // ── Client card ─────────────────────────────────────────────────
@@ -498,10 +495,10 @@ namespace CoworkingApp.Controls
         private void OpenEditor(int? id)
         {
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-            var txtNome = AddField(tbl, "Nome *");
-            var txtNif  = AddField(tbl, "NIF *");
-            var txtEmail = AddField(tbl, "Email *");
-            var txtTelefone = AddField(tbl, "Telefone");
+            var txtNome     = AddField(tbl, "Nome *",     IconChar.User,         placeholder: "Ana Silva");
+            var txtNif      = AddField(tbl, "NIF *",      IconChar.IdCard,       placeholder: "123456789");
+            var txtEmail    = AddField(tbl, "Email *",    IconChar.Envelope,     placeholder: "ana@example.com");
+            var txtTelefone = AddField(tbl, "Telefone",   IconChar.Phone,        placeholder: "912 345 678");
 
             if (id.HasValue)
             {
@@ -522,7 +519,7 @@ namespace CoworkingApp.Controls
                 }
             }
 
-            using (var dlg = new CoworkingApp.FormDialog(id.HasValue ? "Editar Cliente" : "Novo Cliente", tbl, 380, () =>
+            using (var dlg = new CoworkingApp.FormDialog(id.HasValue ? "Editar Cliente" : "Novo Cliente", tbl, 480, () =>
             {
                 if (string.IsNullOrWhiteSpace(txtNome.Text)) throw new ApplicationException("Nome é obrigatório.");
                 if (!Regex.IsMatch(txtNif.Text.Trim(), @"^\d{9}$")) throw new ApplicationException("NIF inválido (9 dígitos).");
@@ -587,9 +584,16 @@ namespace CoworkingApp.Controls
         //   var cmb = AddCombo(tbl, "Opcional", new[]{"A","B"});
         //   cmb.Parent.Visible = false;
         internal static ModernInput AddField(TableLayoutPanel tbl, string label)
+            => AddField(tbl, label, IconChar.None, placeholder: null);
+
+        /// <summary>AddField com ícone leading + placeholder opcional.</summary>
+        internal static ModernInput AddField(TableLayoutPanel tbl, string label,
+                                              IconChar icon, string placeholder = null)
         {
             var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 12) };
-            var input = new ModernInput { Dock = DockStyle.Top, Height = 38 };
+            var input = new ModernInput { Dock = DockStyle.Top, Height = 42 };
+            if (icon != IconChar.None) input.LeadingIcon = icon;
+            if (placeholder != null)  input.PlaceholderText = placeholder;
             pnl.Controls.Add(input);
             pnl.Controls.Add(Theme.FieldLabel(label));
             tbl.Controls.Add(pnl);
