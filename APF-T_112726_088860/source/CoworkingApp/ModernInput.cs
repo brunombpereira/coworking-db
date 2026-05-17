@@ -134,6 +134,21 @@ namespace CoworkingApp
             };
             _inner.GotFocus  += (s, e) => Invalidate();
             _inner.LostFocus += (s, e) => Invalidate();
+            // ESC desfaz o focus (e limpa o texto se houver) — útil em
+            // campos de pesquisa para descartar a query.
+            _inner.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Escape)
+                {
+                    _inner.Text = string.Empty;
+                    // Mover focus para o parent → o LostFocus dispara e o
+                    // border de focus desaparece.
+                    Form host = FindForm();
+                    if (host != null) host.ActiveControl = null;
+                    e.SuppressKeyPress = true;
+                    e.Handled = true;
+                }
+            };
             Controls.Add(_inner);
         }
 

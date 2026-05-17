@@ -411,9 +411,11 @@ namespace CoworkingApp.Controls
                 var badge = new StatusPill
                 {
                     Text  = "Com adesão",
-                    Width = 100, Height = 22,
+                    Width = 140, Height = 22,
                     BackColor = idleBg,
-                    Margin = new Padding(10, 3, 0, 0),   // 10px gap + alinhamento vertical c/ nome
+                    AutoWidthFromText = true,
+                    HorizontalPadding = 14,            // mais ar à volta do texto
+                    Margin = new Padding(10, 3, 0, 0), // 10px gap + alinhamento vertical c/ nome
                 };
                 badge.SetColors(Theme.StatusSuccessBg, Theme.StatusSuccessFg);
                 nomeRow.Controls.Add(badge);
