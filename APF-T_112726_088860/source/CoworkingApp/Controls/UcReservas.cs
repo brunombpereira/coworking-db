@@ -81,7 +81,7 @@ namespace CoworkingApp.Controls
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
 
-            // ─── Esquerda: botão Nova (Anchor para fixar altura 40, sem Dock) ─
+            // ─── Botão Nova ───────────────────────────────────────────
             _btnNova = new ModernButton
             {
                 Text = "+ Nova Reserva", Style = ModernButton.Variant.Primary,
@@ -91,13 +91,13 @@ namespace CoworkingApp.Controls
             };
             _btnNova.Click += (s, e) => OpenEditor();
 
-            // ─── Direita: FlowLayoutPanel com filtros ─────────────────
-            _cmbEstado = MakeCombo(140);
+            // ─── Filtros ──────────────────────────────────────────────
+            _cmbEstado = MakeCombo(130);
             _cmbEstado.Items.AddRange(new object[] { "(Todos)", "Pendente", "Confirmada", "Cancelada", "Concluida" });
             _cmbEstado.SelectedIndex = 0;
             _cmbEstado.SelectedIndexChanged += (s, e) => LoadData();
 
-            _cmbCliente = MakeCombo(170);
+            _cmbCliente = MakeCombo(180);
             _cmbCliente.SelectedIndexChanged += (s, e) => LoadData();
 
             _dtAte = MakeDate(DateTime.Today.AddMonths(2));
@@ -105,15 +105,27 @@ namespace CoworkingApp.Controls
             _dtDe  = MakeDate(new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1));
             _dtDe.ValueChanged  += (s, e) => LoadData();
 
+            // Divider vertical entre o botão e os filtros
+            var divider = new Panel
+            {
+                Width = 1, Height = 30,
+                BackColor = Theme.CardBorder,
+                Location = new Point(176, 9),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left,
+            };
+
+            // Flow dos filtros, encostado à esquerda do divider
             var flow = new FlowLayoutPanel
             {
-                Dock = DockStyle.Right, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
                 BackColor = Theme.CardBg, Padding = new Padding(0),
+                Location = new Point(192, 0),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left,
             };
-            flow.Controls.Add(MakeFilterLabel("De"));
+            flow.Controls.Add(MakeFilterLabel("Período"));
             flow.Controls.Add(_dtDe);
-            flow.Controls.Add(MakeFilterLabel("até"));
+            flow.Controls.Add(MakeArrowLabel());
             flow.Controls.Add(_dtAte);
             flow.Controls.Add(MakeFilterLabel("Cliente"));
             flow.Controls.Add(_cmbCliente);
@@ -121,6 +133,7 @@ namespace CoworkingApp.Controls
             flow.Controls.Add(_cmbEstado);
 
             inner.Controls.Add(flow);
+            inner.Controls.Add(divider);
             inner.Controls.Add(_btnNova);
             card.Controls.Add(inner);
             return card;
@@ -130,12 +143,26 @@ namespace CoworkingApp.Controls
         {
             return new Label
             {
-                Text = text + ":",
-                Font = Theme.FontLabel, ForeColor = Theme.TextSecondary,
+                Text = text,
+                Font = new Font(Theme.FontBase.FontFamily, 9f, FontStyle.Bold),
+                ForeColor = Theme.TextMuted,
                 AutoSize = true,
                 TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Theme.CardBg,
-                Margin = new Padding(text == "De" ? 0 : 10, 12, 4, 0),
+                Margin = new Padding(text == "Período" ? 0 : 18, 14, 8, 0),
+            };
+        }
+
+        private Label MakeArrowLabel()
+        {
+            return new Label
+            {
+                Text = "→",
+                Font = new Font(Theme.FontBase.FontFamily, 11f, FontStyle.Regular),
+                ForeColor = Theme.TextMuted,
+                AutoSize = true,
+                BackColor = Theme.CardBg,
+                Margin = new Padding(6, 12, 6, 0),
             };
         }
 
