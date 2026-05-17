@@ -275,7 +275,7 @@ namespace CoworkingApp.Controls
             try
             {
                 string sql = @"
-                    SELECT pg.pagamento_id AS id, c.nome AS cliente, c.cliente_id AS cliente_id,
+                    SELECT TOP 200 pg.pagamento_id AS id, c.nome AS cliente, c.cliente_id AS cliente_id,
                            CASE
                                WHEN pg.adesao_id IS NOT NULL THEN 'Adesão #' + CAST(pg.adesao_id AS varchar) + ' (' + pl.nome_plano + ')'
                                ELSE 'Reserva #' + CAST(pg.reserva_id AS varchar)
@@ -338,10 +338,16 @@ namespace CoworkingApp.Controls
                 rowsView.Add(r);
             }
 
+            // Cap render — proteção contra Win32 handle exhaustion com seeds grandes.
+            const int MaxRender = 80;
+            int totalView = rowsView.Count;
+            int rendered  = Math.Min(totalView, MaxRender);
+
             int y = 0;
             int width = Math.Max(600, _list.ClientSize.Width - 20);
-            foreach (var r in rowsView)
+            for (int idx = 0; idx < rendered; idx++)
             {
+                var r = rowsView[idx];
                 int id        = Convert.ToInt32(r["id"]);
                 string cli    = r["cliente"].ToString();
                 string svc    = r["servico"].ToString();
@@ -356,6 +362,20 @@ namespace CoworkingApp.Controls
                 card.Anchor   = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
                 _list.Content.Controls.Add(card);
                 y += card.Height + 8;
+            }
+            if (totalView > MaxRender)
+            {
+                var more = new Label
+                {
+                    Text = $"+ {totalView - MaxRender} pagamentos mais antigos não mostrados",
+                    Font = Theme.FontSub, ForeColor = Theme.TextMuted,
+                    BackColor = Theme.CardBg, Height = 30,
+                    Location = new Point(0, y), Width = width,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                };
+                _list.Content.Controls.Add(more);
+                y += more.Height;
             }
             _list.Content.ResumeLayout();
             _list.UpdateLayout(y);

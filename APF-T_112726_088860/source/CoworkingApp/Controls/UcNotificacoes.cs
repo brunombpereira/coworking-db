@@ -248,7 +248,7 @@ namespace CoworkingApp.Controls
             // SQL: carrega TUDO (filtro por-ler é client-side, para KPIs ficarem corretos)
             string whereCliente = Session.IsCliente ? "AND n.cliente_id = @cid" : "";
             string sql = $@"
-                SELECT n.notificacao_id AS id, c.nome AS cliente, n.tipo AS tipo,
+                SELECT TOP 200 n.notificacao_id AS id, c.nome AS cliente, n.tipo AS tipo,
                        n.assunto AS assunto, n.mensagem AS mensagem,
                        n.data_criacao AS data, ISNULL(n.lida, 0) AS lida
                 FROM notificacao n
@@ -305,10 +305,18 @@ namespace CoworkingApp.Controls
                 rowsView.Add(r);
             }
 
+            // Limitar render a MaxRender items para não esgotar window handles
+            // do processo (cada card ≈ 15 handles; 290+ cards = ~4500 handles
+            // só nesta lista, somado com restos da app rebenta o limit Win32).
+            const int MaxRender = 80;
+            int totalView = rowsView.Count;
+            int rendered  = Math.Min(totalView, MaxRender);
+
             int y = 0;
             int width = Math.Max(600, _list.ClientSize.Width - 20);
-            foreach (var r in rowsView)
+            for (int idx = 0; idx < rendered; idx++)
             {
+                var r = rowsView[idx];
                 int id        = Convert.ToInt32(r["id"]);
                 string cli    = r["cliente"].ToString();
                 string tipo   = r["tipo"].ToString();
@@ -324,6 +332,23 @@ namespace CoworkingApp.Controls
                 _list.Content.Controls.Add(card);
                 y += card.Height + 8;
             }
+
+            // Aviso quando há mais items do que mostrámos.
+            if (totalView > MaxRender)
+            {
+                var more = new Label
+                {
+                    Text = $"+ {totalView - MaxRender} notificações mais antigas não mostradas",
+                    Font = Theme.FontSub, ForeColor = Theme.TextMuted,
+                    BackColor = Theme.CardBg, Height = 30,
+                    Location = new Point(0, y), Width = width,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                };
+                _list.Content.Controls.Add(more);
+                y += more.Height;
+            }
+
             _list.Content.ResumeLayout();
             _list.UpdateLayout(y);
 
