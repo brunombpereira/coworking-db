@@ -429,7 +429,7 @@ namespace CoworkingApp.Controls
                 Text = Theme.FormatEuro(preco) + " /mês",
                 Font = new Font(Theme.FontBase.FontFamily, 14f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+                Dock = DockStyle.Top, Height = 30, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
             };
             var estadoHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
             var estadoPill = new StatusPill
