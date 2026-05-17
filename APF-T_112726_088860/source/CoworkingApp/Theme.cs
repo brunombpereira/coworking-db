@@ -136,13 +136,20 @@ namespace CoworkingApp
         // ── Toolbar / form panel ─────────────────────────────────────────────
         public static Panel Toolbar()
         {
-            return new Panel
+            var bar = new Panel
             {
-                Dock = DockStyle.Top,
-                Height = 52,
+                Dock      = DockStyle.Top,
+                Height    = 56,
                 BackColor = ToolbarBg,
-                Padding = new Padding(8, 10, 8, 10)
+                Padding   = new Padding(12, 12, 12, 10),
             };
+            // Border-bottom subtil — separa toolbar do grid sem ser ruido.
+            bar.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(CardBorder, 1))
+                    e.Graphics.DrawLine(pen, 0, bar.Height - 1, bar.Width, bar.Height - 1);
+            };
+            return bar;
         }
 
         public static FlowLayoutPanel ToolbarFlow()

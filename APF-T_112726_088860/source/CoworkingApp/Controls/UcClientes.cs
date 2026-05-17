@@ -12,7 +12,7 @@ namespace CoworkingApp.Controls
     {
         private DataGridView dgv;
         private Button btnNovo, btnEditar, btnEliminar;
-        private TextBox txtSearch;
+        private ModernInput txtSearch;
         private Label lblCount;
         private int _selectedId = -1;
 
@@ -40,7 +40,8 @@ namespace CoworkingApp.Controls
             btnEditar.Click   += (s, e) => OpenEditor(_selectedId);
             btnEliminar.Click += BtnEliminar_Click;
 
-            txtSearch = new TextBox { Width = 200, Font = Theme.FontBase, BackColor = Theme.FieldBg, ForeColor = Theme.TextPrimary, Margin = new Padding(12, 4, 0, 0) };
+            txtSearch = new ModernInput { Width = 240, Height = 36, Margin = new Padding(12, 0, 0, 0) };
+            txtSearch.Inner.PlaceholderText = "Procurar nome, NIF, email…";
             txtSearch.TextChanged += (s, e) => LoadData();
             lblCount = new Label { Font = Theme.FontLabel, ForeColor = Theme.TextSecondary, AutoSize = true, Margin = new Padding(8, 10, 0, 0) };
 
