@@ -363,25 +363,29 @@ namespace CoworkingApp.Controls
             };
             badge.SetColors(badgeBg, badgeFg);
 
-            // Nome do plano
+            // Spacer entre badge e nome (8px)
+            var spBadge = new Panel { Dock = DockStyle.Top, Height = 10, BackColor = idleBg };
+
+            // Nome do plano (Height generoso, sem Padding interno)
             var lblNome = new Label
             {
                 Text = nome, Font = new Font(Theme.FontBase.FontFamily, 14f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 30, AutoSize = false,
+                Dock = DockStyle.Top, Height = 28, AutoSize = false,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(0, 12, 0, 0),
             };
 
-            // Preço grande + /mês
-            var pricePanel = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = idleBg };
+            // Spacer entre nome e preço
+            var spNome = new Panel { Dock = DockStyle.Top, Height = 6, BackColor = idleBg };
+
+            // Preço grande + /mês — usar TableLayoutPanel para alinhar baseline
+            var pricePanel = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = idleBg };
             var lblPrice = new Label
             {
                 Text = preco.ToString("#,##0", new CultureInfo("pt-PT")) + " €",
-                Font = new Font(Theme.FontBase.FontFamily, 28f, FontStyle.Bold),
+                Font = new Font(Theme.FontBase.FontFamily, 26f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
                 Dock = DockStyle.Left, AutoSize = true,
-                Padding = new Padding(0, 6, 0, 0),
             };
             var lblPeriod = new Label
             {
@@ -389,7 +393,7 @@ namespace CoworkingApp.Controls
                 Dock = DockStyle.Left, AutoSize = false,
                 Width = 60,
                 TextAlign = ContentAlignment.BottomLeft,
-                Padding = new Padding(4, 0, 0, 10),
+                Padding = new Padding(4, 0, 0, 8),
             };
             pricePanel.Controls.Add(lblPeriod);
             pricePanel.Controls.Add(lblPrice);
@@ -402,13 +406,13 @@ namespace CoworkingApp.Controls
                 Dock = DockStyle.Top, Height = 22, AutoSize = false,
                 TextAlign = ContentAlignment.MiddleLeft,
             };
+            var spDur = new Panel { Dock = DockStyle.Top, Height = 6, BackColor = idleBg };
             var lblDesc = new Label
             {
                 Text = descricao ?? "Sem descrição",
                 Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 38, AutoSize = false,
+                Dock = DockStyle.Top, Height = 36, AutoSize = false,
                 TextAlign = ContentAlignment.TopLeft,
-                Padding = new Padding(0, 6, 0, 0),
             };
 
             // Footer: # subscritores + acções
@@ -451,34 +455,34 @@ namespace CoworkingApp.Controls
             footer.Controls.Add(btnEdit);
             footer.Controls.Add(lblSubs);
 
-            // Ordem de adição (Dock=Top em ordem inversa visual)
-            inner.Controls.Add(footer);
+            // Ordem de adição (Dock=Top em ordem INVERSA visual):
+            // último adicionado fica no topo do stack.
+            inner.Controls.Add(footer);    // Bottom — fica no fundo
             inner.Controls.Add(lblDesc);
+            inner.Controls.Add(spDur);
             inner.Controls.Add(lblDuracao);
             inner.Controls.Add(pricePanel);
+            inner.Controls.Add(spNome);
             inner.Controls.Add(lblNome);
-            inner.Controls.Add(badge);
+            inner.Controls.Add(spBadge);
+            inner.Controls.Add(badge);     // último Top = no topo visual
             card.Controls.Add(inner);
 
-            // Hover: bg lighten + border accent
+            // Hover: bg lighten + border accent. Recursivo apanha todos os
+            // descendentes (incluindo spacers).
+            void PaintAll(Control c, Color bg)
+            {
+                c.BackColor = bg;
+                foreach (Control child in c.Controls) PaintAll(child, bg);
+            }
             void SetHover(bool on)
             {
-                card.BackColor    = on ? hoverBg : idleBg;
-                card.BorderColor  = on ? borderHover : borderIdle;
-                inner.BackColor   = card.BackColor;
-                badge.BackColor   = card.BackColor;
-                lblNome.BackColor = card.BackColor;
-                pricePanel.BackColor = card.BackColor;
-                lblPrice.BackColor = card.BackColor;
-                lblPeriod.BackColor = card.BackColor;
-                lblDuracao.BackColor = card.BackColor;
-                lblDesc.BackColor = card.BackColor;
-                footer.BackColor = card.BackColor;
-                lblSubs.BackColor = card.BackColor;
-                btnEdit.BackColor = card.BackColor;
-                btnDelete.BackColor = card.BackColor;
-                btnEdit.FlatAppearance.MouseOverBackColor   = card.BackColor;
-                btnDelete.FlatAppearance.MouseOverBackColor = card.BackColor;
+                Color bg = on ? hoverBg : idleBg;
+                card.BackColor   = bg;
+                card.BorderColor = on ? borderHover : borderIdle;
+                PaintAll(inner, bg);
+                btnEdit.FlatAppearance.MouseOverBackColor   = bg;
+                btnDelete.FlatAppearance.MouseOverBackColor = bg;
                 card.Invalidate();
             }
             void Hook(Control c)
