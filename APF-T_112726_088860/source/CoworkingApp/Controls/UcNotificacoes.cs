@@ -1,143 +1,263 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
-using Microsoft.Data.SqlClient;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+using System.Globalization;
 using System.Windows.Forms;
+using FontAwesome.Sharp;
+using Microsoft.Data.SqlClient;
 
 namespace CoworkingApp.Controls
 {
     public class UcNotificacoes : UserControl
     {
-        private DataGridView _dgv;
-        private CheckBox _chkSoPorLer;
-        private Button _btnRefrescar;
-        private Button _btnMarcarLida;
-        private Button _btnMarcarTodasLidas;
-        private Label _lblTotal;
+        // KPIs
+        private Label _kpiTotal, _kpiPorLer, _kpiLidas;
+
+        // Toolbar
+        private ToggleChip _chkSoPorLer;
+        private ModernButton _btnRefresh, _btnMarcarTodas;
+
+        // Lista
+        private Panel _listHost;
+        private Panel _listInner;
+        private Panel _empty;
+
+        // Data cache
+        private DataTable _allRows;
 
         public UcNotificacoes()
         {
-            InitUI();
+            BackColor = Theme.PageBg;
+            Dock      = DockStyle.Fill;
+            BuildUI();
             Carregar();
         }
 
-        private void InitUI()
+        // ── BUILD UI ────────────────────────────────────────────────────
+        private void BuildUI()
         {
-            this.Dock = DockStyle.Fill;
-            this.BackColor = Theme.PageBg;
-
-            // --- Título ---
-            var pnlTitle = new Panel
+            var root = new TableLayoutPanel
             {
-                Dock = DockStyle.Top,
-                Height = 56,
-                BackColor = Theme.PageBg
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
+                BackColor = Theme.PageBg,
+                Padding = new Padding(20, 16, 20, 16),
             };
-            var lblTitle = new Label
-            {
-                Text = "Notificações",
-                Font = Theme.FontTitle,
-                ForeColor = Theme.TextPrimary,
-                AutoSize = true,
-                Location = new Point(18, 14)
-            };
-            pnlTitle.Controls.Add(lblTitle);
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));   // title
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));   // toolbar
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // KPIs
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // list
 
-            // --- Toolbar ---
-            var pnlToolbar = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 56,
-                BackColor = Theme.ToolbarBg,
-                Padding = new Padding(10, 12, 10, 12)
-            };
-            var flw = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false
-            };
+            root.Controls.Add(BuildTitle(),   0, 0);
+            root.Controls.Add(BuildToolbar(), 0, 1);
+            root.Controls.Add(BuildKpis(),    0, 2);
+            root.Controls.Add(BuildList(),    0, 3);
 
-            _chkSoPorLer = new CheckBox
-            {
-                Text = "Só por ler",
-                Checked = true,
-                AutoSize = true,
-                Margin = new Padding(0, 6, 16, 0),
-                ForeColor = Theme.TextPrimary
-            };
-            _chkSoPorLer.CheckedChanged += (s, e) => Carregar();
-
-            _btnRefrescar = Theme.BtnGray("Refrescar");
-            _btnRefrescar.Margin = new Padding(0, 2, 8, 0);
-            _btnRefrescar.Click += (s, e) => Carregar();
-
-            _btnMarcarLida = Theme.BtnPrim("Marcar lida");
-            _btnMarcarLida.Margin = new Padding(0, 2, 8, 0);
-            _btnMarcarLida.Click += BtnMarcarLida_Click;
-
-            _btnMarcarTodasLidas = Theme.BtnGray("Marcar todas lidas");
-            _btnMarcarTodasLidas.Margin = new Padding(0, 2, 8, 0);
-            _btnMarcarTodasLidas.Width = 170;
-            _btnMarcarTodasLidas.Click += BtnMarcarTodasLidas_Click;
-
-            _lblTotal = new Label
-            {
-                AutoSize = true,
-                Margin = new Padding(12, 8, 0, 0),
-                ForeColor = Theme.TextSecondary,
-                Font = Theme.FontSub
-            };
-
-            flw.Controls.Add(_chkSoPorLer);
-            flw.Controls.Add(_btnRefrescar);
-            flw.Controls.Add(_btnMarcarLida);
-            flw.Controls.Add(_btnMarcarTodasLidas);
-            flw.Controls.Add(_lblTotal);
-
-            pnlToolbar.Controls.Add(flw);
-
-            // --- Grid ---
-            _dgv = new DataGridView { Dock = DockStyle.Fill };
-            Theme.StyleGrid(_dgv);
-
-            // Order: Fill first, Tops afterwards
-            this.Controls.Add(_dgv);
-            this.Controls.Add(pnlToolbar);
-            this.Controls.Add(pnlTitle);
+            Controls.Add(root);
         }
 
+        private Control BuildTitle()
+        {
+            var pnl = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg };
+            pnl.Controls.Add(new Label
+            {
+                Text = "Notificações", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary,
+                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            return pnl;
+        }
+
+        // ── Toolbar ─────────────────────────────────────────────────────
+        private Control BuildToolbar()
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+                Margin = new Padding(0, 0, 0, 12),
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
+
+            // Esquerda: ToggleChip "Só por ler"
+            _chkSoPorLer = new ToggleChip
+            {
+                Text    = "Só por ler",
+                Checked = true,
+                Width   = 130, Height = 36,
+                Anchor  = AnchorStyles.Top | AnchorStyles.Left,
+            };
+            _chkSoPorLer.CheckedChanged += (s, e) => RenderRows();
+
+            // Direita: botão Refresh + Marcar todas
+            _btnRefresh = new ModernButton
+            {
+                Text = "Refrescar", Style = ModernButton.Variant.Secondary,
+                Font = Theme.FontBold, Size = new Size(110, 40),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            };
+            _btnRefresh.Click += (s, e) => Carregar();
+
+            _btnMarcarTodas = new ModernButton
+            {
+                Text = "Marcar todas lidas", Style = ModernButton.Variant.Primary,
+                Font = Theme.FontBold, Size = new Size(190, 40),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            };
+            _btnMarcarTodas.Click += (s, e) => MarcarTodasLidas();
+
+            inner.Controls.Add(_chkSoPorLer);
+            inner.Controls.Add(_btnMarcarTodas);
+            inner.Controls.Add(_btnRefresh);
+            card.Controls.Add(inner);
+
+            void Relayout()
+            {
+                var dr = inner.DisplayRectangle;
+                int cy = dr.Y + (dr.Height - _btnMarcarTodas.Height) / 2;
+                _btnMarcarTodas.Location = new Point(dr.Right - _btnMarcarTodas.Width, cy);
+                _btnRefresh    .Location = new Point(_btnMarcarTodas.Location.X - _btnRefresh.Width - 8, cy);
+                int chipY = dr.Y + (dr.Height - _chkSoPorLer.Height) / 2;
+                _chkSoPorLer.Location = new Point(dr.X, chipY);
+            }
+            inner.SizeChanged   += (s, e) => Relayout();
+            inner.HandleCreated += (s, e) => Relayout();
+
+            return card;
+        }
+
+        // ── KPIs ────────────────────────────────────────────────────────
+        private Control BuildKpis()
+        {
+            var grid = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+                BackColor = Theme.PageBg,
+                Margin = new Padding(0, 0, 0, 12),
+            };
+            for (int i = 0; i < 3; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
+            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            var k1 = BuildKpi("Total",     IconChar.Bell,        Theme.Accent,          out _kpiTotal);
+            var k2 = BuildKpi("Por ler",   IconChar.Envelope,    Theme.StatusWarningFg, out _kpiPorLer);
+            var k3 = BuildKpi("Lidas",     IconChar.CircleCheck, Theme.StatusSuccessFg, out _kpiLidas);
+            k3.Margin = new Padding(0);
+            grid.Controls.Add(k1, 0, 0);
+            grid.Controls.Add(k2, 1, 0);
+            grid.Controls.Add(k3, 2, 0);
+            return grid;
+        }
+
+        private Control BuildKpi(string label, IconChar icon, Color iconColor, out Label valueLbl)
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+                Margin = new Padding(0, 0, 12, 0),
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(18, 14, 18, 14) };
+
+            var topLine = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = Theme.CardBg };
+            topLine.Controls.Add(new Label
+            {
+                Text = label, Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Fill, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 0, 0, 0),
+            });
+            topLine.Controls.Add(new IconPictureBox
+            {
+                IconChar = icon, IconSize = 16, IconColor = iconColor,
+                BackColor = Theme.CardBg, Dock = DockStyle.Left, Width = 22,
+                SizeMode = PictureBoxSizeMode.CenterImage,
+            });
+
+            valueLbl = new Label
+            {
+                Text = "—", Font = new Font(Theme.FontBase.FontFamily, 24f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(0, 4, 0, 0),
+            };
+            inner.Controls.Add(valueLbl);
+            inner.Controls.Add(topLine);
+            card.Controls.Add(inner);
+            return card;
+        }
+
+        // ── Lista ───────────────────────────────────────────────────────
+        private Control BuildList()
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(10) };
+
+            _listHost = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, AutoScroll = true, Visible = false };
+            _listInner = new Panel { Dock = DockStyle.Top, BackColor = Theme.CardBg, Height = 0 };
+            _listHost.Controls.Add(_listInner);
+            _listHost.Resize += (s, e) => ResizeItems();
+
+            _empty = BuildEmptyState("Sem notificações", IconChar.Bell);
+            _empty.Dock = DockStyle.Fill;
+
+            inner.Controls.Add(_listHost);
+            inner.Controls.Add(_empty);
+            card.Controls.Add(inner);
+            return card;
+        }
+
+        private Panel BuildEmptyState(string text, IconChar icon)
+        {
+            var pnl = new Panel { BackColor = Theme.CardBg };
+            Image iconImg = null;
+            pnl.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                if (iconImg == null)
+                {
+                    using (var pb = new IconPictureBox { IconChar = icon, IconSize = 44, IconColor = Theme.TextMuted })
+                        if (pb.Image != null) iconImg = (Image)pb.Image.Clone();
+                }
+                var ts = TextRenderer.MeasureText(g, text, Theme.FontBase, Size.Empty, TextFormatFlags.NoPadding);
+                int iconSize = 44, gap = 14, totalH = iconSize + gap + ts.Height;
+                int startY = Math.Max(8, (pnl.Height - totalH) / 2);
+                int iconX = (pnl.Width - iconSize) / 2;
+                int textX = (pnl.Width - ts.Width) / 2;
+                if (iconImg != null) g.DrawImage(iconImg, iconX, startY, iconSize, iconSize);
+                TextRenderer.DrawText(g, text, Theme.FontBase, new Point(textX, startY + iconSize + gap),
+                    Theme.TextMuted, TextFormatFlags.NoPadding);
+            };
+            pnl.Resize += (s, e) => pnl.Invalidate();
+            return pnl;
+        }
+
+        private void ResizeItems()
+        {
+            if (_listInner == null) return;
+            int w = _listHost.ClientSize.Width;
+            _listInner.Width = w;
+            foreach (Control c in _listInner.Controls) c.Width = w;
+        }
+
+        // ── Data ────────────────────────────────────────────────────────
         private void Carregar()
         {
-            string sql;
-            // Cliente só vê as próprias; staff/admin vêem tudo.
-            string whereCliente = Session.IsCliente
-                ? "AND n.cliente_id = @cid "
-                : "";
-
-            if (_chkSoPorLer.Checked)
-            {
-                sql = $@"
-SELECT n.notificacao_id AS ID, c.nome AS Cliente, n.tipo AS Tipo,
-       n.assunto AS Assunto, n.mensagem AS Mensagem,
-       n.data_criacao AS [Data]
-FROM notificacao n
-JOIN cliente c ON n.cliente_id = c.cliente_id
-WHERE n.lida = 0 {whereCliente}
-ORDER BY n.data_criacao DESC";
-            }
-            else
-            {
-                sql = $@"
-SELECT n.notificacao_id AS ID, c.nome AS Cliente, n.tipo AS Tipo,
-       n.assunto AS Assunto, n.mensagem AS Mensagem,
-       n.data_criacao AS [Data], n.lida AS Lida
-FROM notificacao n
-JOIN cliente c ON n.cliente_id = c.cliente_id
-WHERE 1=1 {whereCliente}
-ORDER BY n.data_criacao DESC";
-            }
-
+            // SQL: carrega TUDO (filtro por-ler é client-side, para KPIs ficarem corretos)
+            string whereCliente = Session.IsCliente ? "AND n.cliente_id = @cid" : "";
+            string sql = $@"
+                SELECT n.notificacao_id AS id, c.nome AS cliente, n.tipo AS tipo,
+                       n.assunto AS assunto, n.mensagem AS mensagem,
+                       n.data_criacao AS data, ISNULL(n.lida, 0) AS lida
+                FROM notificacao n
+                JOIN cliente c ON n.cliente_id = c.cliente_id
+                WHERE 1 = 1 {whereCliente}
+                ORDER BY n.data_criacao DESC";
             try
             {
                 using (var conn = Database.GetConnection())
@@ -145,20 +265,13 @@ ORDER BY n.data_criacao DESC";
                 {
                     if (Session.IsCliente && Session.ClienteId.HasValue)
                         cmd.Parameters.AddWithValue("@cid", Session.ClienteId.Value);
-
                     using (var da = new SqlDataAdapter(cmd))
                     {
-                        var dt = new DataTable();
-                        da.Fill(dt);
-                        _dgv.DataSource = dt;
-                        _lblTotal.Text = $"{dt.Rows.Count} notificações";
-
-                        if (_dgv.Columns.Contains("ID"))
-                            _dgv.Columns["ID"].Visible = false;
-                        if (_dgv.Columns.Contains("Mensagem"))
-                            _dgv.Columns["Mensagem"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+                        _allRows = new DataTable();
+                        da.Fill(_allRows);
                     }
                 }
+                RenderRows();
             }
             catch (SqlException ex)
             {
@@ -167,13 +280,230 @@ ORDER BY n.data_criacao DESC";
             }
         }
 
-        private void BtnMarcarLida_Click(object sender, EventArgs e)
+        private void RenderRows()
         {
-            if (_dgv.CurrentRow == null) return;
-            object idVal = _dgv.CurrentRow.Cells["ID"]?.Value;
-            if (idVal == null || idVal == DBNull.Value) return;
+            if (_allRows == null) return;
 
-            int id = Convert.ToInt32(idVal);
+            _listInner.SuspendLayout();
+            _listInner.Controls.Clear();
+
+            int total = _allRows.Rows.Count;
+            int lidas = 0, porLer = 0;
+            foreach (DataRow r in _allRows.Rows)
+            {
+                bool lida = Convert.ToBoolean(r["lida"]);
+                if (lida) lidas++; else porLer++;
+            }
+            _kpiTotal .Text = total.ToString();
+            _kpiPorLer.Text = porLer.ToString();
+            _kpiLidas .Text = lidas.ToString();
+
+            // Filter por-ler
+            var rowsView = new List<DataRow>();
+            foreach (DataRow r in _allRows.Rows)
+            {
+                bool lida = Convert.ToBoolean(r["lida"]);
+                if (_chkSoPorLer.Checked && lida) continue;
+                rowsView.Add(r);
+            }
+
+            int y = 0;
+            int width = Math.Max(600, _listHost.ClientSize.Width);
+            foreach (var r in rowsView)
+            {
+                int id        = Convert.ToInt32(r["id"]);
+                string cli    = r["cliente"].ToString();
+                string tipo   = r["tipo"].ToString();
+                string assun  = r["assunto"].ToString();
+                string msg    = r["mensagem"].ToString();
+                DateTime data = Convert.ToDateTime(r["data"]);
+                bool lida     = Convert.ToBoolean(r["lida"]);
+
+                var card = BuildNotifCard(id, cli, tipo, assun, msg, data, lida);
+                card.Location = new Point(0, y);
+                card.Width    = width;
+                card.Anchor   = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+                _listInner.Controls.Add(card);
+                y += card.Height + 8;
+            }
+            _listInner.Height = y;
+            _listInner.ResumeLayout();
+
+            _listHost.Visible = rowsView.Count > 0;
+            _empty   .Visible = rowsView.Count == 0;
+            _empty   .Invalidate();
+        }
+
+        // ── Card ────────────────────────────────────────────────────────
+        private Control BuildNotifCard(int id, string cliente, string tipo,
+                                        string assunto, string mensagem,
+                                        DateTime data, bool lida)
+        {
+            Color idleBg  = Theme.CardBg;
+            Color hoverBg = UcEspacos.MixColors(Theme.CardBg, Color.White, 0.05f);
+
+            var row = new Panel
+            {
+                Height = 84, BackColor = idleBg, Cursor = Cursors.Default,
+                Margin = new Padding(0, 0, 0, 6),
+            };
+
+            // ─── Esquerda: bloco ícone tipo ───────────────────────────
+            Color tipoColor = TipoColor(tipo);
+            IconChar tipoIcon = TipoIcon(tipo);
+
+            var iconBlock = new Panel { Dock = DockStyle.Left, Width = 72, BackColor = idleBg };
+            Image img = null;
+            using (var pb = new IconPictureBox
+                   { IconChar = tipoIcon, IconSize = 22, IconColor = tipoColor })
+                if (pb.Image != null) img = (Image)pb.Image.Clone();
+            iconBlock.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                int diam = 44;
+                int cx = (iconBlock.Width - diam) / 2;
+                int cy = (iconBlock.Height - diam) / 2;
+                using (var br = new SolidBrush(Color.FromArgb(40, tipoColor)))
+                    g.FillEllipse(br, cx, cy, diam, diam);
+                if (img != null)
+                {
+                    int s2 = 22;
+                    g.DrawImage(img,
+                        cx + (diam - s2) / 2,
+                        cy + (diam - s2) / 2 + 1,
+                        s2, s2);
+                }
+            };
+            iconBlock.Resize += (s, e) => iconBlock.Invalidate();
+
+            // ─── Direita: data + acção ────────────────────────────────
+            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 140, BackColor = idleBg, Padding = new Padding(0, 16, 16, 0) };
+            var lblData = new Label
+            {
+                Text = FormatRelative(data),
+                Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 20, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+            };
+            var pnlAction = new Panel { Dock = DockStyle.Top, Height = 30, BackColor = idleBg };
+            if (!lida)
+            {
+                var btnLer = UcEspacos.MakeIconBtn(IconChar.Check, Theme.Accent, idleBg, () => MarcarLida(id));
+                btnLer.Dock = DockStyle.Right;
+                btnLer.Size = new Size(32, 28);
+                pnlAction.Controls.Add(btnLer);
+            }
+            rightInfo.Controls.Add(pnlAction);
+            rightInfo.Controls.Add(lblData);
+
+            // ─── Centro: assunto + mensagem + cliente ─────────────────
+            var middle = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(8, 14, 8, 0) };
+
+            // Linha 1: assunto bold + (dot por-ler)
+            var headerLine = new Panel { Dock = DockStyle.Top, Height = 24, BackColor = idleBg };
+            var lblAssunto = new Label
+            {
+                Text = assunto, Font = new Font(Theme.FontBase.FontFamily, 12f, FontStyle.Bold),
+                ForeColor = lida ? Theme.TextSecondary : Theme.TextPrimary,
+                BackColor = idleBg, Dock = DockStyle.Fill, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(0),
+            };
+            if (!lida)
+            {
+                // Dot indicator à esquerda do assunto
+                var dot = new Panel { Dock = DockStyle.Left, Width = 16, BackColor = idleBg };
+                dot.Paint += (s, e) =>
+                {
+                    var g = e.Graphics;
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    using (var br = new SolidBrush(Theme.Accent))
+                        g.FillEllipse(br, 2, (dot.Height - 8) / 2, 8, 8);
+                };
+                headerLine.Controls.Add(lblAssunto);
+                headerLine.Controls.Add(dot);
+            }
+            else
+            {
+                headerLine.Controls.Add(lblAssunto);
+            }
+
+            var lblMsg = new Label
+            {
+                Text = mensagem ?? "", Font = Theme.FontSub,
+                ForeColor = Theme.TextSecondary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 18, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoEllipsis = true,
+            };
+            var lblMeta = new Label
+            {
+                Text = cliente, Font = Theme.FontSub, ForeColor = Theme.TextMuted,
+                BackColor = idleBg, Dock = DockStyle.Top, Height = 16,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            middle.Controls.Add(lblMeta);
+            middle.Controls.Add(lblMsg);
+            middle.Controls.Add(headerLine);
+
+            row.Controls.Add(middle);
+            row.Controls.Add(rightInfo);
+            row.Controls.Add(iconBlock);
+
+            // hover subtle (sem botão de ação principal — só visual)
+            void Hook(Control c)
+            {
+                c.MouseEnter += (s, e) => SetBg(true);
+                c.MouseLeave += (s, e) =>
+                {
+                    var p = row.PointToClient(System.Windows.Forms.Cursor.Position);
+                    if (!row.ClientRectangle.Contains(p)) SetBg(false);
+                };
+                foreach (Control x in c.Controls) Hook(x);
+            }
+            void SetBg(bool on)
+            {
+                Color bg = on ? hoverBg : idleBg;
+                void Recurse(Control c) { c.BackColor = bg; foreach (Control x in c.Controls) Recurse(x); }
+                Recurse(row);
+            }
+            Hook(row);
+
+            return row;
+        }
+
+        private static Color TipoColor(string tipo)
+        {
+            if (string.IsNullOrEmpty(tipo)) return Theme.Accent;
+            if (tipo.StartsWith("Pagamento", StringComparison.OrdinalIgnoreCase)) return Theme.StatusSuccessFg;
+            if (tipo.StartsWith("Reserva",   StringComparison.OrdinalIgnoreCase)) return Theme.Accent;
+            if (tipo.StartsWith("Adesao",    StringComparison.OrdinalIgnoreCase)) return ColorTranslator.FromHtml("#8b5cf6");
+            return Theme.Accent;
+        }
+
+        private static IconChar TipoIcon(string tipo)
+        {
+            if (string.IsNullOrEmpty(tipo)) return IconChar.Bell;
+            if (tipo.StartsWith("Pagamento", StringComparison.OrdinalIgnoreCase)) return IconChar.EuroSign;
+            if (tipo.Equals("ReservaCancelada", StringComparison.OrdinalIgnoreCase)) return IconChar.CalendarXmark;
+            if (tipo.StartsWith("Reserva",   StringComparison.OrdinalIgnoreCase)) return IconChar.CalendarCheck;
+            if (tipo.StartsWith("Adesao",    StringComparison.OrdinalIgnoreCase)) return IconChar.Star;
+            return IconChar.Bell;
+        }
+
+        private static string FormatRelative(DateTime data)
+        {
+            var now  = DateTime.Now;
+            var diff = now - data;
+            if (diff.TotalMinutes < 1)  return "agora";
+            if (diff.TotalMinutes < 60) return $"há {(int)diff.TotalMinutes} min";
+            if (diff.TotalHours   < 24) return $"há {(int)diff.TotalHours} h";
+            if (diff.TotalDays    < 7)  return $"há {(int)diff.TotalDays} d";
+            return data.ToString("dd/MM/yyyy HH:mm", CultureInfo.GetCultureInfo("pt-PT"));
+        }
+
+        // ── Acções ─────────────────────────────────────────────────────
+        private void MarcarLida(int id)
+        {
             try
             {
                 using (var conn = Database.GetConnection())
@@ -191,23 +521,27 @@ ORDER BY n.data_criacao DESC";
             }
         }
 
-        private void BtnMarcarTodasLidas_Click(object sender, EventArgs e)
+        private void MarcarTodasLidas()
         {
-            if (_dgv.Rows.Count == 0) return;
-            if (MessageBox.Show($"Marcar {_dgv.Rows.Count} notificações como lidas?",
+            if (_allRows == null || _allRows.Rows.Count == 0) return;
+            int porLer = 0;
+            foreach (DataRow r in _allRows.Rows)
+                if (!Convert.ToBoolean(r["lida"])) porLer++;
+            if (porLer == 0) return;
+
+            if (MessageBox.Show($"Marcar {porLer} notificações como lidas?",
                 "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
                 != DialogResult.Yes) return;
-
             try
             {
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand("sp_marcar_notificacao_lida", conn) { CommandType = CommandType.StoredProcedure })
                 {
                     cmd.Parameters.Add("@notificacao_id", SqlDbType.Int);
-                    foreach (DataGridViewRow row in _dgv.Rows)
+                    foreach (DataRow r in _allRows.Rows)
                     {
-                        if (row.Cells["ID"].Value == null || row.Cells["ID"].Value == DBNull.Value) continue;
-                        cmd.Parameters["@notificacao_id"].Value = Convert.ToInt32(row.Cells["ID"].Value);
+                        if (Convert.ToBoolean(r["lida"])) continue;
+                        cmd.Parameters["@notificacao_id"].Value = Convert.ToInt32(r["id"]);
                         cmd.ExecuteNonQuery();
                     }
                 }
