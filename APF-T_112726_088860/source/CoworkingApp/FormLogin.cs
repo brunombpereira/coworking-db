@@ -4,6 +4,7 @@ using Microsoft.Data.SqlClient;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using FontAwesome.Sharp;
 
 namespace CoworkingApp
 {
@@ -30,11 +31,12 @@ namespace CoworkingApp
             ThemeManager.Set(ThemeMode.Dark);
 
             Text                 = "Coworking";
+            Icon                 = AppIcon.Get(32);
             FormBorderStyle      = FormBorderStyle.FixedDialog;
             MaximizeBox          = false;
             MinimizeBox          = false;
             StartPosition        = FormStartPosition.CenterScreen;
-            ClientSize           = new Size(440, 520);
+            ClientSize           = new Size(480, 660);
             BackColor            = Theme.PageBg;
             ForeColor            = Theme.TextPrimary;
             Font                 = Theme.FontBase;
@@ -63,12 +65,12 @@ namespace CoworkingApp
             // ── Card central ─────────────────────────────────────────────
             var card = new ModernCard
             {
-                Size         = new Size(360, 440),
+                Size         = new Size(400, 560),
                 BackColor    = Theme.CardBg,
-                BorderColor  = Theme.CardBorder,
+                BorderColor  = Color.Empty,  // sem linha à volta
                 CornerRadius = 14,
                 ShowShadow   = true,
-                ShadowSpread = 18,
+                ShadowSpread = 20,
             };
             card.Location = new Point(
                 (ClientSize.Width  - card.Width)  / 2,
@@ -136,6 +138,14 @@ namespace CoworkingApp
                 Location              = new Point(padX, y),
                 Size                  = new Size(card.Width - padX * 2, 42),
                 UseSystemPasswordChar = true,
+                TrailingIcon          = IconChar.Eye,
+            };
+            _txtPwd.TrailingIconClicked += (s, e) =>
+            {
+                _txtPwd.UseSystemPasswordChar = !_txtPwd.UseSystemPasswordChar;
+                _txtPwd.TrailingIcon = _txtPwd.UseSystemPasswordChar
+                    ? IconChar.Eye
+                    : IconChar.EyeSlash;
             };
             card.Controls.Add(_txtPwd);
             y += 56;

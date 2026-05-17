@@ -2,16 +2,19 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using FontAwesome.Sharp;
 
 namespace CoworkingApp
 {
     /// <summary>
     /// Container Panel com TextBox embedded. Cantos arredondados, border
-    /// neutro em idle, accent indigo subtil em focus. Sem glow.
+    /// neutro em idle, accent indigo subtil em focus. Suporta opcionalmente
+    /// um ícone clicável à direita (ex.: toggle eye no password).
     /// </summary>
     public class ModernInput : Panel
     {
-        private readonly TextBox _inner;
+        private readonly TextBox        _inner;
+        private          IconPictureBox _trailing;
 
         public int   CornerRadius     { get; set; } = 8;
         public Color BorderColorIdle  { get; set; } = Theme.CardBorder;
@@ -33,6 +36,42 @@ namespace CoworkingApp
         {
             add    => _inner.TextChanged += value;
             remove => _inner.TextChanged -= value;
+        }
+
+        /// <summary>Ícone clicável à direita (ex.: olho para show/hide password).</summary>
+        public event EventHandler TrailingIconClicked;
+
+        /// <summary>Define o ícone trailing. Null/None remove-o.</summary>
+        public IconChar TrailingIcon
+        {
+            get => _trailing?.IconChar ?? IconChar.None;
+            set
+            {
+                if (value == IconChar.None)
+                {
+                    if (_trailing != null) { Controls.Remove(_trailing); _trailing.Dispose(); _trailing = null; }
+                    return;
+                }
+                if (_trailing == null)
+                {
+                    _trailing = new IconPictureBox
+                    {
+                        IconSize  = 16,
+                        IconColor = Theme.TextSecondary,
+                        BackColor = Theme.FieldBg,
+                        Size      = new Size(28, 22),
+                        Dock      = DockStyle.Right,
+                        Cursor    = Cursors.Hand,
+                        SizeMode  = PictureBoxSizeMode.CenterImage,
+                    };
+                    _trailing.Click      += (s, e) => TrailingIconClicked?.Invoke(this, EventArgs.Empty);
+                    _trailing.MouseEnter += (s, e) => { _trailing.IconColor = Theme.TextPrimary; };
+                    _trailing.MouseLeave += (s, e) => { _trailing.IconColor = Theme.TextSecondary; };
+                    Controls.Add(_trailing);
+                    _trailing.BringToFront();
+                }
+                _trailing.IconChar = value;
+            }
         }
 
         public ModernInput()

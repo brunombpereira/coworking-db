@@ -29,6 +29,7 @@ namespace CoworkingApp
         private void BuildUI()
         {
             this.Text = "Coworking — Painel de Gestão";
+            this.Icon = AppIcon.Get(32);
             this.MinimumSize = new Size(900, 600);
             this.WindowState = FormWindowState.Maximized;
             this.Font = Theme.FontBase;
