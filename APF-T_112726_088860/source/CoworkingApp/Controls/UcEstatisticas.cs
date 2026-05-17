@@ -15,9 +15,8 @@ namespace CoworkingApp.Controls
     {
         private Chart _chartReceitaMensal;
         private Chart _chartReceitaMetodo;
-        private Chart _chartTopClientes;
-        private ScrollableList _listAdesoes;
-        private Panel _adesoesEmpty;
+        private ScrollableList _listTopClientes, _listAdesoes;
+        private Panel _topClientesEmpty, _adesoesEmpty;
         private Label _lblTotalClientes;
         private Label _lblTotalReceita;
         private Label _lblReservasMes;
@@ -84,10 +83,10 @@ namespace CoworkingApp.Controls
             for (int i = 0; i < 4; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
             grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            var k1 = BuildKpi("Clientes ativos",  IconChar.Users,        Theme.Accent,          out _lblTotalClientes);
-            var k2 = BuildKpi("Receita YTD",       IconChar.EuroSign,     Theme.StatusSuccessFg, out _lblTotalReceita);
-            var k3 = BuildKpi("Reservas (mês)",    IconChar.CalendarDays, Theme.Accent,          out _lblReservasMes);
-            var k4 = BuildKpi("Ocupação média",    IconChar.ChartPie,     Theme.StatusOrangeFg,  out _lblOcupacao);
+            var k1 = BuildKpi("Clientes ativos",        IconChar.Users,        Theme.Accent,          out _lblTotalClientes);
+            var k2 = BuildKpi($"Receita {DateTime.Now.Year}", IconChar.EuroSign, Theme.StatusSuccessFg, out _lblTotalReceita);
+            var k3 = BuildKpi("Reservas (mês actual)",  IconChar.CalendarDays, Theme.Accent,          out _lblReservasMes);
+            var k4 = BuildKpi("Ocupação média (hoje)",  IconChar.ChartPie,     Theme.StatusOrangeFg,  out _lblOcupacao);
             k4.Margin = new Padding(0);
             grid.Controls.Add(k1, 0, 0);
             grid.Controls.Add(k2, 1, 0);
@@ -147,11 +146,10 @@ namespace CoworkingApp.Controls
 
             _chartReceitaMensal = MakeChart("rec", SeriesChartType.Column);
             _chartReceitaMetodo = MakeChart("met", SeriesChartType.Doughnut);
-            _chartTopClientes   = MakeChart("top", SeriesChartType.Bar);
 
             var cRec  = BuildChartCard("Receita mensal",      IconChar.ChartBar,    _chartReceitaMensal);
             var cMet  = BuildChartCard("Receita por método",  IconChar.CreditCard,  _chartReceitaMetodo);
-            var cTop  = BuildChartCard("Top clientes",         IconChar.Star,        _chartTopClientes);
+            var cTop  = BuildTopClientesCard();
             var cAde  = BuildAdesoesCard();
 
             cRec.Margin = new Padding(0, 0, 6, 6);
@@ -180,6 +178,33 @@ namespace CoworkingApp.Controls
             chart.BackColor = Theme.CardBg;
 
             inner.Controls.Add(chart);
+            inner.Controls.Add(header);
+            card.Controls.Add(inner);
+            return card;
+        }
+
+        private Control BuildTopClientesCard()
+        {
+            var card = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 10, ShowShadow = false,
+            };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(14, 10, 14, 14) };
+
+            var header = BuildSectionHeader("Top 5 clientes (receita)", IconChar.Star);
+
+            _listTopClientes = new ScrollableList { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+            _listTopClientes.Content.BackColor = Theme.CardBg;
+            _topClientesEmpty = BuildEmptyState("Sem dados de receita", IconChar.Star);
+            _topClientesEmpty.Dock = DockStyle.Fill;
+            _topClientesEmpty.Visible = false;
+
+            var body = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+            body.Controls.Add(_listTopClientes);
+            body.Controls.Add(_topClientesEmpty);
+
+            inner.Controls.Add(body);
             inner.Controls.Add(header);
             card.Controls.Add(inner);
             return card;
@@ -270,11 +295,29 @@ namespace CoworkingApp.Controls
             area.AxisX.LabelStyle.ForeColor = Theme.TextMuted;
             area.AxisY.LabelStyle.ForeColor = Theme.TextMuted;
             area.AxisY.MajorGrid.LineColor  = Theme.CardBorder;
+
+            if (type == SeriesChartType.Column)
+            {
+                area.AxisY.LabelStyle.Format = "€ #,##0";
+                area.AxisX.Interval          = 1;
+                area.AxisX.LabelStyle.Angle  = 0;
+            }
             c.ChartAreas.Add(area);
 
             var s = new Series(seriesName) { ChartType = type, BorderWidth = 0 };
-            if (type == SeriesChartType.Column || type == SeriesChartType.Bar)
+            if (type == SeriesChartType.Column)
+            {
+                s.Color           = Theme.Accent;
+                s["PointWidth"]   = "0.6";
+                s.IsValueShownAsLabel = true;
+                s.LabelForeColor  = Theme.TextSecondary;
+                s.LabelFormat     = "€ #,##0";
+                s.Font            = Theme.FontSub;
+            }
+            else if (type == SeriesChartType.Bar)
+            {
                 s.Color = Theme.Accent;
+            }
             c.Series.Add(s);
 
             if (type == SeriesChartType.Doughnut || type == SeriesChartType.Pie)
@@ -288,7 +331,11 @@ namespace CoworkingApp.Controls
                 };
                 c.Legends.Add(legend);
                 s.Legend = "leg";
-                s["DoughnutRadius"] = "40";
+                s["DoughnutRadius"]    = "40";
+                s["PieLabelStyle"]     = "Inside";
+                s["CollectedSliceExploded"] = "false";
+                // Legend mostra "Nome — €Valor (X%)"
+                s.LegendText           = "#VALX — €#VALY{N0} (#PERCENT{P1})";
             }
 
             return c;
@@ -377,21 +424,119 @@ namespace CoworkingApp.Controls
 
         private void LoadTopClientes(SqlConnection conn)
         {
-            var s = _chartTopClientes.Series[0];
-            s.Points.Clear();
-            int i = 0;
+            var rows = new List<(string nome, decimal receita)>();
             using (var cmd = new SqlCommand(
                 "SELECT TOP 5 nome, receita FROM vw_top_clientes_receita ORDER BY receita DESC", conn))
             using (var rdr = cmd.ExecuteReader())
             {
                 while (rdr.Read())
-                {
-                    int idx = s.Points.AddXY(rdr.GetString(0), Convert.ToDouble(rdr.GetDecimal(1)));
-                    s.Points[idx].Color = Palette[i % Palette.Length];
-                    s.Points[idx].Label = "€ #VALY{N0}";
-                    i++;
-                }
+                    rows.Add((rdr.GetString(0), rdr.GetDecimal(1)));
             }
+
+            _listTopClientes.Content.SuspendLayout();
+            _listTopClientes.Content.Controls.Clear();
+
+            decimal max = rows.Count > 0 ? rows[0].receita : 1;
+            if (max <= 0) max = 1;
+            var cards = new List<Control>();
+            int totalH = 0;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                float pct = (float)((double)rows[i].receita / (double)max);
+                var card = BuildTopClienteCard(i + 1, rows[i].nome, rows[i].receita, pct);
+                card.Dock = DockStyle.Top;
+                cards.Add(card);
+                totalH += card.Height;
+            }
+            for (int i = cards.Count - 1; i >= 0; i--)
+                _listTopClientes.Content.Controls.Add(cards[i]);
+
+            _listTopClientes.Content.ResumeLayout();
+            _listTopClientes.UpdateLayout(totalH);
+            _listTopClientes.Visible    = rows.Count > 0;
+            _topClientesEmpty.Visible   = rows.Count == 0;
+            _topClientesEmpty.Invalidate();
+        }
+
+        private Control BuildTopClienteCard(int rank, string nome, decimal receita, float pct)
+        {
+            Color idleBg = Theme.CardBg;
+            var wrap = new Panel { Height = 56, BackColor = idleBg, Padding = new Padding(0, 0, 0, 6) };
+            var row  = new Panel { Dock = DockStyle.Fill, BackColor = idleBg };
+
+            // Rank circle à esquerda
+            var rankBlock = new Panel { Dock = DockStyle.Left, Width = 44, BackColor = idleBg };
+            rankBlock.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                int diam = 30;
+                int cx = (rankBlock.Width - diam) / 2;
+                int cy = (rankBlock.Height - diam) / 2;
+                Color rankColor = rank == 1 ? ColorTranslator.FromHtml("#f59e0b")  // gold
+                                : rank == 2 ? ColorTranslator.FromHtml("#94a3b8")  // silver
+                                : rank == 3 ? ColorTranslator.FromHtml("#b45309")  // bronze
+                                            : Theme.Accent;
+                using (var br = new SolidBrush(rankColor))
+                    g.FillEllipse(br, cx, cy, diam, diam);
+                using (var f = new Font(Theme.FontBase.FontFamily, 11f, FontStyle.Bold))
+                {
+                    var ts = TextRenderer.MeasureText(g, rank.ToString(), f, Size.Empty, TextFormatFlags.NoPadding);
+                    TextRenderer.DrawText(g, rank.ToString(), f,
+                        new Point(cx + (diam - ts.Width) / 2, cy + (diam - ts.Height) / 2),
+                        Color.White, TextFormatFlags.NoPadding);
+                }
+            };
+            rankBlock.Resize += (s, e) => rankBlock.Invalidate();
+
+            // Valor à direita
+            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 120, BackColor = idleBg, Padding = new Padding(0, 14, 12, 0) };
+            rightInfo.Controls.Add(new Label
+            {
+                Text = Theme.FormatEuro(receita),
+                Font = new Font(Theme.FontBase.FontFamily, 12f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+            });
+
+            // Centro: nome + barra progress
+            var middle = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(8, 8, 8, 0) };
+            var lblNome = new Label
+            {
+                Text = nome, Font = new Font(Theme.FontBase.FontFamily, 11f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = idleBg,
+                Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            // Progress bar manual
+            var progBar = new Panel { Dock = DockStyle.Top, Height = 10, BackColor = idleBg };
+            progBar.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                int barH = 6;
+                int trackY = (progBar.Height - barH) / 2;
+                int trackW = progBar.Width;
+                using (var path = ModernCard.RoundedRect(new Rectangle(0, trackY, trackW, barH), barH / 2))
+                using (var br   = new SolidBrush(Color.FromArgb(40, Theme.Accent)))
+                    g.FillPath(br, path);
+                int fillW = (int)(trackW * pct);
+                if (fillW > 0)
+                {
+                    using (var path = ModernCard.RoundedRect(new Rectangle(0, trackY, fillW, barH), barH / 2))
+                    using (var br   = new SolidBrush(Theme.Accent))
+                        g.FillPath(br, path);
+                }
+            };
+            progBar.Resize += (s, e) => progBar.Invalidate();
+            middle.Controls.Add(progBar);
+            middle.Controls.Add(lblNome);
+
+            row.Controls.Add(middle);
+            row.Controls.Add(rightInfo);
+            row.Controls.Add(rankBlock);
+            wrap.Controls.Add(row);
+            return wrap;
         }
 
         private void LoadAdesoesExpirar(SqlConnection conn)
