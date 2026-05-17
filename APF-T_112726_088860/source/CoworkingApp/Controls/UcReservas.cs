@@ -486,13 +486,13 @@ namespace CoworkingApp.Controls
             actions.Controls.Add(btnCancel);
 
             // ─── Right info (Dock=Right): valor + estado dot ──────────
-            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 180, BackColor = idleBg, Padding = new Padding(0, 22, 16, 0) };
+            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 210, BackColor = idleBg, Padding = new Padding(0, 22, 16, 0) };
             var lblValor = new Label
             {
                 Text = Theme.FormatEuro(valor),
                 Font = new Font(Theme.FontBase.FontFamily, 14f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+                Dock = DockStyle.Top, Height = 30, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
             };
             var estadoHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
             var estadoPill = new StatusPill
@@ -502,7 +502,7 @@ namespace CoworkingApp.Controls
             };
             estadoPill.SetColors(EstadoReservaBg(estado), EstadoReservaFg(estado));
             // Dock=Right + Width fixo → right-aligned dentro do holder.
-            int eW = 8 + 8 + TextRenderer.MeasureText(estado, Theme.FontSub).Width + 4;
+            int eW = StatusPill.MeasureDotWidth(estado, Theme.FontSub);
             estadoPill.Dock  = DockStyle.Right;
             estadoPill.Width = eW;
             estadoHolder.Controls.Add(estadoPill);

@@ -695,8 +695,8 @@ namespace CoworkingApp.Controls
             estadoPill.SetColors(EstadoBg(estado), EstadoFg(estado));
 
             // Widths dinâmicos pelo texto (dot 8 + gap 8 + texto + 4 margem).
-            int tipoW   = 8 + 8 + TextRenderer.MeasureText(tipo,   Theme.FontSub).Width + 4;
-            int estadoW = 8 + 8 + TextRenderer.MeasureText(estado, Theme.FontSub).Width + 4;
+            int tipoW   = StatusPill.MeasureDotWidth(tipo,   Theme.FontSub);
+            int estadoW = StatusPill.MeasureDotWidth(estado, Theme.FontSub);
             tipoPill.Dock   = DockStyle.Left; tipoPill.Width   = tipoW;
             var spBetween   = new Panel { Dock = DockStyle.Left, Width = 16, BackColor = idleBg };
             estadoPill.Dock = DockStyle.Left; estadoPill.Width = estadoW;

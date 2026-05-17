@@ -28,6 +28,22 @@ namespace CoworkingApp
         /// _pillFg + texto na cor _pillFg (estilo Linear/Vercel, sem fundo).</summary>
         public PillStyle Style { get; set; } = PillStyle.Filled;
 
+        /// <summary>Largura necessária para Dot pill com determinado texto/font.
+        /// Usa Graphics.MeasureString (mede o glyph outline real do GDI+)
+        /// porque TextRenderer.MeasureText subestima 1–3px com fonts bold/
+        /// kerned em determinados DPIs, cortando o último char.</summary>
+        public static int MeasureDotWidth(string text, Font font)
+        {
+            int textW;
+            using (var bmp = new System.Drawing.Bitmap(1, 1))
+            using (var g   = System.Drawing.Graphics.FromImage(bmp))
+            {
+                var sz = g.MeasureString(text ?? "", font);
+                textW = (int)Math.Ceiling(sz.Width);
+            }
+            return 8 /*dot*/ + 8 /*gap*/ + textW + 14 /*right buffer*/;
+        }
+
         public StatusPill()
         {
             SetStyle(ControlStyles.OptimizedDoubleBuffer
