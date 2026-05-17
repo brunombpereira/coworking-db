@@ -224,25 +224,23 @@ namespace CoworkingApp
             {
                 new ProfilePopup.MenuItemDef
                 {
-                    Text      = "Perfil",
-                    Icon      = IconChar.User,
-                    IconColor = Theme.TextSecondary,
-                    OnClick   = () => Navigate<UcPerfil>(),
+                    Text    = "Perfil",
+                    Icon    = IconChar.User,
+                    OnClick = () => Navigate<UcPerfil>(),
                 },
                 new ProfilePopup.MenuItemDef
                 {
-                    Text      = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro",
-                    Icon      = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon  : IconChar.Sun,
-                    IconColor = Theme.TextSecondary,
-                    OnClick   = () => ThemeManager.Toggle(),
+                    Text    = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro",
+                    Icon    = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon  : IconChar.Sun,
+                    OnClick = () => ThemeManager.Toggle(),
                 },
                 new ProfilePopup.MenuItemDef { IsSeparator = true },
                 new ProfilePopup.MenuItemDef
                 {
-                    Text      = "Sair",
-                    Icon      = IconChar.SignOutAlt,
-                    IconColor = Theme.StatusDangerFg,
-                    OnClick   = () => { LogoutRequested = true; this.Close(); },
+                    Text     = "Sair",
+                    Icon     = IconChar.SignOutAlt,
+                    IsDanger = true,
+                    OnClick  = () => { LogoutRequested = true; this.Close(); },
                 },
             };
 

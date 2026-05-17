@@ -18,9 +18,9 @@ namespace CoworkingApp
         {
             public string   Text;
             public IconChar Icon;
-            public Color    IconColor;
             public Action   OnClick;
             public bool     IsSeparator;
+            public bool     IsDanger;       // tinta ícone+texto em vermelho
         }
 
         private readonly List<MenuItemDef> _items;
@@ -103,16 +103,27 @@ namespace CoworkingApp
 
         private Control BuildItem(MenuItemDef def, int y)
         {
+            // Danger (Sair) mantém-se vermelho idle e hover; outros items
+            // usam SidebarText idle e SidebarTextActive hover — alinhamento
+            // 1:1 com os nav items da sidebar.
+            Color danger    = Theme.StatusDangerFg;
+            Color iconIdle  = def.IsDanger ? danger : Theme.SidebarText;
+            Color iconHover = def.IsDanger ? danger : Theme.SidebarTextActive;
+            Color textIdle  = def.IsDanger ? danger : Theme.SidebarText;
+            Color textHover = def.IsDanger ? danger : Theme.SidebarTextActive;
+
             var item = new ItemControl
             {
-                Location      = new Point(Padding.Left, y),
-                Size          = new Size(Width - Padding.Horizontal, 40),
-                IconChar      = def.Icon,
-                IconColor     = def.IconColor,
-                Text          = def.Text,
-                ForeColor     = Color.White,
-                HoverColor    = Theme.SidebarBgActive,    // mesmo hover dos nav items
-                BackColorIdle = Theme.SidebarBg,          // mesmo bg do popup → seamless
+                Location       = new Point(Padding.Left, y),
+                Size           = new Size(Width - Padding.Horizontal, 40),
+                IconChar       = def.Icon,
+                IconColorIdle  = iconIdle,
+                IconColorHover = iconHover,
+                Text           = def.Text,
+                ForeColorIdle  = textIdle,
+                ForeColorHover = textHover,
+                HoverColor     = Theme.SidebarBgActive,
+                BackColorIdle  = Theme.SidebarBg,
             };
             item.Click += (s, e) =>
             {
@@ -125,14 +136,15 @@ namespace CoworkingApp
         // ── Item interno custom-painted ─────────────────────────────────
         private class ItemControl : Control
         {
-            public IconChar IconChar      { get; set; }
-            public Color    IconColor     { get; set; }
-            public Color    HoverColor    { get; set; }
-            public Color    BackColorIdle { get; set; }
+            public IconChar IconChar       { get; set; }
+            public Color    IconColorIdle  { get; set; }
+            public Color    IconColorHover { get; set; }
+            public Color    ForeColorIdle  { get; set; }
+            public Color    ForeColorHover { get; set; }
+            public Color    HoverColor     { get; set; }
+            public Color    BackColorIdle  { get; set; }
 
             private bool _hover;
-            private static readonly Dictionary<(IconChar, int, Color), Image> _iconCache
-                = new Dictionary<(IconChar, int, Color), Image>();
 
             public ItemControl()
             {
@@ -141,7 +153,8 @@ namespace CoworkingApp
                        | ControlStyles.ResizeRedraw
                        | ControlStyles.UserPaint, true);
                 Cursor = Cursors.Hand;
-                Font   = new Font("Segoe UI", 9.5f);
+                // Mesma font que os nav items da sidebar
+                Font   = new Font(Theme.FontBase.FontFamily, 9.5f);
             }
 
             protected override void OnMouseEnter(EventArgs e) { _hover = true;  Invalidate(); base.OnMouseEnter(e); }
@@ -154,7 +167,7 @@ namespace CoworkingApp
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                // Background com cantos arredondados em hover
+                // Bg com cantos arredondados em hover
                 if (_hover)
                 {
                     var rect = new Rectangle(0, 0, Width - 1, Height - 1);
@@ -168,41 +181,58 @@ namespace CoworkingApp
                         g.FillRectangle(brush, ClientRectangle);
                 }
 
-                // Icon à esquerda
-                int iconSize = 16;
-                int iconX    = 12;
-                int iconY    = (Height - iconSize) / 2;
-                var img      = GetIcon(IconChar, iconSize, IconColor);
+                Color iconColor = _hover ? IconColorHover : IconColorIdle;
+                Color textColor = _hover ? ForeColorHover : ForeColorIdle;
+
+                // Icon 18px (igual aos nav items da sidebar)
+                const int iconSize = 18;
+                int iconX = 14;
+                int iconY = (Height - iconSize) / 2;
+                var img   = IconRenderer.Render(IconChar, iconSize, iconColor);
                 if (img != null) g.DrawImage(img, iconX, iconY, iconSize, iconSize);
 
                 // Texto
-                int textX = iconX + iconSize + 12;
+                int textX    = iconX + iconSize + 10;
                 var textRect = new Rectangle(textX, 0, Width - textX - 8, Height);
-                TextRenderer.DrawText(g, Text, Font, textRect, ForeColor,
+                TextRenderer.DrawText(g, Text, Font, textRect, textColor,
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
             }
+        }
 
-            private static Image GetIcon(IconChar c, int size, Color color)
+        // ── Render de ícones FontAwesome com cache (idle + hover colors) ─
+        internal static class IconRenderer
+        {
+            private static readonly Dictionary<(IconChar, int, int), Image> _cache
+                = new Dictionary<(IconChar, int, int), Image>();
+
+            public static Image Render(IconChar c, int size, Color color)
             {
-                var key = (c, size, color);
-                if (_iconCache.TryGetValue(key, out var cached)) return cached;
+                var key = (c, size, color.ToArgb());
+                if (_cache.TryGetValue(key, out var cached)) return cached;
 
-                using (var pb = new IconPictureBox
-                       {
-                           IconChar  = c,
-                           IconSize  = size,
-                           IconColor = color,
-                           Size      = new Size(size, size),
-                           BackColor = Color.Transparent,
-                           SizeMode  = PictureBoxSizeMode.AutoSize,
-                       })
+                var bmp = new Bitmap(size, size);
+                using (var g = Graphics.FromImage(bmp))
                 {
-                    var bmp = new Bitmap(size, size);
-                    bmp.MakeTransparent();
-                    pb.DrawToBitmap(bmp, new Rectangle(0, 0, size, size));
-                    _iconCache[key] = bmp;
-                    return bmp;
+                    g.SmoothingMode     = SmoothingMode.AntiAlias;
+                    g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+
+                    // FontAwesome.Sharp renderiza via IconButton/IconPictureBox.
+                    // Recriamos o mesmo render: DrawString do char com a font FA.
+                    using (var fa = new IconPictureBox
+                           {
+                               IconChar  = c,
+                               IconSize  = size,
+                               IconColor = color,
+                               Size      = new Size(size, size),
+                               BackColor = Color.Transparent,
+                               SizeMode  = PictureBoxSizeMode.AutoSize,
+                           })
+                    {
+                        fa.DrawToBitmap(bmp, new Rectangle(0, 0, size, size));
+                    }
                 }
+                _cache[key] = bmp;
+                return bmp;
             }
         }
     }
