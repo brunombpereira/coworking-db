@@ -245,11 +245,13 @@ namespace CoworkingApp
             };
 
             var popup = new ProfilePopup(items);
-            // Posicionar logo acima do footer, alinhado à esquerda da sidebar
+            // Posicionar à DIREITA do footer (fora da sidebar) com a base
+            // do popup alinhada com a base do footer — feel "explode from
+            // the side" tipo Discord/Slack.
             var screenAnchor = anchor.PointToScreen(Point.Empty);
             popup.Location = new Point(
-                screenAnchor.X + 8,
-                screenAnchor.Y - popup.Height - 4);
+                screenAnchor.X + anchor.Width + 6,
+                screenAnchor.Y - popup.Height + anchor.Height);
             popup.Show(this);
         }
 

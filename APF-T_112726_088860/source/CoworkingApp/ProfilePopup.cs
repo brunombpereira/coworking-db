@@ -201,6 +201,10 @@ namespace CoworkingApp
         }
 
         // ── Render de ícones FontAwesome com cache (idle + hover colors) ─
+        // Usa a Image que o IconPictureBox gera internamente (bitmap
+        // transparent real); DrawToBitmap pintava SystemColors.Control
+        // por trás do glyph e os ícones apareciam dentro de quadrados
+        // cinza-claros.
         internal static class IconRenderer
         {
             private static readonly Dictionary<(IconChar, int, int), Image> _cache
@@ -211,29 +215,21 @@ namespace CoworkingApp
                 var key = (c, size, color.ToArgb());
                 if (_cache.TryGetValue(key, out var cached)) return cached;
 
-                var bmp = new Bitmap(size, size);
-                using (var g = Graphics.FromImage(bmp))
+                using (var pb = new IconPictureBox
+                       {
+                           IconChar  = c,
+                           IconSize  = size,
+                           IconColor = color,
+                       })
                 {
-                    g.SmoothingMode     = SmoothingMode.AntiAlias;
-                    g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-
-                    // FontAwesome.Sharp renderiza via IconButton/IconPictureBox.
-                    // Recriamos o mesmo render: DrawString do char com a font FA.
-                    using (var fa = new IconPictureBox
-                           {
-                               IconChar  = c,
-                               IconSize  = size,
-                               IconColor = color,
-                               Size      = new Size(size, size),
-                               BackColor = Color.Transparent,
-                               SizeMode  = PictureBoxSizeMode.AutoSize,
-                           })
-                    {
-                        fa.DrawToBitmap(bmp, new Rectangle(0, 0, size, size));
-                    }
+                    // pb.Image é actualizado synchronously ao setar
+                    // IconChar/IconSize/IconColor — é uma bitmap transparente
+                    // já com o glyph renderizado com AA correcto.
+                    if (pb.Image == null) return null;
+                    var img = (Image)pb.Image.Clone();
+                    _cache[key] = img;
+                    return img;
                 }
-                _cache[key] = bmp;
-                return bmp;
             }
         }
     }
