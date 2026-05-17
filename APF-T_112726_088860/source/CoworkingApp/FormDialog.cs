@@ -106,7 +106,7 @@ namespace CoworkingApp
                     DialogResult = DialogResult.OK;
                     Close();
                 }
-                catch (System.Data.SqlClient.SqlException ex)
+                catch (Microsoft.Data.SqlClient.SqlException ex)
                 {
                     MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
