@@ -75,9 +75,12 @@ namespace CoworkingApp.Controls
             var searchHolder = new Panel { Dock = DockStyle.Right, Width = 220, BackColor = Theme.PageBg, Padding = new Padding(0, 16, 20, 0) };
             searchHolder.Controls.Add(_txtSearch);
 
+            // Em WinForms o ÚLTIMO Dock=Right adicionado fica mais à direita.
+            // Queremos [titleArea ......... search   button] → search PRIMEIRO,
+            // botão DEPOIS (assim o botão fica rightmost).
             pnlTitle.Controls.Add(titleArea);
-            pnlTitle.Controls.Add(btnHolder);
             pnlTitle.Controls.Add(searchHolder);
+            pnlTitle.Controls.Add(btnHolder);
 
             // Content (stats + lista — search vai DENTRO do card da lista)
             var content = new TableLayoutPanel
@@ -435,11 +438,12 @@ namespace CoworkingApp.Controls
             pnlText.Controls.Add(lblEmail);
             pnlText.Controls.Add(nomeRow);
 
-            // Ordem dos Right importa (primeiro adicionado = mais à direita):
-            // actions (rightmost) → stats (à sua esquerda) → text fill → avatar left.
-            row.Controls.Add(pnlText);     // Fill
-            row.Controls.Add(actions);     // Right (rightmost)
-            row.Controls.Add(statsPanel);  // Right (à esquerda das actions)
+            // Em WinForms, o ÚLTIMO Dock=Right adicionado fica mais à direita.
+            // Queremos [avatar] [text] [stats] [actions] — actions à direita,
+            // logo é adicionado por ÚLTIMO entre os Right-docked.
+            row.Controls.Add(pnlText);      // Fill
+            row.Controls.Add(statsPanel);   // Right (entre text e actions)
+            row.Controls.Add(actions);      // Right (rightmost — adicionado por último)
             row.Controls.Add(avatarHolder); // Left
 
             // Hover unificado — sincroniza também o MouseOverBackColor dos
