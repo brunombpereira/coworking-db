@@ -326,6 +326,15 @@ namespace CoworkingApp
             btn.Font = new Font(Theme.FontBase.FontFamily, 9.5f, FontStyle.Bold);
         }
 
+        /// <summary>Navega para um UC pelo seu Type (chamável por outros UCs
+        /// via cast do parent FormMain). Exemplo: ((FormMain)FindForm())
+        /// .NavigateTo(typeof(UcReservas)).</summary>
+        public void NavigateTo(Type ucType)
+        {
+            var method = typeof(FormMain).GetMethod("Navigate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            method?.MakeGenericMethod(ucType).Invoke(this, null);
+        }
+
         private void Navigate<T>() where T : Control, new()
         {
             pnlContent.Controls.Clear();

@@ -625,11 +625,13 @@ namespace CoworkingApp.Controls
         private Control BuildAdesaoExpirarCard(string cliente, string plano, string dataFim, int dias)
         {
             Color idleBg = Theme.CardBg;
-            var wrap = new Panel { Height = 66, BackColor = idleBg, Padding = new Padding(0, 0, 0, 6) };
+            // Wrap 86 = content (cli 24 + plano 22 + data 20 = 66) + top
+            // padding 10 = 76, + bottom gap 6 + safety 4. Sem cortes.
+            var wrap = new Panel { Height = 86, BackColor = idleBg, Padding = new Padding(0, 0, 0, 6) };
             var row  = new Panel { Dock = DockStyle.Fill, BackColor = idleBg };
 
             // Direita: chip dias restantes
-            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 130, BackColor = idleBg, Padding = new Padding(0, 14, 12, 0) };
+            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 130, BackColor = idleBg, Padding = new Padding(0, 22, 12, 0) };
             string diasTxt = dias == 1 ? "1 dia" : $"{dias} dias";
             var (bg, fg) = DiasColor(dias);
             var pillHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
@@ -650,19 +652,19 @@ namespace CoworkingApp.Controls
             {
                 Text = "Termina em " + dataFim, Font = Theme.FontSub,
                 ForeColor = Theme.TextMuted, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 18, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Dock = DockStyle.Top, Height = 20, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
             var lblPlano = new Label
             {
                 Text = plano, Font = Theme.FontSub,
                 ForeColor = Theme.TextSecondary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 20, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
             var lblCli = new Label
             {
                 Text = cliente, Font = new Font(Theme.FontBase.FontFamily, 11f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
             // Adicionar em reverse: Top docks processam em reverse z order.
             middle.Controls.Add(lblData);
