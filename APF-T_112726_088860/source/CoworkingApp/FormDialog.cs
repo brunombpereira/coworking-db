@@ -92,19 +92,15 @@ namespace CoworkingApp
             content.Dock = DockStyle.Fill;
             _body.Controls.Add(content);
 
-            // Footer com border-top subtle para separar do body
-            var pnlFooter = new Panel { Dock = DockStyle.Bottom, Height = 64, BackColor = Theme.CardBg };
-            pnlFooter.Paint += (s, e) =>
-            {
-                using (var pen = new Pen(Theme.CardBorder, 1f))
-                    e.Graphics.DrawLine(pen, 0, 0, pnlFooter.Width, 0);
-            };
+            // Footer — sem linha divisória (era descontínua porque o flow
+            // panel à direita ficava por cima de parte dela).
+            var pnlFooter = new Panel { Dock = DockStyle.Bottom, Height = 68, BackColor = Theme.CardBg };
             var flow = new FlowLayoutPanel
             {
                 Dock = DockStyle.Right,
                 FlowDirection = FlowDirection.RightToLeft,
                 WrapContents = false,
-                Padding = new Padding(0, 14, 20, 14),
+                Padding = new Padding(0, 16, 24, 16),
                 AutoSize = true,
                 BackColor = Theme.CardBg,
             };
@@ -115,8 +111,8 @@ namespace CoworkingApp
                 var btnSave = new ModernButton
                 {
                     Text = "Guardar", Style = ModernButton.Variant.Primary,
-                    Font = Theme.FontBold, Size = new Size(130, 36),
-                    Margin = new Padding(10, 0, 0, 0),
+                    Font = Theme.FontBold, Size = new Size(140, 36),
+                    Margin = new Padding(12, 0, 0, 0),
                 };
                 btnSave.Click += (s, e) =>
                 {
@@ -137,16 +133,29 @@ namespace CoworkingApp
                             MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
                 };
-                var btnCancel = new ModernButton
+                // Cancelar como text-button (sem border) — visual menos
+                // proeminente que o Guardar.
+                var btnCancel = new Button
                 {
-                    Text = "Cancelar", Style = ModernButton.Variant.Secondary,
-                    Font = Theme.FontBase, Size = new Size(110, 36),
+                    Text = "Cancelar",
+                    Font = Theme.FontBold,
+                    Size = new Size(100, 36),
                     Margin = new Padding(0),
+                    BackColor = Theme.CardBg,
+                    ForeColor = Theme.TextSecondary,
+                    FlatStyle = FlatStyle.Flat,
+                    Cursor = Cursors.Hand,
+                    TabStop = false,
                 };
-                btnCancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
+                btnCancel.FlatAppearance.BorderSize = 0;
+                btnCancel.FlatAppearance.MouseOverBackColor = Theme.CardBg;
+                btnCancel.MouseEnter += (s, e) => btnCancel.ForeColor = Theme.TextPrimary;
+                btnCancel.MouseLeave += (s, e) => btnCancel.ForeColor = Theme.TextSecondary;
+                btnCancel.Click      += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
+
                 // Right-to-left flow → primeiro Add = mais à direita.
-                flow.Controls.Add(btnSave);    // Guardar à direita (primary)
-                flow.Controls.Add(btnCancel);  // Cancelar à esquerda
+                flow.Controls.Add(btnSave);
+                flow.Controls.Add(btnCancel);
                 pnlFooter.Controls.Add(flow);
             }
             else
@@ -225,8 +234,8 @@ namespace CoworkingApp
         private void SizeToContent(int cardWidth)
         {
             int prefH = _body.PreferredSize.Height;
-            // Header 48 + footer 64 (se visível) + padding body 32.
-            int footerH = (Footer != null && Footer.Visible) ? 64 : 0;
+            // Header 48 + footer 68 (se visível) + padding body 32.
+            int footerH = (Footer != null && Footer.Visible) ? 68 : 0;
             int contentH = Math.Min(prefH + 48 + footerH + 32, 600);  // cap 600
             int formH    = Math.Max(220, contentH) + 2;               // +2 border
             int formW    = cardWidth + 2;
