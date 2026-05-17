@@ -232,7 +232,10 @@ GO
 -- Slots horários sem sobreposição (T1).
 -- Postos Flex day-pass por clientes sem adesão Flex (T11).
 -- =====================================================================
-DECLARE @data DATE = '2025-01-06';        -- 1ª segunda-feira de 2025
+-- Cobertura: 1ª segunda-feira de 2025 → hoje.
+-- 2 reservas/semana (ter, qui) → ~140 reservas em 70 semanas (mais leve
+-- para a UI mas suficiente para ver tendências mensais nos charts).
+DECLARE @data DATE = '2025-01-06';
 DECLARE @fim  DATE = '2026-05-17';
 DECLARE @cli  INT;
 DECLARE @rec  INT;
@@ -244,33 +247,25 @@ DECLARE @i    INT = 0;
 
 WHILE @data <= @fim
 BEGIN
-    -- 4 reservas de Sala por semana (ter,qua,qui,sex)
     DECLARE @offset INT = 1;
-    WHILE @offset <= 4
+    WHILE @offset <= 2
     BEGIN
         SET @i  = @i + 1;
-        SET @cli = ((@i * 7) % 20) + 1;             -- clientes 1..20 (rotação)
-        SET @rec = ((@i * 3) % 3) + 1;              -- salas 1..3 (Sala A, B, Boavista)
-        -- Slot horário rotativo: 09-11, 11-13, 14-16, 16-18
-        SET @hi = CASE @offset
-                    WHEN 1 THEN '09:00' WHEN 2 THEN '11:00'
-                    WHEN 3 THEN '14:00' WHEN 4 THEN '16:00' END;
-        SET @hf = CASE @offset
-                    WHEN 1 THEN '11:00' WHEN 2 THEN '13:00'
-                    WHEN 3 THEN '16:00' WHEN 4 THEN '18:00' END;
-        -- Valor baseado no recurso (sala): 15/22/18 €/h * 2h
+        SET @cli = ((@i * 7) % 20) + 1;
+        SET @rec = ((@i * 3) % 3) + 1;
+        SET @hi = CASE @offset WHEN 1 THEN '09:00' WHEN 2 THEN '14:00' END;
+        SET @hf = CASE @offset WHEN 1 THEN '11:00' WHEN 2 THEN '16:00' END;
         SET @val = CASE @rec WHEN 1 THEN 30.00 WHEN 2 THEN 44.00 ELSE 36.00 END;
-        SET @part = ((@i * 11) % 6) + 2;            -- 2..7 participantes (cabe em todas)
+        SET @part = ((@i * 11) % 6) + 2;
 
-        -- 90% Confirmada, 7% Pendente, 3% Cancelada
         DECLARE @estado VARCHAR(20) =
-            CASE WHEN @i % 33 = 0 THEN 'Cancelada'
-                 WHEN @i % 13 = 0 THEN 'Pendente'
+            CASE WHEN @i % 25 = 0 THEN 'Cancelada'
+                 WHEN @i % 10 = 0 THEN 'Pendente'
                  ELSE 'Confirmada' END;
 
         INSERT INTO reserva (cliente_id, recurso_id, data_reserva,
                              hora_inicio, hora_fim, valor, estado, num_participantes)
-        VALUES (@cli, @rec, DATEADD(DAY, @offset, @data),
+        VALUES (@cli, @rec, DATEADD(DAY, @offset * 2, @data),    -- ter / qui
                 @hi, @hf, @val, @estado, @part);
 
         SET @offset = @offset + 1;
@@ -280,7 +275,7 @@ END;
 PRINT CONCAT('Reservas de sala criadas: ', @i);
 GO
 
--- Day passes de Posto Flex (cliente sem adesão Flex naquele dia)
+-- Day passes de Posto Flex (Diogo/Eva alternados, mensais).
 DECLARE @data DATE = '2025-01-15';
 DECLARE @fim  DATE = '2026-05-15';
 DECLARE @cli  INT;
@@ -290,15 +285,14 @@ DECLARE @i    INT = 0;
 WHILE @data <= @fim
 BEGIN
     SET @i = @i + 1;
-    -- Alternar entre clientes 4 (Diogo) e 5 (Eva) que não têm adesão Flex
     SET @cli = CASE WHEN @i % 2 = 0 THEN 4 ELSE 5 END;
-    SET @rec = CASE WHEN @i % 2 = 0 THEN 4 ELSE 5 END;     -- AV-F01 ou AV-F02
+    SET @rec = CASE WHEN @i % 2 = 0 THEN 4 ELSE 5 END;
 
     INSERT INTO reserva (cliente_id, recurso_id, data_reserva,
                          hora_inicio, hora_fim, valor, estado)
     VALUES (@cli, @rec, @data, NULL, NULL, 12.00, 'Confirmada');
 
-    SET @data = DATEADD(DAY, 14, @data);    -- 1 a cada 2 semanas
+    SET @data = DATEADD(DAY, 30, @data);     -- ~mensal (era quinzenal)
 END;
 PRINT CONCAT('Day passes posto criados: ', @i);
 GO

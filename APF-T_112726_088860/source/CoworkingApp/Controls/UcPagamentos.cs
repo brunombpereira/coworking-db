@@ -275,7 +275,7 @@ namespace CoworkingApp.Controls
             try
             {
                 string sql = @"
-                    SELECT pg.pagamento_id AS id, c.nome AS cliente, c.cliente_id AS cliente_id,
+                    SELECT TOP 200 pg.pagamento_id AS id, c.nome AS cliente, c.cliente_id AS cliente_id,
                            CASE
                                WHEN pg.adesao_id IS NOT NULL THEN 'Adesão #' + CAST(pg.adesao_id AS varchar) + ' (' + pl.nome_plano + ')'
                                ELSE 'Reserva #' + CAST(pg.reserva_id AS varchar)

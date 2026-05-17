@@ -347,7 +347,7 @@ namespace CoworkingApp.Controls
                 if (filtraCliente) whereParts.Add("r.cliente_id = @c");
 
                 string sql = $@"
-                    SELECT r.reserva_id AS id, c.nome AS cliente,
+                    SELECT TOP 200 r.reserva_id AS id, c.nome AS cliente,
                            CASE WHEN s.recurso_id IS NOT NULL THEN 'Sala ' + s.nome
                                 ELSE 'Posto ' + p.codigo END AS recurso,
                            rc.tipo AS tipo_rec,

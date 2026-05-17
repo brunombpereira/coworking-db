@@ -248,7 +248,7 @@ namespace CoworkingApp.Controls
             // SQL: carrega TUDO (filtro por-ler é client-side, para KPIs ficarem corretos)
             string whereCliente = Session.IsCliente ? "AND n.cliente_id = @cid" : "";
             string sql = $@"
-                SELECT n.notificacao_id AS id, c.nome AS cliente, n.tipo AS tipo,
+                SELECT TOP 200 n.notificacao_id AS id, c.nome AS cliente, n.tipo AS tipo,
                        n.assunto AS assunto, n.mensagem AS mensagem,
                        n.data_criacao AS data, ISNULL(n.lida, 0) AS lida
                 FROM notificacao n
