@@ -178,12 +178,25 @@ namespace CoworkingApp
 
         private void CenterInContentArea(Form parent)
         {
-            // Centrar no rectangle do form inteiro (incluindo sidebar). O user
-            // quer 'centro visual da app' nos eixos X e Y, sem desconto da
-            // sidebar. DesktopBounds é o rectangle do form como aparece no
-            // ecrã (inclui title bar do Windows).
+            // Centrar na área cliente do form (exclui title bar). Inclui a
+            // sidebar (user pediu) mas tenta excluir a status bar (Dock=Bottom
+            // no FormMain) para que o centro Y bata visualmente.
             if (this.Width <= 0 || this.Height <= 0) return;
-            Rectangle area = parent.DesktopBounds;
+            Rectangle area = parent.RectangleToScreen(parent.ClientRectangle);
+
+            // Procurar uma status bar Dock=Bottom no parent para descontar
+            // da Height (assim o centro Y fica entre title bar e status bar).
+            int statusH = 0;
+            foreach (Control c in parent.Controls)
+            {
+                if (c.Dock == DockStyle.Bottom && c.Visible)
+                {
+                    statusH = c.Height;
+                    break;
+                }
+            }
+            area = new Rectangle(area.X, area.Y, area.Width, area.Height - statusH);
+
             this.Location = new Point(
                 area.X + (area.Width  - this.Width)  / 2,
                 area.Y + (area.Height - this.Height) / 2);
