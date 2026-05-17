@@ -162,8 +162,15 @@ namespace CoworkingApp
             try
             {
                 int fontH    = TextRenderer.MeasureText("Hg", Font).Height;
+                // Top padding = (Height − fontH)/2 → centra o texto verticalmente
+                // (TextBox renderiza text top-aligned, então padding-top empurra
+                // o TextBox para baixo até o texto ficar no centro).
                 int topPad   = Math.Max(2, (Height - fontH) / 2);
-                int botPad   = Math.Max(2, Height - fontH - topPad);
+                // Bottom padding tem de deixar pelo menos 16px de client area
+                // para o LeadingIcon/TrailingIcon (16px) não ficar clipado.
+                const int iconMinH = 16;
+                int clientH  = Math.Max(fontH, iconMinH);
+                int botPad   = Math.Max(2, Height - clientH - topPad);
                 Padding = new Padding(Padding.Left, topPad, Padding.Right, botPad);
             }
             finally { _recentering = false; }
