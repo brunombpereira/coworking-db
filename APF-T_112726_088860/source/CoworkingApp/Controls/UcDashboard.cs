@@ -21,7 +21,6 @@ namespace CoworkingApp.Controls
         private Label _lblAdesoesValue, _lblAdesoesDelta;
         private Label _lblOcupValue,     _lblOcupDelta;
 
-        private Chart _heroSparkline;
         private Chart _chartReceita;
         private Chart _chartMetodos;
         private FlowLayoutPanel _flpProximas;
@@ -78,8 +77,8 @@ namespace CoworkingApp.Controls
                 Padding   = new Padding(24, 12, 24, 24),
             };
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 130f));
-            content.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
-            content.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
+            content.RowStyles.Add(new RowStyle(SizeType.Percent, 60f));
+            content.RowStyles.Add(new RowStyle(SizeType.Percent, 40f));
 
             // Row 1: 4 KPI cards
             var row1 = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, BackColor = Theme.PageBg };
@@ -147,12 +146,6 @@ namespace CoworkingApp.Controls
                 BackColor = card.BackColor,
             };
 
-            // Sparkline para o hero (mini bar chart) — Dock=Bottom evita
-            // o "Height must be > 0" do Chart durante layout inicial.
-            _heroSparkline = BuildChartControl(transparent: true);
-            _heroSparkline.Dock   = DockStyle.Bottom;
-            _heroSparkline.Height = 40;
-
             deltaLbl = new Label
             {
                 Text = "", Font = Theme.FontLabel,
@@ -161,19 +154,13 @@ namespace CoworkingApp.Controls
                 BackColor = card.BackColor,
             };
 
-            if (isAccent)
-            {
-                inner.Controls.Add(_heroSparkline);
-                inner.Controls.Add(deltaLbl);
-                inner.Controls.Add(valueLbl);
-                inner.Controls.Add(topLine);
-            }
-            else
-            {
-                inner.Controls.Add(deltaLbl);
-                inner.Controls.Add(valueLbl);
-                inner.Controls.Add(topLine);
-            }
+            // Sparkline retirado — total de heights (top 24 + value 38 + delta 18 +
+            // spark 40 = 120) excedia a altura interna do card (≈104), o que tapava
+            // o valor. Com 4 KPIs equal-width não há espaço para sparkline neste
+            // size; manter só value + delta deixa o card limpo.
+            inner.Controls.Add(deltaLbl);
+            inner.Controls.Add(valueLbl);
+            inner.Controls.Add(topLine);
             card.Controls.Add(inner);
             return card;
         }
@@ -324,8 +311,6 @@ namespace CoworkingApp.Controls
                             ? $"{(curr-prev)/prev:+0%;-0%;0%} vs mês anterior"
                             : "sem histórico";
                     }
-                    LoadSparkline(conn);
-
                     // Reservas hoje
                     using (var cmd = new SqlCommand(
                         @"SELECT COUNT(*) FROM reserva
@@ -367,60 +352,22 @@ namespace CoworkingApp.Controls
             }
         }
 
-        private void LoadSparkline(SqlConnection conn)
-        {
-            _heroSparkline.Series.Clear();
-            var s = new Series
-            {
-                ChartType           = SeriesChartType.Column,
-                Color               = Color.FromArgb(220, 255, 255, 255),
-                IsValueShownAsLabel = false,
-                BorderWidth         = 0,
-            };
-            using (var cmd = new SqlCommand(
-                @"SELECT TOP 6 FORMAT(data_pagamento,'yyyy-MM') AS Mes, SUM(valor) AS Total
-                  FROM pagamento
-                  WHERE estado='Pago' AND data_pagamento >= DATEADD(MONTH,-6,GETDATE())
-                  GROUP BY FORMAT(data_pagamento,'yyyy-MM')
-                  ORDER BY Mes", conn))
-            using (var reader = cmd.ExecuteReader())
-            {
-                while (reader.Read())
-                    s.Points.AddXY(reader.GetString(0), reader.GetDecimal(1));
-            }
-            _heroSparkline.Series.Add(s);
-            // Esconder todos os eixos no sparkline
-            var area = _heroSparkline.ChartAreas[0];
-            area.BackColor                     = Color.Transparent;
-            area.AxisX.LabelStyle.Enabled      = false;
-            area.AxisY.LabelStyle.Enabled      = false;
-            area.AxisX.LineColor               = Color.Transparent;
-            area.AxisY.LineColor               = Color.Transparent;
-            area.AxisX.MajorGrid.LineColor     = Color.Transparent;
-            area.AxisY.MajorGrid.LineColor     = Color.Transparent;
-            area.AxisX.MajorTickMark.LineColor = Color.Transparent;
-            area.AxisY.MajorTickMark.LineColor = Color.Transparent;
-            area.Position.Auto                 = false;
-            area.Position.X      = 0;
-            area.Position.Y      = 0;
-            area.Position.Width  = 100;
-            area.Position.Height = 100;
-        }
-
         private void LoadReceitaMensal(SqlConnection conn)
         {
             _chartReceita.Series.Clear();
+            // Line (não SplineArea) — renderiza bem mesmo com 1-2 pontos.
+            // SplineArea com poucos pontos produzia "bars" verticais soltas.
             var s = new Series
             {
-                ChartType   = SeriesChartType.SplineArea,
-                Color       = Color.FromArgb(120, 99, 102, 241),  // indigo translúcido
-                BorderColor = Theme.Accent,
-                BorderWidth = 2,
-                MarkerStyle = MarkerStyle.Circle,
-                MarkerSize  = 7,
-                MarkerColor = Theme.Accent,
+                ChartType         = SeriesChartType.Line,
+                Color             = Theme.Accent,
+                BorderWidth       = 3,
+                MarkerStyle       = MarkerStyle.Circle,
+                MarkerSize        = 9,
+                MarkerColor       = Theme.Accent,
                 MarkerBorderColor = Color.White,
                 MarkerBorderWidth = 2,
+                IsValueShownAsLabel = false,
             };
             using (var cmd = new SqlCommand(
                 @"SELECT FORMAT(data_pagamento,'yyyy-MM') AS Mes, SUM(valor) AS Total
@@ -471,8 +418,10 @@ namespace CoworkingApp.Controls
                 Alignment    = StringAlignment.Center,
                 BackColor    = Color.Transparent,
                 ForeColor    = Theme.TextSecondary,
-                Font         = Theme.FontSub,
-                LegendStyle  = LegendStyle.Row,
+                Font         = new Font(Theme.FontBase.FontFamily, 8.5f),
+                LegendStyle  = LegendStyle.Table,
+                TableStyle   = LegendTableStyle.Wide,   // wraps to multiple rows se preciso
+                MaximumAutoSize = 35,                   // até 35% da chart area
             };
             _chartMetodos.Legends.Add(legend);
         }
@@ -514,15 +463,38 @@ namespace CoworkingApp.Controls
             }
             if (count == 0)
             {
-                _flpProximas.Controls.Add(new Label
+                var empty = new Panel
                 {
-                    Text = "Não há reservas agendadas.",
-                    Font = Theme.FontBase, ForeColor = Theme.TextMuted,
-                    AutoSize = false, Width = 600, Height = 32,
-                    TextAlign = ContentAlignment.MiddleLeft,
-                    Padding = new Padding(8, 6, 0, 0),
+                    Width = _flpProximas.ClientSize.Width - 20,
+                    Height = 120,
                     BackColor = Theme.CardBg,
-                });
+                    Margin = new Padding(0, 24, 0, 0),
+                };
+                var emptyIcon = new IconPictureBox
+                {
+                    IconChar  = IconChar.CalendarCheck,
+                    IconColor = Theme.TextMuted,
+                    IconSize  = 36,
+                    Size      = new Size(40, 40),
+                    BackColor = Theme.CardBg,
+                    SizeMode  = PictureBoxSizeMode.CenterImage,
+                    Anchor    = AnchorStyles.Top,
+                    Location  = new Point((empty.Width - 40) / 2, 16),
+                };
+                var emptyLbl = new Label
+                {
+                    Text      = "Não há reservas agendadas",
+                    Font      = Theme.FontBase,
+                    ForeColor = Theme.TextMuted,
+                    BackColor = Theme.CardBg,
+                    AutoSize  = false,
+                    Size      = new Size(empty.Width, 24),
+                    Location  = new Point(0, 64),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                };
+                empty.Controls.Add(emptyIcon);
+                empty.Controls.Add(emptyLbl);
+                _flpProximas.Controls.Add(empty);
             }
         }
 
