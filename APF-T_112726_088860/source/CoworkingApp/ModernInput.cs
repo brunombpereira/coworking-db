@@ -17,9 +17,9 @@ namespace CoworkingApp
         private          IconPictureBox _trailing;
         private          IconChar       _leadingIcon = IconChar.None;
         private          Image          _leadingImage;
-        private const    int            LeadingIconSize    = 16;
+        private const    int            LeadingIconSize    = 18;
         private const    int            LeadingIconLeftPad = 14;
-        private const    int            LeadingIconGap     = 10;
+        private const    int            LeadingIconGap     = 6;
 
         public int   CornerRadius     { get; set; } = 8;
         public Color BorderColorIdle  { get; set; } = Theme.CardBorder;
