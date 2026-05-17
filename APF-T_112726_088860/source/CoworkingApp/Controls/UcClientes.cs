@@ -59,16 +59,27 @@ namespace CoworkingApp.Controls
             {
                 Text  = "+ Novo Cliente",
                 Style = ModernButton.Variant.Primary,
-                Dock  = DockStyle.Right, Width = 170, Height = 42,
+                Dock  = DockStyle.Top, Width = 140, Height = 38,
                 Margin = new Padding(0),
             };
             btnNovo.Click += (s, e) => OpenEditor(null);
 
-            var btnHolder = new Panel { Dock = DockStyle.Right, Width = 170, BackColor = Theme.PageBg, Padding = new Padding(0, 6, 0, 0) };
+            // Holder do botão (Dock=Right, padding vertical para alinhar)
+            var btnHolder = new Panel { Dock = DockStyle.Right, Width = 140, BackColor = Theme.PageBg, Padding = new Padding(0, 14, 0, 0) };
             btnHolder.Controls.Add(btnNovo);
 
+            // Search à esquerda do botão Novo, mesmo header
+            _txtSearch = new ModernInput { Dock = DockStyle.Top, Height = 38 };
+            _txtSearch.PlaceholderText = "Procurar nome, NIF, email…";
+            _txtSearch.TextChanged += (s, e) => LoadData();
+
+            var searchHolder = new Panel { Dock = DockStyle.Right, Width = 280, BackColor = Theme.PageBg, Padding = new Padding(0, 14, 10, 0) };
+            searchHolder.Controls.Add(_txtSearch);
+
+            // Ordem: btn primeiro (mais à direita), depois search (à esquerda do btn)
             pnlTitle.Controls.Add(titleArea);
             pnlTitle.Controls.Add(btnHolder);
+            pnlTitle.Controls.Add(searchHolder);
 
             // Content (stats + lista — search vai DENTRO do card da lista)
             var content = new TableLayoutPanel
@@ -145,7 +156,7 @@ namespace CoworkingApp.Controls
             return card;
         }
 
-        // ── List card (com search inline no topo) ───────────────────────
+        // ── List card ───────────────────────────────────────────────────
         private Control BuildListCard()
         {
             var card = new ModernCard
@@ -154,13 +165,6 @@ namespace CoworkingApp.Controls
                 CornerRadius = 12, ShowShadow = false,
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(8, 8, 8, 8) };
-
-            // Search bar inline no topo do card
-            var searchBar = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.CardBg, Padding = new Padding(8, 8, 8, 12) };
-            _txtSearch = new ModernInput { Dock = DockStyle.Fill, Height = 38 };
-            _txtSearch.PlaceholderText = "Procurar nome, NIF, email…";
-            _txtSearch.TextChanged += (s, e) => LoadData();
-            searchBar.Controls.Add(_txtSearch);
 
             _listContainer = new Panel
             {
@@ -175,7 +179,6 @@ namespace CoworkingApp.Controls
 
             inner.Controls.Add(_listContainer);
             inner.Controls.Add(_emptyState);
-            inner.Controls.Add(searchBar);
             card.Controls.Add(inner);
             return card;
         }
@@ -311,59 +314,77 @@ namespace CoworkingApp.Controls
             };
             avatarHolder.Controls.Add(avatar);
 
-            // Acções à direita (edit + delete + adesão badge se aplicável)
-            var actions = new Panel { Dock = DockStyle.Right, Width = 110, BackColor = idleBg };
+            // Acções à direita (edit + delete) — bigger + mais visíveis
+            var actions = new Panel { Dock = DockStyle.Right, Width = 100, BackColor = idleBg };
             var btnEdit = new IconButton
             {
-                IconChar = IconChar.Pen, IconSize = 14, IconColor = Theme.TextSecondary,
+                IconChar = IconChar.Pen, IconSize = 18, IconColor = Theme.TextSecondary,
                 FlatStyle = FlatStyle.Flat, BackColor = idleBg, ForeColor = Theme.TextSecondary,
-                Size = new Size(36, 36), Location = new Point(18, 20), Cursor = Cursors.Hand,
+                Size = new Size(40, 40), Location = new Point(8, 18), Cursor = Cursors.Hand,
                 TabStop = false,
             };
             btnEdit.FlatAppearance.BorderSize = 0;
             btnEdit.FlatAppearance.MouseOverBackColor = Theme.SidebarBgActive;
+            btnEdit.MouseEnter += (s, e) => btnEdit.IconColor = Theme.TextPrimary;
+            btnEdit.MouseLeave += (s, e) => btnEdit.IconColor = Theme.TextSecondary;
             btnEdit.Click += (s, e) => OpenEditor(id);
 
             var btnDelete = new IconButton
             {
-                IconChar = IconChar.TrashCan, IconSize = 14, IconColor = Theme.StatusDangerFg,
-                FlatStyle = FlatStyle.Flat, BackColor = idleBg, ForeColor = Theme.StatusDangerFg,
-                Size = new Size(36, 36), Location = new Point(58, 20), Cursor = Cursors.Hand,
+                IconChar = IconChar.TrashCan, IconSize = 18, IconColor = Theme.TextSecondary,
+                FlatStyle = FlatStyle.Flat, BackColor = idleBg, ForeColor = Theme.TextSecondary,
+                Size = new Size(40, 40), Location = new Point(52, 18), Cursor = Cursors.Hand,
                 TabStop = false,
             };
             btnDelete.FlatAppearance.BorderSize = 0;
             btnDelete.FlatAppearance.MouseOverBackColor = Color.FromArgb(40, Theme.StatusDangerFg);
+            btnDelete.MouseEnter += (s, e) => btnDelete.IconColor = Theme.StatusDangerFg;
+            btnDelete.MouseLeave += (s, e) => btnDelete.IconColor = Theme.TextSecondary;
             btnDelete.Click += (s, e) => DeleteCliente(id, nome);
 
             actions.Controls.Add(btnEdit);
             actions.Controls.Add(btnDelete);
 
-            // Stats (reservas + última) — vertical centering via Padding do container,
-            // não nos labels individuais (que cortavam o texto).
-            // Total interno: 24 (line1) + 20 (line2) = 44. Row 76 → top padding 16.
+            // Stats (reservas + última). Quando numReservas=0 mostramos só
+            // 'Sem reservas' (uma linha), centrado verticalmente. Caso
+            // contrário 'N reservas' + 'Última dd/MM/yyyy'.
             var statsPanel = new Panel
             {
                 Dock = DockStyle.Right, Width = 200, BackColor = idleBg,
-                Padding = new Padding(0, 16, 8, 0),
             };
-            string statsLine1 = numReservas + " reserva" + (numReservas == 1 ? "" : "s");
-            string statsLine2 = ultimaReserva.HasValue
-                ? "Última: " + ultimaReserva.Value.ToString("dd/MM/yyyy")
-                : "Sem reservas";
-            var lblStats1 = new Label
+            if (numReservas == 0)
             {
-                Text = statsLine1, Font = Theme.FontBold, ForeColor = Theme.TextPrimary,
-                Dock = DockStyle.Top, Height = 24, AutoSize = false,
-                TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
-            };
-            var lblStats2 = new Label
+                statsPanel.Padding = new Padding(0, 26, 12, 0);  // centrar 1 linha numa altura 76
+                var lblNone = new Label
+                {
+                    Text = "Sem reservas", Font = Theme.FontSub, ForeColor = Theme.TextMuted,
+                    Dock = DockStyle.Top, Height = 24, AutoSize = false,
+                    TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
+                };
+                statsPanel.Controls.Add(lblNone);
+            }
+            else
             {
-                Text = statsLine2, Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
-                Dock = DockStyle.Top, Height = 20, AutoSize = false,
-                TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
-            };
-            statsPanel.Controls.Add(lblStats2);
-            statsPanel.Controls.Add(lblStats1);
+                statsPanel.Padding = new Padding(0, 16, 12, 0);  // centrar 2 linhas (24+20=44)
+                var lblStats1 = new Label
+                {
+                    Text = numReservas + " reserva" + (numReservas == 1 ? "" : "s"),
+                    Font = Theme.FontBold, ForeColor = Theme.TextPrimary,
+                    Dock = DockStyle.Top, Height = 24, AutoSize = false,
+                    TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
+                };
+                var lblStats2 = new Label
+                {
+                    Text = ultimaReserva.HasValue
+                              ? "Última: " + ultimaReserva.Value.ToString("dd/MM/yyyy")
+                              : "—",
+                    Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
+                    Dock = DockStyle.Top, Height = 20, AutoSize = false,
+                    TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
+                };
+                statsPanel.Controls.Add(lblStats2);
+                statsPanel.Controls.Add(lblStats1);
+            }
 
             // Badge adesão (opcional, à direita do statsPanel)
             Control adesaoBadge = null;
