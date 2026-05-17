@@ -467,16 +467,123 @@ namespace CoworkingApp.Controls
             }
             Hook(row);
 
-            // Click no row (fora dos action buttons) → abre editor
+            // Click no row (fora dos action buttons) → abre detalhe (read-only)
             void HookRowClick(Control c)
             {
                 if (c == btnEdit || c == btnDelete) return;
-                c.Click += (s, e) => OpenEditor(id);
+                c.Click += (s, e) => OpenDetail(id, nome, nif, email, telefone,
+                                                 numReservas, ultimaReserva, temAdesao);
                 foreach (Control child in c.Controls) HookRowClick(child);
             }
             HookRowClick(row);
 
             return row;
+        }
+
+        // ── Detail (read-only) ──────────────────────────────────────────
+        private void OpenDetail(int id, string nome, string nif, string email, string telefone,
+                                int numReservas, DateTime? ultimaReserva, bool temAdesao)
+        {
+            var body = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 1,
+                AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            };
+
+            // Avatar circle grande (60) com inicial
+            var avatarRow = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Theme.CardBg };
+            string initial = string.IsNullOrEmpty(nome) ? "?" : nome.Substring(0, 1).ToUpper();
+            avatarRow.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                int diam = 60;
+                int cx = 0, cy = (avatarRow.Height - diam) / 2;
+                using (var br = new SolidBrush(Theme.Accent))
+                    g.FillEllipse(br, cx, cy, diam, diam);
+                using (var f = new Font(Theme.FontBase.FontFamily, 22f, FontStyle.Bold))
+                {
+                    var ts = TextRenderer.MeasureText(g, initial, f, Size.Empty, TextFormatFlags.NoPadding);
+                    TextRenderer.DrawText(g, initial, f,
+                        new Point(cx + (diam - ts.Width) / 2, cy + (diam - ts.Height) / 2),
+                        Color.White, TextFormatFlags.NoPadding);
+                }
+                // Nome ao lado
+                using (var f = new Font(Theme.FontBase.FontFamily, 16f, FontStyle.Bold))
+                {
+                    TextRenderer.DrawText(g, nome, f, new Point(diam + 14, cy + 6),
+                        Theme.TextPrimary, TextFormatFlags.NoPadding);
+                }
+                // Chip 'Com adesão' se aplicável
+                if (temAdesao)
+                {
+                    int chipX = diam + 14, chipY = cy + 38;
+                    var pillRect = new Rectangle(chipX, chipY, 90, 22);
+                    using (var path = ModernCard.RoundedRect(pillRect, 11))
+                    using (var br = new SolidBrush(Theme.StatusSuccessBg))
+                        g.FillPath(br, path);
+                    TextRenderer.DrawText(g, "Com adesão", Theme.FontMicro, pillRect,
+                        Theme.StatusSuccessFg,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                }
+            };
+
+            // Adicionar fields (Dock=Top, reverse z-order → adicionar último
+            // = topo. Aqui queremos avatar em cima → adicionar último.)
+            body.Controls.Add(BuildDetailField("Última reserva",
+                ultimaReserva.HasValue ? ultimaReserva.Value.ToString("dd/MM/yyyy") : "—"));
+            body.Controls.Add(BuildDetailField("Nº reservas",  numReservas.ToString()));
+            body.Controls.Add(BuildDetailField("Telefone",     telefone ?? "—"));
+            body.Controls.Add(BuildDetailField("Email",        email));
+            body.Controls.Add(BuildDetailField("NIF",          nif));
+            body.Controls.Add(avatarRow);
+
+            // Modo read-only (onSave=null) → FormDialog mostra só 'Fechar'.
+            // Acrescentamos 'Editar dados' no Footer exposto.
+            using (var dlg = new CoworkingApp.FormDialog($"Detalhes — {nome}", body, 460, onSave: null))
+            {
+                var btnEditar = new ModernButton
+                {
+                    Text = "Editar dados", Style = ModernButton.Variant.Primary,
+                    Font = Theme.FontBold, Size = new Size(150, 36),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                };
+                // Posicionar à esquerda do botão Fechar dentro do footer.
+                btnEditar.Click += (s, e) => { dlg.DialogResult = DialogResult.OK; dlg.Close(); };
+                if (dlg.Footer != null)
+                {
+                    // Inserir o botão à esquerda dentro do FlowLayoutPanel do footer.
+                    foreach (Control flow in dlg.Footer.Controls)
+                    {
+                        if (flow is FlowLayoutPanel flp)
+                        {
+                            flp.Controls.Add(btnEditar);
+                            break;
+                        }
+                    }
+                }
+                if (dlg.ShowDialog(this.FindForm()) == DialogResult.OK)
+                    OpenEditor(id);
+            }
+        }
+
+        private static Panel BuildDetailField(string label, string value)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Theme.CardBg, Padding = new Padding(0, 8, 0, 0) };
+            pnl.Controls.Add(new Label
+            {
+                Text = value, Font = Theme.FontBase, ForeColor = Theme.TextPrimary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 24,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            pnl.Controls.Add(new Label
+            {
+                Text = label.ToUpper(), Font = Theme.FontMicro, ForeColor = Theme.TextMuted,
+                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 16,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            return pnl;
         }
 
         private static void PaintChildren(Control c, Color bg)

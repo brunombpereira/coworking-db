@@ -9,6 +9,9 @@ namespace CoworkingApp
         private readonly Panel _card;
         private readonly Panel _body;
         private readonly Action _saveCallback;
+        /// <summary>Footer do dialog (Guardar/Cancelar ou Fechar) — exposto
+        /// para callers em modo read-only adicionarem botões extra.</summary>
+        public Panel Footer { get; private set; }
 
         /// <summary>
         /// Modal genérico para forms de criar/editar.
@@ -98,31 +101,39 @@ namespace CoworkingApp
                 Padding = new Padding(0, 12, 18, 12),
                 AutoSize = true
             };
-            var btnSave = Theme.BtnPrim("Guardar");
-            btnSave.Click += (s, e) =>
+            // Se onSave for null → modo read-only: só botão 'Fechar'.
+            bool readOnly = (onSave == null);
+            if (!readOnly)
             {
-                try
+                var btnSave = Theme.BtnPrim("Guardar");
+                btnSave.Click += (s, e) =>
                 {
-                    _saveCallback?.Invoke();
-                    DialogResult = DialogResult.OK;
-                    Close();
-                }
-                catch (Microsoft.Data.SqlClient.SqlException ex)
-                {
-                    MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                catch (ApplicationException ex)
-                {
-                    MessageBox.Show(ex.Message, "Validação",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            };
-            var btnCancel = Theme.BtnGray("Cancelar");
+                    try
+                    {
+                        _saveCallback?.Invoke();
+                        DialogResult = DialogResult.OK;
+                        Close();
+                    }
+                    catch (Microsoft.Data.SqlClient.SqlException ex)
+                    {
+                        MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    catch (ApplicationException ex)
+                    {
+                        MessageBox.Show(ex.Message, "Validação",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                };
+                flow.Controls.Add(btnSave);
+            }
+            var btnCancel = Theme.BtnGray(readOnly ? "Fechar" : "Cancelar");
             btnCancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
-            flow.Controls.Add(btnSave);
             flow.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(flow);
+            // Expor o footer para que callers possam adicionar acções (ex.
+            // 'Editar dados' num detalhe read-only).
+            Footer = pnlFooter;
 
             // Compose
             _card.Controls.Add(_body);
