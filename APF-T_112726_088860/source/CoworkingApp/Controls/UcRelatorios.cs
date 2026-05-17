@@ -375,8 +375,10 @@ namespace CoworkingApp.Controls
                 if (img != null) g.DrawImage(img, cx + (diam - 20) / 2, cy + (diam - 20) / 2 + 1, 20, 20);
             };
 
-            // ─── Direita: botão Reservar ─────────────────────────────
-            var actions = new Panel { Dock = DockStyle.Right, Width = 130, BackColor = idleBg, Padding = new Padding(0, 20, 12, 0) };
+            // ─── Direita: botão Reservar (centrado vertical) ─────────
+            // Wrap card.Height = 86 inclui Padding bottom 8 → height útil = 78.
+            // Button 36 → top = (78-36)/2 = 21 para centrar.
+            var actions = new Panel { Dock = DockStyle.Right, Width = 130, BackColor = idleBg, Padding = new Padding(0, 21, 12, 0) };
             var btnReservar = new ModernButton
             {
                 Text = "Reservar", Style = ModernButton.Variant.Primary,
@@ -389,8 +391,9 @@ namespace CoworkingApp.Controls
             };
             actions.Controls.Add(btnReservar);
 
-            // ─── Preço + chip Disponível ─────────────────────────────
-            var precoInfo = new Panel { Dock = DockStyle.Right, Width = 170, BackColor = idleBg, Padding = new Padding(0, 16, 12, 0) };
+            // ─── Preço + chip Disponível (centrado vertical) ─────────
+            // Preço (30) + pill (22) = 52 → top = (78-52)/2 = 13.
+            var precoInfo = new Panel { Dock = DockStyle.Right, Width = 170, BackColor = idleBg, Padding = new Padding(0, 13, 12, 0) };
             var lblPreco = new Label
             {
                 Text = Theme.FormatEuro(preco) + " " + unidade,
@@ -411,22 +414,27 @@ namespace CoworkingApp.Controls
             precoInfo.Controls.Add(pillHolder);
             precoInfo.Controls.Add(lblPreco);
 
-            // ─── Centro: nome + capacidade/tipo ──────────────────────
-            var middle = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(10, 14, 8, 0) };
+            // ─── Centro: nome + capacidade/tipo (centrado vertical) ──
+            // Nome (24) + subline (22) = 46 → top = (78-46)/2 = 16.
+            var middle = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(10, 16, 8, 0) };
             string subline = capacidade.HasValue
-                ? $"{capacidade.Value} lugares · €{preco.ToString("0.##", CultureInfo.InvariantCulture)} {unidade}"
-                : $"{tipo} · €{preco.ToString("0.##", CultureInfo.InvariantCulture)} {unidade}";
-            middle.Controls.Add(new Label
+                ? $"{capacidade.Value} lugares"
+                : tipo;
+            // Ordem: Dock=Top processa em reverse z-order → subline (Dock=Top) last add = topmost.
+            // Para nome em cima e subline abaixo, adicionar subline primeiro, nome último.
+            var lblSub = new Label
             {
                 Text = subline, Font = Theme.FontSub, ForeColor = Theme.TextSecondary, BackColor = idleBg,
-                Dock = DockStyle.Bottom, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-            });
-            middle.Controls.Add(new Label
+                Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            var lblName = new Label
             {
                 Text = nome, Font = new Font(Theme.FontBase.FontFamily, 13f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-            });
+                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            middle.Controls.Add(lblSub);    // adicionado primeiro = abaixo
+            middle.Controls.Add(lblName);   // adicionado depois = topo
 
             row.Controls.Add(middle);
             row.Controls.Add(precoInfo);
