@@ -475,24 +475,31 @@ namespace CoworkingApp.Controls
         private void OpenDetailPopup(int id, string cliente, string tipo, string assunto,
                                       string mensagem, DateTime data, bool jaLida)
         {
+            const int PopupW   = 520;
+            const int PadBody  = 24;
+            int msgW = PopupW - PadBody * 2 - 2;
+            int msgH = TextRenderer.MeasureText(mensagem ?? "—", Theme.FontBase,
+                new Size(msgW, 1000), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
+            int popupH = 56 /*header*/ + 32 /*assunto*/ + 22 /*meta*/ + 14 /*sp*/
+                       + Math.Max(20, msgH) + PadBody + 2 /*border*/;
+
             var dlg = new Form
             {
                 FormBorderStyle = FormBorderStyle.None,
                 StartPosition   = FormStartPosition.CenterParent,
                 BackColor       = Theme.CardBorder,
                 Padding         = new Padding(1),
-                Size            = new Size(560, 360),
+                Size            = new Size(PopupW, popupH),
                 ShowInTaskbar   = false,
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
 
             // ─── Header (Dock=Top) com tipo pill + botão X ──────────
-            var header = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.CardBg, Padding = new Padding(24, 16, 16, 0) };
+            var header = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.CardBg };
             var tipoPill = new StatusPill
             {
                 Text = tipo, Height = 24, Width = 200, BackColor = Theme.CardBg,
                 Style = StatusPill.PillStyle.Dot, Font = Theme.FontSub,
-                Location = new Point(24, 18),
             };
             tipoPill.SetColors(Color.FromArgb(40, TipoColor(tipo)), TipoColor(tipo));
 
@@ -501,8 +508,6 @@ namespace CoworkingApp.Controls
                 IconChar = IconChar.Xmark, IconSize = 22, IconColor = Theme.TextSecondary,
                 FlatStyle = FlatStyle.Flat, Size = new Size(40, 40),
                 BackColor = Theme.CardBg, Cursor = Cursors.Hand, TabStop = false,
-                Location = new Point(dlg.Width - 1 - 40 - 12, 10),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
             };
             btnClose.FlatAppearance.BorderSize         = 0;
             btnClose.FlatAppearance.MouseOverBackColor = Theme.CardBg;
@@ -513,11 +518,19 @@ namespace CoworkingApp.Controls
             header.Controls.Add(tipoPill);
             header.Controls.Add(btnClose);
 
+            void LayoutHeader()
+            {
+                tipoPill.Location = new Point(24, (header.Height - tipoPill.Height) / 2);
+                btnClose.Location = new Point(header.Width - btnClose.Width - 12, (header.Height - btnClose.Height) / 2);
+            }
+            header.Resize       += (s, e) => LayoutHeader();
+            header.HandleCreated += (s, e) => LayoutHeader();
+
             // ─── Corpo (Dock=Fill) com assunto + meta + mensagem ────
-            var body = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(24, 8, 24, 24) };
+            var body = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(PadBody, 4, PadBody, PadBody) };
             var lblAssunto = new Label
             {
-                Text = assunto, Font = new Font(Theme.FontBase.FontFamily, 16f, FontStyle.Bold),
+                Text = assunto, Font = new Font(Theme.FontBase.FontFamily, 15f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
                 Dock = DockStyle.Top, Height = 32, AutoSize = false,
                 TextAlign = ContentAlignment.MiddleLeft,
