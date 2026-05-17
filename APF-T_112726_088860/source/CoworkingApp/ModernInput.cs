@@ -140,6 +140,35 @@ namespace CoworkingApp
             base.OnClick(e);
         }
 
+        // Re-centra verticalmente o TextBox interno sempre que o Size muda.
+        // O TextBox renderiza o texto no topo do seu Dock=Fill area, por
+        // isso para visualmente centrar o texto no container precisamos de
+        // padding-top calculado a partir da font height.
+        private bool _recentering;
+        protected override void OnSizeChanged(EventArgs e)
+        {
+            base.OnSizeChanged(e);
+            RecenterText();
+        }
+        protected override void OnFontChanged(EventArgs e)
+        {
+            base.OnFontChanged(e);
+            RecenterText();
+        }
+        private void RecenterText()
+        {
+            if (_recentering || _inner == null || Height < 16) return;
+            _recentering = true;
+            try
+            {
+                int fontH    = TextRenderer.MeasureText("Hg", Font).Height;
+                int topPad   = Math.Max(2, (Height - fontH) / 2);
+                int botPad   = Math.Max(2, Height - fontH - topPad);
+                Padding = new Padding(Padding.Left, topPad, Padding.Right, botPad);
+            }
+            finally { _recentering = false; }
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e) { /* skip */ }
 
         protected override void OnPaint(PaintEventArgs e)
