@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using CoworkingApp.Controls;
 using FontAwesome.Sharp;
@@ -22,7 +23,37 @@ namespace CoworkingApp
             LogoutRequested = false;
             InitializeComponent();
             BuildUI();
-            if (_navBtns.Count > 0) _navBtns[0].PerformClick();
+
+            // Entrar directamente no Dashboard + activar o botão na sidebar.
+            // Explícito em vez de PerformClick (mais robusto contra ordem
+            // de eventos / state inicial).
+            Navigate<UcDashboard>();
+            if (_navBtns.Count > 0) SetActive(_navBtns[0]);
+
+            ThemeManager.ThemeChanged += ApplyDwmTitleBar;
+        }
+
+        // ── Dark title bar (Win10 2004+/11) ─────────────────────────────
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
+        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ApplyDwmTitleBar();
+        }
+
+        private void ApplyDwmTitleBar()
+        {
+            if (!IsHandleCreated) return;
+            try
+            {
+                int useDark = ThemeManager.Current == ThemeMode.Dark ? 1 : 0;
+                DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                                      ref useDark, sizeof(int));
+            }
+            catch { /* não é crítico */ }
         }
 
 
@@ -100,135 +131,42 @@ namespace CoworkingApp
 
         private void BuildSidebar(Panel sidebar)
         {
-            sidebar.Width = 200;
+            sidebar.Width = 220;
 
-            // Header
+            // ── Header: só o logo (sem texto duplicado com a title bar) ─
             var pnlHeader = new Panel
             {
-                Dock = DockStyle.Top,
-                Height = 64,
+                Dock      = DockStyle.Top,
+                Height    = 56,
                 BackColor = Theme.SidebarBg,
-                Padding = new Padding(14, 14, 8, 0)
             };
-            var lblTitle = new Label
+            var logoBox = new PictureBox
             {
-                Text = "Coworking",
-                ForeColor = Color.White,
-                Font = new Font(Theme.FontBase.FontFamily, 13f, FontStyle.Bold),
-                AutoSize = false,
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(34, 0, 0, 0)
-            };
-            // Logo box
-            var logoBox = new Panel
-            {
-                BackColor = Theme.Accent,
-                Size = new Size(24, 24),
-                Location = new Point(14, 20)
+                Image     = AppIcon.Get(32).ToBitmap(),
+                Size      = new Size(32, 32),
+                Location  = new Point(16, 12),
+                SizeMode  = PictureBoxSizeMode.StretchImage,
+                BackColor = Theme.SidebarBg,
             };
             pnlHeader.Controls.Add(logoBox);
-            pnlHeader.Controls.Add(lblTitle);
 
-            // Footer com info de utilizador + logout + toggle tema
-            var pnlFooter = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 124,
-                BackColor = Theme.SidebarBg,
-                Padding = new Padding(8, 4, 8, 4)
-            };
+            // ── Footer: avatar + nome → click abre menu ──────────────────
+            var pnlFooter = BuildAvatarFooter();
 
-            var lblUser = new Label
-            {
-                Text = "  " + (Session.Username ?? "—"),
-                ForeColor = Color.White,
-                Font = new Font(Theme.FontBase.FontFamily, 9.5f, FontStyle.Bold),
-                Dock = DockStyle.Top,
-                Height = 22,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 0, 0)
-            };
-            var lblRole = new Label
-            {
-                Text = "  Role: " + (Session.Role ?? "—"),
-                ForeColor = Theme.SidebarText,
-                Font = Theme.FontSub,
-                Dock = DockStyle.Top,
-                Height = 18,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 0, 0)
-            };
-
-            var btnLogout = new IconButton
-            {
-                IconChar = IconChar.SignOutAlt,
-                IconColor = Color.White,
-                IconSize = 16,
-                ImageAlign = ContentAlignment.MiddleLeft,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Text = "  Sair",
-                Font = new Font(Theme.FontBase.FontFamily, 9f),
-                ForeColor = Color.White,
-                BackColor = Color.Transparent,
-                FlatStyle = FlatStyle.Flat,
-                Dock = DockStyle.Top,
-                Height = 32,
-                Cursor = Cursors.Hand,
-                Padding = new Padding(8, 0, 0, 0)
-            };
-            btnLogout.FlatAppearance.BorderSize = 0;
-            btnLogout.FlatAppearance.MouseOverBackColor = Theme.SidebarBgActive;
-            btnLogout.Click += (s, e) =>
-            {
-                LogoutRequested = true;
-                this.Close();
-            };
-
-            var btnTheme = new IconButton
-            {
-                IconChar = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun,
-                IconColor = Color.White,
-                IconSize = 16,
-                ImageAlign = ContentAlignment.MiddleLeft,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Text = ThemeManager.Current == ThemeMode.Light ? "  Modo escuro" : "  Modo claro",
-                Font = new Font(Theme.FontBase.FontFamily, 9f),
-                ForeColor = Color.White,
-                BackColor = Color.Transparent,
-                FlatStyle = FlatStyle.Flat,
-                Dock = DockStyle.Top,
-                Height = 32,
-                Cursor = Cursors.Hand,
-                Padding = new Padding(8, 0, 0, 0)
-            };
-            btnTheme.FlatAppearance.BorderSize = 0;
-            btnTheme.Click += (s, e) =>
-            {
-                ThemeManager.Toggle();
-                btnTheme.IconChar = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun;
-                btnTheme.Text = ThemeManager.Current == ThemeMode.Light ? "  Modo escuro" : "  Modo claro";
-            };
-            // Order matters: Top added last sits highest visually
-            pnlFooter.Controls.Add(btnTheme);
-            pnlFooter.Controls.Add(btnLogout);
-            pnlFooter.Controls.Add(lblRole);
-            pnlFooter.Controls.Add(lblUser);
-
-            // Nav area
+            // ── Nav area ────────────────────────────────────────────────
             var pnlNav = new Panel
             {
-                Dock = DockStyle.Fill,
-                BackColor = Theme.SidebarBg,
-                Padding = new Padding(8, 8, 8, 0),
-                AutoScroll = true
+                Dock       = DockStyle.Fill,
+                BackColor  = Theme.SidebarBg,
+                Padding    = new Padding(0, 12, 0, 0),
+                AutoScroll = true,
             };
             var flp = new FlowLayoutPanel
             {
-                Dock = DockStyle.Fill,
+                Dock          = DockStyle.Fill,
                 FlowDirection = FlowDirection.TopDown,
-                WrapContents = false,
-                AutoSize = false
+                WrapContents  = false,
+                AutoSize      = false,
             };
 
             AddSectionLabel(flp, "OPERACIONAL");
@@ -263,19 +201,73 @@ namespace CoworkingApp
             sidebar.Controls.Add(pnlHeader);
         }
 
+        // ── Footer avatar com menu de perfil/tema/sair ──────────────────
+        private Control BuildAvatarFooter()
+        {
+            var footer = new AvatarFooter
+            {
+                Dock         = DockStyle.Bottom,
+                Username     = Session.Username ?? "?",
+                AccentColor  = Theme.Accent,
+                BackColor    = Theme.SidebarBg,
+                HoverColor   = Theme.SidebarBgActive,
+                TextColor    = Color.White,
+                ChevronColor = Theme.SidebarText,
+            };
+            footer.Click += (s, e) => ShowProfilePopup(footer);
+            return footer;
+        }
+
+        private void ShowProfilePopup(Control anchor)
+        {
+            var items = new System.Collections.Generic.List<ProfilePopup.MenuItemDef>
+            {
+                new ProfilePopup.MenuItemDef
+                {
+                    Text    = "Perfil",
+                    Icon    = IconChar.User,
+                    OnClick = () => Navigate<UcPerfil>(),
+                },
+                new ProfilePopup.MenuItemDef
+                {
+                    Text    = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro",
+                    Icon    = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon  : IconChar.Sun,
+                    OnClick = () => ThemeManager.Toggle(),
+                },
+                new ProfilePopup.MenuItemDef { IsSeparator = true },
+                new ProfilePopup.MenuItemDef
+                {
+                    Text     = "Sair",
+                    Icon     = IconChar.SignOutAlt,
+                    IsDanger = true,
+                    OnClick  = () => { LogoutRequested = true; this.Close(); },
+                },
+            };
+
+            var popup = new ProfilePopup(items);
+            // Posicionar à DIREITA do footer (fora da sidebar) com a base
+            // do popup alinhada com a base do footer — feel "explode from
+            // the side" tipo Discord/Slack.
+            var screenAnchor = anchor.PointToScreen(Point.Empty);
+            popup.Location = new Point(
+                screenAnchor.X + anchor.Width + 6,
+                screenAnchor.Y - popup.Height + anchor.Height);
+            popup.Show(this);
+        }
+
         private void AddSectionLabel(FlowLayoutPanel container, string text)
         {
             container.Controls.Add(new Label
             {
-                Text = text,
-                Font = Theme.FontMicro,
+                Text      = text,
+                Font      = Theme.FontMicro,
                 ForeColor = Theme.SidebarSectionLbl,
-                AutoSize = false,
-                Width = 180,
-                Height = 22,
+                AutoSize  = false,
+                Width     = 200,
+                Height    = 22,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 0, 0),
-                Margin = new Padding(0, 6, 0, 4)
+                Padding   = new Padding(14, 0, 0, 0),     // section a x=14
+                Margin    = new Padding(0, 12, 0, 6),     // mais breathing antes/depois
             });
         }
 
@@ -283,22 +275,23 @@ namespace CoworkingApp
         {
             var btn = new IconButton
             {
-                Text = "  " + label,
-                IconChar = icon,
-                IconColor = Theme.SidebarText,
-                IconSize = 16,
-                ImageAlign = ContentAlignment.MiddleLeft,
-                TextAlign = ContentAlignment.MiddleLeft,
-                FlatStyle = FlatStyle.Flat,
-                ForeColor = Theme.SidebarText,
-                BackColor = Color.Transparent,
-                Font = new Font(Theme.FontBase.FontFamily, 9.5f),
-                Height = 36,
-                Width = 180,
-                Padding = new Padding(10, 0, 0, 0),
-                Margin = new Padding(0, 0, 0, 2),
-                Cursor = Cursors.Hand,
-                UseVisualStyleBackColor = false
+                Text                = label,
+                IconChar            = icon,
+                IconColor           = Theme.SidebarText,
+                IconSize            = 18,
+                ImageAlign          = ContentAlignment.MiddleLeft,
+                TextAlign           = ContentAlignment.MiddleLeft,
+                TextImageRelation   = TextImageRelation.ImageBeforeText,
+                FlatStyle           = FlatStyle.Flat,
+                ForeColor           = Theme.SidebarText,
+                BackColor           = Color.Transparent,
+                Font                = new Font(Theme.FontBase.FontFamily, 9.5f),
+                Height              = 38,
+                Width               = 200,
+                Padding             = new Padding(26, 0, 8, 0),   // items indented vs section (x=26)
+                Margin              = new Padding(0, 0, 0, 3),
+                Cursor              = Cursors.Hand,
+                UseVisualStyleBackColor = false,
             };
             btn.FlatAppearance.BorderSize = 0;
             btn.FlatAppearance.MouseOverBackColor = Theme.SidebarBgActive;
@@ -347,7 +340,8 @@ namespace CoworkingApp
                 { typeof(UcPagamentos),    "Pagamentos"    },
                 { typeof(UcRelatorios),    "Relatórios"    },
                 { typeof(UcEstatisticas),  "Estatísticas"  },
-                { typeof(UcUtilizadores),  "Utilizadores"  }
+                { typeof(UcUtilizadores),  "Utilizadores"  },
+                { typeof(UcPerfil),        "Perfil"        }
             };
             if (names.TryGetValue(typeof(T), out string name))
                 _lblModule.Text = name;

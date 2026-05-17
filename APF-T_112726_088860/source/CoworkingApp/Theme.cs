@@ -121,34 +121,17 @@ namespace CoworkingApp
         }
 
         // ── Button factories ─────────────────────────────────────────────────
-        private static Button MakeBtn(string text, Color bg, Color fg, Color? border = null)
-        {
-            var b = new Button
-            {
-                Text = text,
-                BackColor = bg,
-                ForeColor = fg,
-                FlatStyle = FlatStyle.Flat,
-                Font = FontBold,
-                Height = 32,
-                AutoSize = false,
-                Width = 120,
-                Padding = new Padding(12, 0, 12, 0),
-                Cursor = Cursors.Hand,
-                UseVisualStyleBackColor = false,
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-            b.FlatAppearance.BorderSize = border.HasValue ? 1 : 0;
-            if (border.HasValue) b.FlatAppearance.BorderColor = border.Value;
-            var hoverBg = ControlPaint.Light(bg, 0.05f);
-            b.MouseEnter += (s, e) => b.BackColor = hoverBg;
-            b.MouseLeave += (s, e) => b.BackColor = bg;
-            return b;
-        }
+        // Voltam ModernButton (rounded + hover/pressed states) com a paleta
+        // do Theme. Compatível com o tipo Button — todos os call sites antigos
+        // (BtnPrim → btn.Click+=, btn.Enabled=...) continuam a funcionar.
+        public static Button BtnPrim(string text)
+            => new ModernButton { Text = text, Style = ModernButton.Variant.Primary,   Width = 120, Height = 36 };
 
-        public static Button BtnPrim(string text) => MakeBtn(text, BtnPrimaryBg, BtnPrimaryFg);
-        public static Button BtnRed(string text)  => MakeBtn(text, BtnDangerBg,  BtnDangerFg);
-        public static Button BtnGray(string text) => MakeBtn(text, BtnNeutralBg, BtnNeutralFg, BtnNeutralBd);
+        public static Button BtnRed(string text)
+            => new ModernButton { Text = text, Style = ModernButton.Variant.Danger,    Width = 120, Height = 36 };
+
+        public static Button BtnGray(string text)
+            => new ModernButton { Text = text, Style = ModernButton.Variant.Secondary, Width = 120, Height = 36 };
 
         // ── Toolbar / form panel ─────────────────────────────────────────────
         public static Panel Toolbar()
