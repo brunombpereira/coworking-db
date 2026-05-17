@@ -177,3 +177,83 @@ O sistema cobre o domínio com 9 tabelas core + 4 de extensão (auth, política,
 - O sistema não suporta multi-tenancy (uma só CoworkingDB serve um operador).
 
 **Próximos passos naturais:** dashboard de KPIs em SSRS, UI de gestão de políticas, integração com gateway de pagamento real.
+
+---
+
+## Anexo A. Rastreabilidade Requisito → Implementação
+
+Mapa de cobertura entre o `Requisitos.md` (APF-E) e o schema/SQL/app implementado.
+Para cada item, lista-se a implementação concreta — útil para auditoria do
+professor e como suporte à apresentação oral.
+
+**Convenções:**
+`T1..T16` = triggers; `sp_*` = stored procedures; `vw_*` = views; `fn_*` = funções;
+`UcX` = UserControl C#; CHECK/UNIQUE/FK = constraints declarativas.
+
+### A.1 Requisitos Funcionais
+
+| RF | Descrição | Implementação |
+|---|---|---|
+| RF1 | Registar clientes | Tabela `cliente`; SP `sp_registar_cliente`; `UcClientes` (CRUD) |
+| RF2 | Dados de identificação e contacto | Colunas `cliente.nome, nif, email, telefone, data_registo`; UNIQUE em `nif` e `email`; CHECK `nif NOT LIKE '%[^0-9]%'` |
+| RF3 | Registar planos | Tabela `plano`; UNIQUE `nome_plano`; CHECK `tipo_plano ∈ {Flex,Fixo,Privado}`; `UcPlanos` |
+| RF4 | Associar clientes a planos via adesões | Tabela `adesao` (FK `cliente_id` + FK `plano_id`); SP `sp_criar_adesao`; `UcAdesoes` |
+| RF5 | Manter histórico de adesões | `adesao.estado ∈ {Pendente,Ativa,Suspensa,Cancelada,Terminada}`; **SYSTEM_VERSIONING** → tabela `adesao_history`; view `vw_clientes_com_adesao_ativa` |
+| RF6 | Registar espaços físicos | Tabela `espaco`; UNIQUE `nome`; CHECK `hora_fecho > hora_abertura`; `UcEspacos` |
+| RF7 | Salas em cada espaço | Tabela `sala` (FK `espaco_id`); UNIQUE `(espaco_id, nome)`; `UcEspacos` (tab Salas) |
+| RF8 | Postos em cada espaço | Tabela `posto` (FK `espaco_id`); UNIQUE `(espaco_id, codigo)`; `UcEspacos` (tab Postos) |
+| RF9 | Reservar salas | `sp_criar_reserva_sala` (com `sp_getapplock`); T2/T3/T12 validam horário/capacidade/coerência; `UcReservas` |
+| RF10 | Reservar postos | `sp_criar_reserva_posto` (com `sp_getapplock`); T11/T12 validam compatibilidade com adesão; `UcReservas` |
+| RF11 | Histórico de reservas de um cliente | UDF `fn_reservas_cliente_periodo(@cli, @ini, @fim)`; view `vw_reservas_historico` (FOR SYSTEM_TIME ALL); `UcRelatorios` |
+| RF12 | Consultar ocupação de salas/postos | View `vw_ocupacao_recurso`; UDF `fn_taxa_ocupacao_espaco(@esp, @data)`; UDF `fn_recurso_disponivel(...)`; `UcDashboard`, `UcEstatisticas` |
+| RF13 | Registar pagamentos | Tabela `pagamento`; SP `sp_registar_pagamento` (com snapshot); `UcPagamentos` |
+| RF14 | Histórico de pagamentos por cliente | UDF `fn_receita_cliente(@cli)`; view `vw_top_clientes_receita`; **SYSTEM_VERSIONING** → `pagamento_history`; `UcRelatorios` |
+| RF15 | Controlar estado de reservas e adesões | Colunas `estado` em ambas (CHECK enum); SPs `sp_cancelar_reserva`, `sp_cancelar_reserva_com_reembolso`, `sp_cancelar_adesao`; trigger T5 calcula `data_fim` |
+
+### A.2 Requisitos Não Funcionais
+
+| RNF | Descrição | Implementação |
+|---|---|---|
+| RNF1 | Integridade e consistência | FKs em todas as relações; 16 triggers; SPs com `SET XACT_ABORT ON` + `sp_getapplock` para concorrência; CHECK em domínios de enum |
+| RNF2 | Unicidade NIF e email | UNIQUE em `cliente.nif` e `cliente.email` (constraints declarativas — falham com erro 2627/2601) |
+| RNF3 | Consulta fácil de disponibilidade | UDF `fn_recurso_disponivel`; view `vw_ocupacao_recurso`; index em `(recurso_id, data_reserva)` |
+| RNF4 | Crescimento de dados | `Indexes.sql` cobre FKs e colunas de busca frequente; views agregadas (`vw_receita_mensal`, `vw_receita_por_plano`) suportam paginação |
+| RNF5 | Clareza do modelo | DER + ER actualizados (`presentation/DER.md`, `presentation/EsquemaRelacional.md`); §3 do relatório justifica cada decisão |
+
+### A.3 Regras de Negócio
+
+| RN | Descrição | Implementação |
+|---|---|---|
+| RN1 | Cliente pode ter 0..N adesões | Cardinalidade FK em `adesao.cliente_id` (1:N). **Desvio:** T4 (`trg_adesao_ativa_unica`) restringe a **uma única adesão Ativa simultânea** — decisão consciente discutida em §3.2 (evita conflitos de faturação) |
+| RN2 | Adesão pertence a 1 cliente e 1 plano | FK NOT NULL em `adesao.cliente_id` e `adesao.plano_id` |
+| RN3 | Plano associado a vários clientes ao longo do tempo | Cardinalidade N:1 em `adesao` → `plano`; view `vw_receita_por_plano` agrega histórico |
+| RN4 | Espaço inclui várias salas | FK `sala.espaco_id` (N:1) com `ON DELETE NO ACTION` (não permite apagar espaço com salas) |
+| RN5 | Espaço disponibiliza vários postos | Analogamente, `posto.espaco_id` (N:1) com `ON DELETE NO ACTION` |
+| RN6 | Cada sala pertence a 1 espaço | FK NOT NULL `sala.espaco_id` |
+| RN7 | Cada posto pertence a 1 espaço | FK NOT NULL `posto.espaco_id` |
+| RN8 | Cliente pode reservar várias salas | Cardinalidade FK `reserva.cliente_id` (N:1) |
+| RN9 | Cliente pode reservar vários postos | Mesma — tabela `reserva` é unificada (correção #2 do prof.) |
+| RN10 | Reserva de sala refere-se a 1 sala | FK `reserva.recurso_id`; T12 (`trg_reserva_horas_coerentes`) exige `hora_inicio/fim NOT NULL` quando recurso é sala |
+| RN11 | Reserva de posto refere-se a 1 posto | FK `reserva.recurso_id`; T12 exige horas NULL; T11 evita colisão com adesão Flex/Fixo/Privado activa |
+| RN12 | Sala sem reservas sobrepostas | T1 (`trg_reserva_sem_sobreposicao`) + `sp_criar_reserva_sala` com `sp_getapplock` por `(recurso_id, data)` para evitar race condition |
+| RN13 | Posto sem reservas sobrepostas | Mesmo T1 + `sp_criar_reserva_posto` (dia inteiro: compara só data, não horas) |
+| RN14 | Cliente pode efectuar vários pagamentos | Cardinalidade FK `pagamento.cliente_id` (N:1) |
+| RN15 | Cada pagamento associado a 1 cliente | FK NOT NULL `pagamento.cliente_id`; T8 (`trg_pagamento_cliente_consistente`) valida que `cliente_id` é o titular do serviço pago |
+
+### A.4 Correcções do Professor
+
+| Correção | Implementação |
+|---|---|
+| **#1 — "Qual o preço?" do Pagamento** | Coluna `pagamento.preco_servico_snapshot DECIMAL(10,2) NOT NULL`; CHECK `ck_pagamento_valor_snapshot (valor = preco_servico_snapshot)`; trigger T6 (`trg_pagamento_valor_correto`) valida que `preco_servico_snapshot` coincide com `reserva.valor` / `adesao.preco_acordado`; SP `sp_registar_pagamento` faz o snapshot a partir do serviço. Justificação em §3.2 |
+| **#2 — Reserva como entidade associativa** | Tabela única `reserva` (em vez de `reserva_sala` + `reserva_posto` separadas) com FK para `recurso` (supertype de `sala`/`posto`). M:N entre `cliente` e `recurso` materializada com atributos próprios (`data_reserva, hora_*, valor, estado, num_participantes, notas`). T12 enforça as semânticas diferentes consoante o tipo de recurso |
+
+### A.5 Features adicionais (não pedidas pelos requisitos)
+
+| Feature | Motivação | Implementação |
+|---|---|---|
+| Autenticação por roles | Sem login, não há como demonstrar a separação Admin/Staff/Cliente | Tabela `utilizador` (SHA-256 + salt); SPs `sp_register_user`, `sp_login_user`, `sp_change_password`; 3 roles em `Security.sql` (`app_admin`, `app_staff`, `app_cliente`) com `DENY` directo a tabelas + `GRANT EXECUTE` por SP |
+| Política de cancelamento com reembolso | Reflectir prática real de coworking | Tabela `politica_cancelamento` (tiers por antecedência); SP `sp_cancelar_reserva_com_reembolso` aplica a tier de maior `horas_minimas ≤ antecedência` |
+| Notificações | Feedback ao cliente sobre eventos relevantes | Tabela `notificacao`; triggers T13/T14/T15 emitem automaticamente (criar/cancelar reserva, confirmar pagamento); view `vw_notificacoes_por_ler`; `UcNotificacoes` |
+| Lista de espera | Recurso indisponível não deve perder o cliente | Tabela `lista_espera`; SPs `sp_adicionar_lista_espera`, `sp_promover_lista_espera` (cria reserva + actualiza estado + notifica) |
+| Reservas recorrentes | Use case comum em coworking | SP `sp_criar_reserva_recorrente` (cria N reservas por dia da semana, com try/catch individual para reportar falhas) |
+| Auditoria temporal | Recuperar histórico sem schema adicional | `SYSTEM_VERSIONING = ON` em `adesao`, `reserva`, `pagamento` → tabelas `_history` auto-mantidas; view `vw_reservas_historico` (FOR SYSTEM_TIME ALL) |
