@@ -1101,7 +1101,8 @@ namespace CoworkingApp.Controls
                 SetStyle(ControlStyles.OptimizedDoubleBuffer
                        | ControlStyles.AllPaintingInWmPaint
                        | ControlStyles.ResizeRedraw
-                       | ControlStyles.UserPaint, true);
+                       | ControlStyles.UserPaint
+                       | ControlStyles.SupportsTransparentBackColor, true);
                 Size = new Size(140, 36);
                 Font = new Font(Theme.FontBase.FontFamily, 10f, FontStyle.Bold);
                 Cursor = Cursors.Hand;
