@@ -157,7 +157,11 @@ namespace CoworkingApp.Controls
                 BackColor  = Theme.CardBg,
                 Visible    = false,
             };
-            _grid.Resize += (s, e) => RelayoutCards();
+            // Hook a múltiplos eventos para garantir relayout em qualquer
+            // momento que o tamanho efectivo mude.
+            _grid.SizeChanged    += (s, e) => RelayoutCards();
+            _grid.ClientSizeChanged += (s, e) => RelayoutCards();
+            _grid.Layout         += (s, e) => RelayoutCards();
 
             _emptyState = BuildEmptyState("Nenhum plano definido", IconChar.ClipboardList);
             _emptyState.Dock = DockStyle.Fill;
@@ -233,6 +237,7 @@ namespace CoworkingApp.Controls
 
         private void LoadPlanos(SqlConnection conn)
         {
+            _grid.SuspendLayout();
             _grid.Controls.Clear();
             int count = 0;
             using (var cmd = new SqlCommand(
@@ -261,25 +266,34 @@ namespace CoworkingApp.Controls
             _emptyState.Visible  = count == 0;
             _emptyState.Invalidate();
             RelayoutCards();
+            _grid.ResumeLayout(true);
+            _grid.PerformLayout();
         }
 
         // Calcula colunas a partir do width visível + posiciona cada card
         // manualmente. Scrollbar só aparece quando totalHeight > _grid.Height.
+        private bool _relaying;
         private void RelayoutCards()
         {
-            if (_grid == null || _grid.Controls.Count == 0) return;
+            if (_relaying || _grid == null || _grid.Controls.Count == 0) return;
             int avail = _grid.ClientSize.Width;
-            int cols  = Math.Max(1, (avail - CardGap) / (CardWidth + CardGap));
-            int i = 0;
-            foreach (Control c in _grid.Controls)
+            if (avail < CardWidth + CardGap) return;  // ainda não tem tamanho real
+            _relaying = true;
+            try
             {
-                int row = i / cols;
-                int col = i % cols;
-                c.Location = new Point(
-                    CardGap + col * (CardWidth + CardGap),
-                    CardGap + row * (CardHeight + CardGap));
-                i++;
+                int cols  = Math.Max(1, (avail - CardGap) / (CardWidth + CardGap));
+                int i = 0;
+                foreach (Control c in _grid.Controls)
+                {
+                    int row = i / cols;
+                    int col = i % cols;
+                    c.Location = new Point(
+                        CardGap + col * (CardWidth + CardGap),
+                        CardGap + row * (CardHeight + CardGap));
+                    i++;
+                }
             }
+            finally { _relaying = false; }
         }
 
         // ── Plano card (pricing) ────────────────────────────────────────
