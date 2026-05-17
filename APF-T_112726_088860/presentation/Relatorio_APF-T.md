@@ -167,7 +167,82 @@ Ver `SQL_Scripts/Tests/Plano_Testes.md`. 25 casos cobrindo:
 - Reservas recorrentes (TC23).
 - Segurança: permissões por role (TC24–TC25).
 
-## 10. Conclusão
+## 10. Interface — Fase 3: Card-list redesign
+
+Após a fase 2 (componentes base + tema indigo/slate descrita em `apft_submit.md`), todos os 12 UserControls foram refactorados para um padrão uniforme inspirado em Linear/Notion. O `DataGridView` foi substituído por listas de **cards horizontais**, que são mais navegáveis e visualmente ricas.
+
+### Padrão de UC
+
+Cada UC segue a mesma estrutura via `TableLayoutPanel` root:
+
+```
+┌─ Title (48 px) ──────────────────────────────────────┐
+├─ Toolbar — ModernCard (72 px) ───────────────────────┤
+│ [Filtros chip à esquerda]              [+ Acção →]   │
+├─ KPIs — 3 ou 4 ModernCards (108 px) ─────────────────┤
+│ [📊 KPI1]   [✓ KPI2]   [€ KPI3]   [⏱ KPI4]           │
+├─ Lista — ScrollableList (Fill) ──────────────────────┤
+│ ┌────────────────────────────────────────────────┐   │
+│ │ ⬤ Avatar  Nome bold              Valor  Status │   │
+│ │           Subline meta           Acções ✏ 🗑   │   │
+│ └────────────────────────────────────────────────┘   │
+│ ┌────────────────────────────────────────────────┐   │
+│ │ ...                                            │   │
+│ └────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────┘
+```
+
+Decisão arquitectural: o **outer** do conteúdo de cada tab é um `Panel(PageBg)`, não um `ModernCard(CardBg)`, para que os cards interiores tenham contraste visual contra o background mais escuro do parent.
+
+### Componentes reutilizáveis novos
+
+| Componente | Responsabilidade |
+|---|---|
+| `TabButton` | Tab com underline accent + `AutoSize` por texto |
+| `StatusPill` | Pill `Filled` ou `Dot`; helper `MeasureDotWidth` (via `Graphics.MeasureString`, mais preciso que `TextRenderer.MeasureText` para fonts bold pequenos) |
+| `ModernCombo` | Wrapper visual de `ComboBox` com bg `FieldBg` rounded |
+| `ModernSelect` | Dropdown custom com popup `Form` borderless + `FocusablePanel` paintado à mão (substitui `ComboBox` cuja chrome branca não respeitava o tema dark) |
+| `ModernDateField` + `ModernCalendar` | Campo data + popup calendar custom em pt-PT (substitui `DateTimePicker`/`MonthCalendar` nativos Windows-style) |
+| `SegmentedControl` | Picker `[A | B | C]` com pill accent no segmento activo |
+| `ScrollableList` | `Panel` scrollable com scrollbar dark + thumb arrastável (substitui o `AutoScroll` nativo que mostrava scrollbar branca) |
+| `ToggleChip` | Chip on/off para filtros booleanos |
+
+### Bugs notáveis resolvidos durante o redesign
+
+- **Vírgula clipada nos preços** (`200,00 €` parecia `200.00 €`). Labels com `Height=22` e `Font 12pt bold` cortavam o descender da vírgula. Padronizado para `Height ≥ 28` em todos os preços.
+- **Bars empilhadas no mesmo X** no chart de Receita Mensal. `Series.IsXValueIndexed = true` força index incremental por ponto em vez de o framework tentar parsear o X string como número (e falhar → tudo a `X=0`).
+- **Bordas brancas do `ComboBox` nativo** que não respeitavam o tema dark — resolvido criando o `ModernSelect` from scratch.
+- **Pills com último char cortado** (`"Terminada"` → `"Terminad"`). `TextRenderer.MeasureText` subestima 1–3 px o glyph real vs `Graphics.MeasureString` (engine GDI+). Standardizado via `StatusPill.MeasureDotWidth` que usa o último + buffer.
+- **Win32 handle exhaustion** com seed expandido (~290 reservas × ~15 controls por card = 4350+ handles num único UC). Limit do processo ≈ 10000. Resolvido com `MaxRender = 80` em cada UC + label "+ X mais antigos não mostrados", e `TOP 200` nas queries.
+- **Popup do detalhe de notificação fechava-se sozinho** ao abrir — `Form.Deactivate` disparava durante o `Show()` por race com foco. Substituído por `IMessageFilter` que detecta `WM_LBUTTONDOWN` fora de `Form.Bounds`.
+
+### Métricas
+
+- 13 commits dedicados a esta fase (`feature/*-redesign` branches, merge `--no-ff` a cada UC concluído).
+- ~3500 linhas novas (componentes + redesigns) contra ~1800 removidas (DataGridViews + toolbar antiga).
+- 9 novos ficheiros de componentes (`TabButton.cs`, `StatusPill.cs`, `ModernCombo.cs`, `ModernSelect.cs`, `ModernDateField.cs`, `ModernCalendar.cs`, `SegmentedControl.cs`, `ScrollableList.cs`, `ToggleChip.cs`).
+
+### Seed expandido para popular charts
+
+`SQL_DML.sql` ganhou um bloco final (preserva o seed base original) com:
+- 15 clientes adicionais (total 20)
+- 25 adesões históricas via `INSERT` literal (20 `Terminada` + 5 `Ativa/Pendente`)
+- ~72 reservas de sala via `WHILE` loop (1 quarta-feira/semana × 72 semanas), com rotação determinística de clientes/recursos e slots horários para evitar T1 (sobreposição)
+- ~9 day passes de posto Flex (Diogo/Eva alternados, ~bimestrais — evita T11)
+- Pagamentos auto-gerados via `INSERT ... SELECT` sobre `adesao` e `reserva` (snapshot=valor para passar T6)
+- 15 utilizadores novos
+
+Cobertura: 18 meses (Jan/2025 → Mai/2026), suficiente para os gráficos mostrarem tendências mensais sem sobrecarregar a UI.
+
+### Ordem de execução dos scripts SQL
+
+A ordem é crítica porque alguns SPs dependem de outros. Documentada em `SQL_Scripts/README.md`:
+
+`SQL_DDL` → `User_defined_functions` → `Triggers` → `Views` → **`Auth`** → `Stored_procedures` → `Temporal_tables` → `Indexes` → `Security` → `SQL_DML`
+
+A nota importante: **`Auth.sql` *antes* de `Stored_procedures.sql`** porque o `sp_registar_cliente_completo` (em Stored_procedures) chama o `sp_register_user` (em Auth). E `Security.sql` por último porque os `GRANT` precisam que os objects já existam.
+
+## 11. Conclusão
 
 O sistema cobre o domínio com 9 tabelas core + 4 de extensão (auth, política, notificação, lista de espera), com regras enforçadas a 3 níveis: constraints SQL (cardinalidade/domínio), triggers (regras transversais), SPs (concorrência + lógica composta). A camada de segurança via roles + SPs torna a aplicação resistente a SQL injection by design, e a auditoria via temporal tables dá-nos histórico para sempre sem trigger adicional.
 
