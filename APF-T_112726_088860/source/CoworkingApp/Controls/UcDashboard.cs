@@ -147,9 +147,10 @@ namespace CoworkingApp.Controls
                 BackColor = card.BackColor,
             };
 
-            // Sparkline para o hero (mini bar chart)
+            // Sparkline para o hero (mini bar chart) — Dock=Bottom evita
+            // o "Height must be > 0" do Chart durante layout inicial.
             _heroSparkline = BuildChartControl(transparent: true);
-            _heroSparkline.Dock   = DockStyle.Fill;
+            _heroSparkline.Dock   = DockStyle.Bottom;
             _heroSparkline.Height = 40;
 
             deltaLbl = new Label
@@ -223,7 +224,14 @@ namespace CoworkingApp.Controls
 
         private static Chart BuildChartControl(bool transparent)
         {
-            var c = new Chart { BackColor = transparent ? Color.Transparent : Theme.CardBg };
+            // MinimumSize evita ArgumentException "Height must be > 0" se o
+            // chart for adicionado a um parent ainda sem tamanho (caso comum
+            // em containers TableLayoutPanel/ModernCard durante BuildUI).
+            var c = new Chart
+            {
+                BackColor   = transparent ? Color.Transparent : Theme.CardBg,
+                MinimumSize = new Size(1, 1),
+            };
             var area = new ChartArea
             {
                 BackColor = Color.Transparent,
