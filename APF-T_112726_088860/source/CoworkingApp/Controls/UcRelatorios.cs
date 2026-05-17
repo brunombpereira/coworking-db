@@ -32,6 +32,7 @@ namespace CoworkingApp.Controls
         private ModernSelect     _cmbCliCli;
         private Label            _kpiCliReservas, _kpiCliPago, _kpiCliUltima;
         private ScrollableList   _listCliReservas, _listCliPagamentos;
+        private Panel            _cliReservasEmpty, _cliPagamentosEmpty;
         private TableLayoutPanel _cliListGrid;
         private Panel            _cliEmpty;
 
@@ -474,38 +475,46 @@ namespace CoworkingApp.Controls
         // ─── TAB 2: Por Cliente ─────────────────────────────────────────
         private Control BuildTabCli()
         {
-            var card = new ModernCard
+            // Outer Panel com PageBg → cards interiores ficam visíveis com contraste.
+            var panel = new Panel
             {
-                Name = "tabCli", Dock = DockStyle.Fill, BackColor = Theme.CardBg, Visible = false,
-                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+                Name = "tabCli", Dock = DockStyle.Fill, BackColor = Theme.PageBg, Visible = false,
             };
             var root = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = Theme.CardBg,
-                Padding = new Padding(16, 14, 16, 16),
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = Theme.PageBg,
+                Padding = new Padding(0, 4, 0, 0),
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));   // filtro
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // 3 KPIs
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // 2 listas
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));   // filtro card
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // KPIs
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // listas
 
-            var filterRow = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+            // Filter dentro de ModernCard próprio.
+            var filterCard = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+                Margin = new Padding(0, 0, 0, 12),
+            };
+            var filterInner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
             var lblCli = new Label
             {
                 Text = "Cliente", Font = new Font(Theme.FontBase.FontFamily, 9f, FontStyle.Bold),
                 ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
                 Location = new Point(0, 10), Size = new Size(54, 36), TextAlign = ContentAlignment.MiddleLeft,
             };
-            _cmbCliCli = new ModernSelect { Width = 240, Height = 36, Location = new Point(60, 10) };
+            _cmbCliCli = new ModernSelect { Width = 280, Height = 36, Location = new Point(60, 10) };
             _cmbCliCli.SelectedIndexChanged += (s, e) => LoadClienteData();
-            filterRow.Controls.Add(lblCli);
-            filterRow.Controls.Add(_cmbCliCli);
+            filterInner.Controls.Add(lblCli);
+            filterInner.Controls.Add(_cmbCliCli);
+            filterCard.Controls.Add(filterInner);
 
             // KPI row (3 cards)
             var kpiGrid = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Theme.CardBg,
-                Margin = new Padding(0, 8, 0, 8),
+                Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Theme.PageBg,
+                Margin = new Padding(0, 0, 0, 12),
             };
             for (int i = 0; i < 3; i++) kpiGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
             kpiGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -520,15 +529,15 @@ namespace CoworkingApp.Controls
             // Lista 2 colunas: Reservas | Pagamentos
             _cliListGrid = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Theme.CardBg,
+                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Theme.PageBg,
                 Visible = false,
             };
             _cliListGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
             _cliListGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
             _cliListGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            var col1 = BuildSubListCard("Reservas",   out _listCliReservas);
-            var col2 = BuildSubListCard("Pagamentos", out _listCliPagamentos);
+            var col1 = BuildSubListCard("Reservas",   IconChar.CalendarCheck, out _listCliReservas, out _cliReservasEmpty);
+            var col2 = BuildSubListCard("Pagamentos", IconChar.CreditCard,    out _listCliPagamentos, out _cliPagamentosEmpty);
             col1.Margin = new Padding(0, 0, 6, 0);
             col2.Margin = new Padding(6, 0, 0, 0);
             _cliListGrid.Controls.Add(col1, 0, 0);
@@ -536,15 +545,15 @@ namespace CoworkingApp.Controls
 
             _cliEmpty = BuildEmptyState("Selecciona um cliente para ver o histórico", IconChar.User);
             _cliEmpty.Dock = DockStyle.Fill;
-            var listHost = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+            var listHost = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg };
             listHost.Controls.Add(_cliListGrid);
             listHost.Controls.Add(_cliEmpty);
 
-            root.Controls.Add(filterRow, 0, 0);
-            root.Controls.Add(kpiGrid,   0, 1);
-            root.Controls.Add(listHost,  0, 2);
-            card.Controls.Add(root);
-            return card;
+            root.Controls.Add(filterCard, 0, 0);
+            root.Controls.Add(kpiGrid,    0, 1);
+            root.Controls.Add(listHost,   0, 2);
+            panel.Controls.Add(root);
+            return panel;
         }
 
         private Control BuildSmallKpi(string label, IconChar icon, Color iconColor, out Label valLbl)
@@ -581,23 +590,42 @@ namespace CoworkingApp.Controls
             return card;
         }
 
-        private Control BuildSubListCard(string title, out ScrollableList list)
+        private Control BuildSubListCard(string title, IconChar icon, out ScrollableList list, out Panel empty)
         {
             var card = new ModernCard
             {
                 Dock = DockStyle.Fill, BackColor = Theme.CardBg,
                 BorderColor = Theme.CardBorder, CornerRadius = 10, ShowShadow = false,
             };
-            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(12, 10, 12, 12) };
-            var header = new Label
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(14, 12, 14, 14) };
+            // Header line: ícone + título
+            var headerLine = new Panel { Dock = DockStyle.Top, Height = 30, BackColor = Theme.CardBg };
+            headerLine.Controls.Add(new Label
             {
                 Text = title, Font = Theme.FontSection, ForeColor = Theme.TextPrimary,
-                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 26, TextAlign = ContentAlignment.MiddleLeft,
-            };
+                BackColor = Theme.CardBg, Dock = DockStyle.Fill, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(6, 0, 0, 0),
+            });
+            headerLine.Controls.Add(new IconPictureBox
+            {
+                IconChar = icon, IconSize = 16, IconColor = Theme.Accent,
+                BackColor = Theme.CardBg, Dock = DockStyle.Left, Width = 22,
+                SizeMode = PictureBoxSizeMode.CenterImage,
+            });
+
             list = new ScrollableList { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
             list.Content.BackColor = Theme.CardBg;
-            inner.Controls.Add(list);
-            inner.Controls.Add(header);
+            empty = BuildEmptyState("Sem registos", icon);
+            empty.Dock = DockStyle.Fill;
+            empty.Visible = false;
+
+            // Body holder com list + empty.
+            var body = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+            body.Controls.Add(list);
+            body.Controls.Add(empty);
+
+            inner.Controls.Add(body);
+            inner.Controls.Add(headerLine);
             card.Controls.Add(inner);
             return card;
         }
@@ -677,28 +705,38 @@ namespace CoworkingApp.Controls
         {
             _listCliReservas.Content.SuspendLayout();
             _listCliReservas.Content.Controls.Clear();
-            int y = 0, w = Math.Max(280, _listCliReservas.ClientSize.Width - 20);
+
+            var cards = new List<Control>();
+            int totalH = 0;
             foreach (DataRow r in dt.Rows)
             {
                 string recurso = r["recurso"].ToString();
                 DateTime data  = Convert.ToDateTime(r["data_reserva"]);
                 decimal valor  = Convert.ToDecimal(r["valor"]);
                 string estado  = r["estado"].ToString();
-                var card = BuildSubItemCard($"{recurso}", $"{data:dd/MM/yyyy}", valor, estado, TipoColorReserva(estado));
-                card.Location = new Point(0, y); card.Width = w;
-                card.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-                _listCliReservas.Content.Controls.Add(card);
-                y += card.Height + 6;
+                var card = BuildSubItemCard(recurso, $"{data:dd/MM/yyyy}", valor, estado, TipoColorReserva(estado));
+                card.Dock = DockStyle.Top;
+                cards.Add(card);
+                totalH += card.Height;
             }
+            // Reverse para preservar ordem visual (Dock=Top processa reverse z-order).
+            for (int i = cards.Count - 1; i >= 0; i--)
+                _listCliReservas.Content.Controls.Add(cards[i]);
             _listCliReservas.Content.ResumeLayout();
-            _listCliReservas.UpdateLayout(y);
+            _listCliReservas.UpdateLayout(totalH);
+
+            _listCliReservas.Visible    = dt.Rows.Count > 0;
+            _cliReservasEmpty.Visible   = dt.Rows.Count == 0;
+            _cliReservasEmpty.Invalidate();
         }
 
         private void RenderCliPagamentos(DataTable dt)
         {
             _listCliPagamentos.Content.SuspendLayout();
             _listCliPagamentos.Content.Controls.Clear();
-            int y = 0, w = Math.Max(280, _listCliPagamentos.ClientSize.Width - 20);
+
+            var cards = new List<Control>();
+            int totalH = 0;
             foreach (DataRow r in dt.Rows)
             {
                 string refLine = r["ref"].ToString();
@@ -707,32 +745,42 @@ namespace CoworkingApp.Controls
                 string estado  = r["estado"].ToString();
                 string sub     = $"{r["metodo_pagamento"]} · {data:dd/MM/yyyy}";
                 var card = BuildSubItemCard(refLine, sub, valor, estado, TipoColorPagamento(estado));
-                card.Location = new Point(0, y); card.Width = w;
-                card.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-                _listCliPagamentos.Content.Controls.Add(card);
-                y += card.Height + 6;
+                card.Dock = DockStyle.Top;
+                cards.Add(card);
+                totalH += card.Height;
             }
+            for (int i = cards.Count - 1; i >= 0; i--)
+                _listCliPagamentos.Content.Controls.Add(cards[i]);
             _listCliPagamentos.Content.ResumeLayout();
-            _listCliPagamentos.UpdateLayout(y);
+            _listCliPagamentos.UpdateLayout(totalH);
+
+            _listCliPagamentos.Visible    = dt.Rows.Count > 0;
+            _cliPagamentosEmpty.Visible   = dt.Rows.Count == 0;
+            _cliPagamentosEmpty.Invalidate();
         }
 
         private Control BuildSubItemCard(string title, string sub, decimal valor, string estado, (Color bg, Color fg) cores)
         {
-            Color idleBg = Theme.CardBg;
-            var row = new Panel { Height = 64, BackColor = idleBg, Margin = new Padding(0, 0, 0, 6) };
+            Color idleBg  = Theme.CardBg;
+            Color hoverBg = UcEspacos.MixColors(Theme.CardBg, Color.White, 0.05f);
+            // wrap = item + gap bottom
+            var wrap = new Panel { Height = 72, BackColor = idleBg, Padding = new Padding(0, 0, 0, 6) };
+            var row  = new Panel { Dock = DockStyle.Fill, BackColor = idleBg };
 
-            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 110, BackColor = idleBg, Padding = new Padding(0, 10, 8, 0) };
-            rightInfo.Controls.Add(new Label
+            // Direita: valor + pill (Height 66 = wrap-padBottom-padTop? = 66 útil)
+            // Valor 28 + pill 22 = 50 → top = (66-50)/2 = 8
+            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 130, BackColor = idleBg, Padding = new Padding(0, 8, 12, 0) };
+            var lblValor = new Label
             {
                 Text = Theme.FormatEuro(valor),
-                Font = new Font(Theme.FontBase.FontFamily, 11f, FontStyle.Bold),
+                Font = new Font(Theme.FontBase.FontFamily, 12f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
-            });
-            var pillHolder = new Panel { Dock = DockStyle.Top, Height = 20, BackColor = idleBg };
+                Dock = DockStyle.Top, Height = 28, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+            };
+            var pillHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
             var pill = new StatusPill
             {
-                Text = estado, Height = 20, Style = StatusPill.PillStyle.Dot,
+                Text = estado, Height = 22, Style = StatusPill.PillStyle.Dot,
                 Font = Theme.FontSub, BackColor = idleBg,
             };
             pill.SetColors(cores.bg, cores.fg);
@@ -740,23 +788,44 @@ namespace CoworkingApp.Controls
             pill.Width = StatusPill.MeasureDotWidth(estado, Theme.FontSub);
             pillHolder.Controls.Add(pill);
             rightInfo.Controls.Add(pillHolder);
+            rightInfo.Controls.Add(lblValor);
 
-            var middle = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(10, 12, 8, 0) };
-            middle.Controls.Add(new Label
+            // Centro: título + sub (Height 66 útil; title 24 + sub 20 = 44 → top = 11)
+            var middle = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(12, 11, 8, 0) };
+            var lblSub = new Label
             {
                 Text = sub, Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = idleBg,
-                Dock = DockStyle.Bottom, Height = 18, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-            });
-            middle.Controls.Add(new Label
+                Dock = DockStyle.Top, Height = 20, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            var lblTitle = new Label
             {
-                Text = title, Font = new Font(Theme.FontBase.FontFamily, 10.5f, FontStyle.Bold),
+                Text = title, Font = new Font(Theme.FontBase.FontFamily, 11f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-            });
+                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            // Adicionar Sub primeiro = abaixo; Title depois = topo.
+            middle.Controls.Add(lblSub);
+            middle.Controls.Add(lblTitle);
 
             row.Controls.Add(middle);
             row.Controls.Add(rightInfo);
-            return row;
+            wrap.Controls.Add(row);
+
+            // Hover sutil.
+            void Recurse(Control c, Color bg) { c.BackColor = bg; foreach (Control x in c.Controls) Recurse(x, bg); }
+            void Hook(Control c)
+            {
+                c.MouseEnter += (s, e) => Recurse(row, hoverBg);
+                c.MouseLeave += (s, e) =>
+                {
+                    var p = row.PointToClient(System.Windows.Forms.Cursor.Position);
+                    if (!row.ClientRectangle.Contains(p)) Recurse(row, idleBg);
+                };
+                foreach (Control x in c.Controls) Hook(x);
+            }
+            Hook(row);
+
+            return wrap;
         }
 
         private static (Color bg, Color fg) TipoColorReserva(string estado)
