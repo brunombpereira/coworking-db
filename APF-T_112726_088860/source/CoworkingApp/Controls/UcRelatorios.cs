@@ -278,28 +278,45 @@ namespace CoworkingApp.Controls
                 ? $"Sem {tipo} disponíveis em {_dtDispData.Value:dd/MM/yyyy}{horas}"
                 : $"{dt.Rows.Count} {tipo} disponíveis em {_dtDispData.Value:dd/MM/yyyy}{horas}";
 
-            int totalH = 0;
-            // Adicionar em ordem reversa porque Dock=Top processado em REV z-order:
-            // último adicionado é topmost. Para preservar a ordem visual queremos
-            // o primeiro do DataTable em cima → adicioná-lo por último.
-            var cards = new List<Control>();
+            // Agrupar por espaço para criar section headers.
+            var byEspaco = new Dictionary<string, List<DataRow>>();
             foreach (DataRow r in dt.Rows)
             {
-                string espaco = r["espaco"].ToString();
-                string nome   = r["nome"].ToString();
-                string tipoR  = r["tipo"].ToString();
-                decimal preco = Convert.ToDecimal(r["preco"]);
-                int? extra    = r["extra"] is DBNull ? (int?)null : Convert.ToInt32(r["extra"]);
-                string unidade = isSala ? "/hora" : "/dia";
-
-                var card = BuildResourceCard(espaco, nome, tipoR, extra, preco, unidade);
-                card.Dock = DockStyle.Top;
-                cards.Add(card);
-                totalH += card.Height + 6;
+                string e = r["espaco"].ToString();
+                if (!byEspaco.ContainsKey(e)) byEspaco[e] = new List<DataRow>();
+                byEspaco[e].Add(r);
             }
-            // Reverse: último a adicionar = primeiro item visualmente.
-            for (int i = cards.Count - 1; i >= 0; i--)
-                _listDisp.Content.Controls.Add(cards[i]);
+
+            // Construir todos os controls em ordem reversa (Dock=Top → reverse z).
+            var controls = new List<Control>();
+            int totalH = 0;
+            int spaceIdx = 0;
+            foreach (var pair in byEspaco)
+            {
+                // Section header (espaço + count)
+                var header = BuildSectionHeader(pair.Key, pair.Value.Count, tipo);
+                header.Dock = DockStyle.Top;
+                controls.Add(header);
+                totalH += header.Height + 4;
+                spaceIdx++;
+
+                foreach (DataRow r in pair.Value)
+                {
+                    string nome   = r["nome"].ToString();
+                    string tipoR  = r["tipo"].ToString();
+                    decimal preco = Convert.ToDecimal(r["preco"]);
+                    int? extra    = r["extra"] is DBNull ? (int?)null : Convert.ToInt32(r["extra"]);
+                    string unidade = isSala ? "/hora" : "/dia";
+
+                    var card = BuildResourceCard(pair.Key, nome, tipoR, extra, preco, unidade);
+                    card.Dock = DockStyle.Top;
+                    controls.Add(card);
+                    totalH += card.Height + 6;
+                }
+            }
+            // Adicionar reversed para preservar a ordem visual.
+            for (int i = controls.Count - 1; i >= 0; i--)
+                _listDisp.Content.Controls.Add(controls[i]);
 
             _listDisp.Content.ResumeLayout();
             _listDisp.UpdateLayout(totalH);
@@ -308,57 +325,135 @@ namespace CoworkingApp.Controls
             _dispEmpty.Invalidate();
         }
 
+        private Control BuildSectionHeader(string espaco, int count, string tipo)
+        {
+            var pnl = new Panel { Height = 42, BackColor = Theme.CardBg, Padding = new Padding(4, 14, 4, 4) };
+            var lblName = new Label
+            {
+                Text = espaco, Font = new Font(Theme.FontBase.FontFamily, 10.5f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Left, AutoSize = false, Width = 320, TextAlign = ContentAlignment.MiddleLeft,
+            };
+            var lblCount = new Label
+            {
+                Text = $"{count} {(count == 1 ? tipo.TrimEnd('s') : tipo)}",
+                Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
+                Dock = DockStyle.Right, AutoSize = false, Width = 200, TextAlign = ContentAlignment.MiddleRight,
+                Padding = new Padding(0, 0, 8, 0),
+            };
+            var divider = new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = Theme.CardBorder };
+            pnl.Controls.Add(lblName);
+            pnl.Controls.Add(lblCount);
+            pnl.Controls.Add(divider);
+            return pnl;
+        }
+
         private Control BuildResourceCard(string espaco, string nome, string tipo, int? capacidade, decimal preco, string unidade)
         {
-            Color idleBg = Theme.CardBg;
-            // Margin Bottom dá-nos gap visual entre cards quando usamos Dock=Top.
-            var row = new Panel { Height = 76, BackColor = idleBg, Padding = new Padding(0, 0, 0, 6) };
+            Color idleBg  = Theme.CardBg;
+            Color hoverBg = UcEspacos.MixColors(Theme.CardBg, Color.White, 0.05f);
+            // Outer wrapper para Padding bottom funcionar como gap entre cards.
+            var wrap = new Panel { Height = 86, BackColor = idleBg, Padding = new Padding(0, 0, 0, 8) };
+            var row  = new Panel { Dock = DockStyle.Fill, BackColor = idleBg };
 
             Color tipoColor = (tipo == "Sala") ? Theme.Accent : ColorTranslator.FromHtml("#06b6d4");
             IconChar tipoIcon = (tipo == "Sala") ? IconChar.DoorClosed : IconChar.Chair;
 
-            var leftBlock = new Panel { Dock = DockStyle.Left, Width = 60, BackColor = idleBg };
+            // ─── Esquerda: avatar tipo ───────────────────────────────
+            var leftBlock = new Panel { Dock = DockStyle.Left, Width = 68, BackColor = idleBg };
             Image img = null;
-            using (var pb = new IconPictureBox { IconChar = tipoIcon, IconSize = 18, IconColor = Color.White })
+            using (var pb = new IconPictureBox { IconChar = tipoIcon, IconSize = 20, IconColor = Color.White })
                 if (pb.Image != null) img = (Image)pb.Image.Clone();
             leftBlock.Paint += (s, e) =>
             {
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-                int diam = 36;
+                int diam = 42;
                 int cx = (leftBlock.Width  - diam) / 2;
                 int cy = (leftBlock.Height - diam) / 2;
                 using (var br = new SolidBrush(tipoColor)) g.FillEllipse(br, cx, cy, diam, diam);
-                if (img != null) g.DrawImage(img, cx + (diam - 18) / 2, cy + (diam - 18) / 2 + 1, 18, 18);
+                if (img != null) g.DrawImage(img, cx + (diam - 20) / 2, cy + (diam - 20) / 2 + 1, 20, 20);
             };
 
-            var rightInfo = new Panel { Dock = DockStyle.Right, Width = 160, BackColor = idleBg, Padding = new Padding(0, 16, 16, 0) };
-            rightInfo.Controls.Add(new Label
+            // ─── Direita: botão Reservar ─────────────────────────────
+            var actions = new Panel { Dock = DockStyle.Right, Width = 130, BackColor = idleBg, Padding = new Padding(0, 20, 12, 0) };
+            var btnReservar = new ModernButton
+            {
+                Text = "Reservar", Style = ModernButton.Variant.Primary,
+                Font = Theme.FontBold, Dock = DockStyle.Top, Height = 36,
+            };
+            btnReservar.Click += (s, e) =>
+            {
+                MessageBox.Show($"Abrir nova reserva para '{nome}' em {_dtDispData.Value:dd/MM/yyyy}.",
+                    "Reservar", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            };
+            actions.Controls.Add(btnReservar);
+
+            // ─── Preço + chip Disponível ─────────────────────────────
+            var precoInfo = new Panel { Dock = DockStyle.Right, Width = 170, BackColor = idleBg, Padding = new Padding(0, 16, 12, 0) };
+            var lblPreco = new Label
             {
                 Text = Theme.FormatEuro(preco) + " " + unidade,
-                Font = new Font(Theme.FontBase.FontFamily, 13f, FontStyle.Bold),
-                ForeColor = Theme.Accent, BackColor = idleBg,
+                Font = new Font(Theme.FontBase.FontFamily, 14f, FontStyle.Bold),
+                ForeColor = Theme.TextPrimary, BackColor = idleBg,
                 Dock = DockStyle.Top, Height = 30, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
-            });
+            };
+            var pillHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
+            var pill = new StatusPill
+            {
+                Text = "Disponível", Height = 22, Font = Theme.FontSub,
+                BackColor = idleBg, Style = StatusPill.PillStyle.Dot,
+            };
+            pill.SetColors(Theme.StatusSuccessBg, Theme.StatusSuccessFg);
+            pill.Dock  = DockStyle.Right;
+            pill.Width = StatusPill.MeasureDotWidth("Disponível", Theme.FontSub);
+            pillHolder.Controls.Add(pill);
+            precoInfo.Controls.Add(pillHolder);
+            precoInfo.Controls.Add(lblPreco);
 
-            var middle = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(8, 12, 8, 0) };
+            // ─── Centro: nome + capacidade/tipo ──────────────────────
+            var middle = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(10, 14, 8, 0) };
+            string subline = capacidade.HasValue
+                ? $"{capacidade.Value} lugares · €{preco.ToString("0.##", CultureInfo.InvariantCulture)} {unidade}"
+                : $"{tipo} · €{preco.ToString("0.##", CultureInfo.InvariantCulture)} {unidade}";
             middle.Controls.Add(new Label
             {
-                Text = capacidade.HasValue ? espaco + " · " + capacidade.Value + " lugares" : espaco,
-                Font = Theme.FontSub, ForeColor = Theme.TextSecondary, BackColor = idleBg,
+                Text = subline, Font = Theme.FontSub, ForeColor = Theme.TextSecondary, BackColor = idleBg,
                 Dock = DockStyle.Bottom, Height = 22, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             });
             middle.Controls.Add(new Label
             {
-                Text = nome, Font = new Font(Theme.FontBase.FontFamily, 12f, FontStyle.Bold),
+                Text = nome, Font = new Font(Theme.FontBase.FontFamily, 13f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
                 Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             });
 
             row.Controls.Add(middle);
-            row.Controls.Add(rightInfo);
+            row.Controls.Add(precoInfo);
+            row.Controls.Add(actions);
             row.Controls.Add(leftBlock);
-            return row;
+            wrap.Controls.Add(row);
+
+            // Hover subtle no row (sem afectar o botão).
+            void Recurse(Control c, Color bg)
+            {
+                if (c is ModernButton) return;
+                c.BackColor = bg;
+                foreach (Control x in c.Controls) Recurse(x, bg);
+            }
+            void Hook(Control c)
+            {
+                c.MouseEnter += (s, e) => Recurse(row, hoverBg);
+                c.MouseLeave += (s, e) =>
+                {
+                    var p = row.PointToClient(System.Windows.Forms.Cursor.Position);
+                    if (!row.ClientRectangle.Contains(p)) Recurse(row, idleBg);
+                };
+                foreach (Control x in c.Controls) Hook(x);
+            }
+            Hook(row);
+
+            return wrap;
         }
 
         // ─── TAB 2: Por Cliente ─────────────────────────────────────────
