@@ -214,12 +214,17 @@ INSERT INTO adesao (cliente_id, plano_id, recurso_id, data_inicio, data_fim, pre
 GO
 
 -- Adesões activas/pendentes recentes (5)
+-- T9 (trg_adesao_recurso_coerente) impede 2 adesões Pendente/Ativa em
+-- datas sobrepostas no mesmo posto. O seed base já ocupa posto 6 com
+-- adesão Activa indefinida (Bruno) → novas adesões em posto 6 ficam
+-- impossibilitadas. Posto 7 está livre (Carla Terminada em 2026-03-01)
+-- → João pode ocupá-lo. Outros clientes ficam em Flex (sem posto).
 INSERT INTO adesao (cliente_id, plano_id, recurso_id, data_inicio, preco_acordado, estado) VALUES
- (6,  1, NULL,'2026-04-01', 120.00, 'Ativa'),
- (10, 5, 7,   '2026-04-15', 350.00, 'Ativa'),
- (15, 1, NULL,'2026-04-20', 120.00, 'Ativa'),
- (17, 3, 6,   '2026-05-01', 200.00, 'Pendente'),
- (20, 2, NULL,'2026-05-10', 330.00, 'Ativa');
+ (6,  1, NULL, '2026-04-01', 120.00, 'Ativa'),
+ (10, 5, 7,    '2026-04-15', 350.00, 'Ativa'),
+ (15, 1, NULL, '2026-04-20', 120.00, 'Ativa'),
+ (17, 1, NULL, '2026-05-01', 120.00, 'Pendente'),
+ (20, 2, NULL, '2026-05-10', 330.00, 'Ativa');
 GO
 
 -- =====================================================================
