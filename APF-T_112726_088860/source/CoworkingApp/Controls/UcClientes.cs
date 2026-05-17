@@ -33,12 +33,13 @@ namespace CoworkingApp.Controls
         // ── UI ──────────────────────────────────────────────────────────
         private void BuildUI()
         {
-            // Header
+            // Header (title + Novo Cliente button à direita)
             var pnlTitle = new Panel
             {
-                Dock = DockStyle.Top, Height = 72, BackColor = Theme.PageBg,
+                Dock = DockStyle.Top, Height = 84, BackColor = Theme.PageBg,
                 Padding = new Padding(24, 18, 24, 0),
             };
+            var titleArea = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg };
             var lblTitle = new Label
             {
                 Text = "Clientes", Font = Theme.FontTitle, ForeColor = Theme.TextPrimary,
@@ -51,22 +52,35 @@ namespace CoworkingApp.Controls
                 Dock = DockStyle.Top, Height = 22, AutoSize = false,
                 Padding = new Padding(0, 4, 0, 0),
             };
-            pnlTitle.Controls.Add(lblSub);
-            pnlTitle.Controls.Add(lblTitle);
+            titleArea.Controls.Add(lblSub);
+            titleArea.Controls.Add(lblTitle);
 
-            // Content
+            var btnNovo = new ModernButton
+            {
+                Text  = "+ Novo Cliente",
+                Style = ModernButton.Variant.Primary,
+                Dock  = DockStyle.Right, Width = 170, Height = 42,
+                Margin = new Padding(0),
+            };
+            btnNovo.Click += (s, e) => OpenEditor(null);
+
+            var btnHolder = new Panel { Dock = DockStyle.Right, Width = 170, BackColor = Theme.PageBg, Padding = new Padding(0, 6, 0, 0) };
+            btnHolder.Controls.Add(btnNovo);
+
+            pnlTitle.Controls.Add(titleArea);
+            pnlTitle.Controls.Add(btnHolder);
+
+            // Content (stats + lista — search vai DENTRO do card da lista)
             var content = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
                 BackColor = Theme.PageBg, Padding = new Padding(24, 12, 24, 24),
             };
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 110f));   // stats
-            content.RowStyles.Add(new RowStyle(SizeType.Absolute,  68f));   // toolbar
             content.RowStyles.Add(new RowStyle(SizeType.Percent,  100f));   // lista
 
             content.Controls.Add(BuildStatsRow(),  0, 0);
-            content.Controls.Add(BuildToolbar(),   0, 1);
-            content.Controls.Add(BuildListCard(),  0, 2);
+            content.Controls.Add(BuildListCard(),  0, 1);
 
             Controls.Add(content);
             Controls.Add(pnlTitle);
@@ -131,38 +145,7 @@ namespace CoworkingApp.Controls
             return card;
         }
 
-        // ── Toolbar (search + novo) ─────────────────────────────────────
-        private Control BuildToolbar()
-        {
-            var bar = new ModernCard
-            {
-                Dock = DockStyle.Fill, BackColor = Theme.CardBg, BorderColor = Theme.CardBorder,
-                CornerRadius = 12, ShowShadow = false, Margin = new Padding(0, 0, 0, 8),
-            };
-            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(14, 10, 14, 10) };
-
-            _txtSearch = new ModernInput
-            {
-                Dock = DockStyle.Left, Width = 320, Height = 38,
-            };
-            _txtSearch.PlaceholderText = "Procurar nome, NIF, email…";
-            _txtSearch.TextChanged += (s, e) => LoadData();
-
-            var btnNovo = new ModernButton
-            {
-                Text = "+ Novo Cliente",
-                Style = ModernButton.Variant.Primary,
-                Dock = DockStyle.Right, Width = 160, Height = 38,
-            };
-            btnNovo.Click += (s, e) => OpenEditor(null);
-
-            inner.Controls.Add(_txtSearch);
-            inner.Controls.Add(btnNovo);
-            bar.Controls.Add(inner);
-            return bar;
-        }
-
-        // ── List card ───────────────────────────────────────────────────
+        // ── List card (com search inline no topo) ───────────────────────
         private Control BuildListCard()
         {
             var card = new ModernCard
@@ -171,6 +154,13 @@ namespace CoworkingApp.Controls
                 CornerRadius = 12, ShowShadow = false,
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(8, 8, 8, 8) };
+
+            // Search bar inline no topo do card
+            var searchBar = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.CardBg, Padding = new Padding(8, 8, 8, 12) };
+            _txtSearch = new ModernInput { Dock = DockStyle.Fill, Height = 38 };
+            _txtSearch.PlaceholderText = "Procurar nome, NIF, email…";
+            _txtSearch.TextChanged += (s, e) => LoadData();
+            searchBar.Controls.Add(_txtSearch);
 
             _listContainer = new Panel
             {
@@ -185,6 +175,7 @@ namespace CoworkingApp.Controls
 
             inner.Controls.Add(_listContainer);
             inner.Controls.Add(_emptyState);
+            inner.Controls.Add(searchBar);
             card.Controls.Add(inner);
             return card;
         }
@@ -347,8 +338,14 @@ namespace CoworkingApp.Controls
             actions.Controls.Add(btnEdit);
             actions.Controls.Add(btnDelete);
 
-            // Stats (reservas + última)
-            var statsPanel = new Panel { Dock = DockStyle.Right, Width = 200, BackColor = idleBg };
+            // Stats (reservas + última) — vertical centering via Padding do container,
+            // não nos labels individuais (que cortavam o texto).
+            // Total interno: 24 (line1) + 20 (line2) = 44. Row 76 → top padding 16.
+            var statsPanel = new Panel
+            {
+                Dock = DockStyle.Right, Width = 200, BackColor = idleBg,
+                Padding = new Padding(0, 16, 8, 0),
+            };
             string statsLine1 = numReservas + " reserva" + (numReservas == 1 ? "" : "s");
             string statsLine2 = ultimaReserva.HasValue
                 ? "Última: " + ultimaReserva.Value.ToString("dd/MM/yyyy")
@@ -356,16 +353,14 @@ namespace CoworkingApp.Controls
             var lblStats1 = new Label
             {
                 Text = statsLine1, Font = Theme.FontBold, ForeColor = Theme.TextPrimary,
-                Dock = DockStyle.Top, Height = 22, AutoSize = false,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false,
                 TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
-                Padding = new Padding(0, 16, 8, 0),
             };
             var lblStats2 = new Label
             {
                 Text = statsLine2, Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
-                Dock = DockStyle.Top, Height = 18, AutoSize = false,
+                Dock = DockStyle.Top, Height = 20, AutoSize = false,
                 TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
-                Padding = new Padding(0, 0, 8, 0),
             };
             statsPanel.Controls.Add(lblStats2);
             statsPanel.Controls.Add(lblStats1);
@@ -384,26 +379,27 @@ namespace CoworkingApp.Controls
             }
 
             // Texto principal (nome + email + nif/telefone) — Fill
-            var pnlText = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(0) };
+            // Vertical centering via Padding do container. Total interno:
+            // 24 (nome) + 20 (email) + 20 (meta) = 64. Row 76 → top padding 6.
+            var pnlText = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(0, 6, 0, 0) };
             var lblNome = new Label
             {
                 Text = nome, Font = new Font(Theme.FontBase.FontFamily, 11.5f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 22, AutoSize = false,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(0, 12, 0, 0),
             };
             var lblEmail = new Label
             {
                 Text = email, Font = Theme.FontSub, ForeColor = Theme.TextSecondary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 18, AutoSize = false,
+                Dock = DockStyle.Top, Height = 20, AutoSize = false,
                 TextAlign = ContentAlignment.MiddleLeft,
             };
             var lblMeta = new Label
             {
                 Text = $"NIF {nif}" + (string.IsNullOrEmpty(telefone) ? "" : "  ·  " + telefone),
                 Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 18, AutoSize = false,
+                Dock = DockStyle.Top, Height = 20, AutoSize = false,
                 TextAlign = ContentAlignment.MiddleLeft,
             };
             pnlText.Controls.Add(lblMeta);
