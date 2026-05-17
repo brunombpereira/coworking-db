@@ -145,14 +145,16 @@ namespace CoworkingApp
                 AutoSize = false,
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(34, 0, 0, 0)
+                Padding = new Padding(40, 0, 0, 0)
             };
-            // Logo box
-            var logoBox = new Panel
+            // Logo: app icon (rounded "C")
+            var logoBox = new PictureBox
             {
-                BackColor = Theme.Accent,
-                Size = new Size(24, 24),
-                Location = new Point(14, 20)
+                Image     = AppIcon.Get(28).ToBitmap(),
+                Size      = new Size(28, 28),
+                Location  = new Point(14, 18),
+                SizeMode  = PictureBoxSizeMode.StretchImage,
+                BackColor = Theme.SidebarBg,
             };
             pnlHeader.Controls.Add(logoBox);
             pnlHeader.Controls.Add(lblTitle);
@@ -168,41 +170,42 @@ namespace CoworkingApp
 
             var lblUser = new Label
             {
-                Text = "  " + (Session.Username ?? "—"),
+                Text = Session.Username ?? "—",
                 ForeColor = Color.White,
                 Font = new Font(Theme.FontBase.FontFamily, 9.5f, FontStyle.Bold),
                 Dock = DockStyle.Top,
                 Height = 22,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 0, 0)
+                Padding = new Padding(12, 0, 0, 0)
             };
             var lblRole = new Label
             {
-                Text = "  Role: " + (Session.Role ?? "—"),
+                Text = "Role: " + (Session.Role ?? "—"),
                 ForeColor = Theme.SidebarText,
                 Font = Theme.FontSub,
                 Dock = DockStyle.Top,
                 Height = 18,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 0, 0)
+                Padding = new Padding(12, 0, 0, 0)
             };
 
             var btnLogout = new IconButton
             {
-                IconChar = IconChar.SignOutAlt,
-                IconColor = Color.White,
-                IconSize = 16,
-                ImageAlign = ContentAlignment.MiddleLeft,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Text = "  Sair",
-                Font = new Font(Theme.FontBase.FontFamily, 9f),
-                ForeColor = Color.White,
-                BackColor = Color.Transparent,
-                FlatStyle = FlatStyle.Flat,
-                Dock = DockStyle.Top,
-                Height = 32,
-                Cursor = Cursors.Hand,
-                Padding = new Padding(8, 0, 0, 0)
+                IconChar            = IconChar.SignOutAlt,
+                IconColor           = Color.White,
+                IconSize            = 16,
+                ImageAlign          = ContentAlignment.MiddleLeft,
+                TextAlign           = ContentAlignment.MiddleLeft,
+                TextImageRelation   = TextImageRelation.ImageBeforeText,
+                Text                = "Sair",
+                Font                = new Font(Theme.FontBase.FontFamily, 9f),
+                ForeColor           = Color.White,
+                BackColor           = Color.Transparent,
+                FlatStyle           = FlatStyle.Flat,
+                Dock                = DockStyle.Top,
+                Height              = 32,
+                Cursor              = Cursors.Hand,
+                Padding             = new Padding(12, 0, 8, 0),
             };
             btnLogout.FlatAppearance.BorderSize = 0;
             btnLogout.FlatAppearance.MouseOverBackColor = Theme.SidebarBgActive;
@@ -214,27 +217,28 @@ namespace CoworkingApp
 
             var btnTheme = new IconButton
             {
-                IconChar = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun,
-                IconColor = Color.White,
-                IconSize = 16,
-                ImageAlign = ContentAlignment.MiddleLeft,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Text = ThemeManager.Current == ThemeMode.Light ? "  Modo escuro" : "  Modo claro",
-                Font = new Font(Theme.FontBase.FontFamily, 9f),
-                ForeColor = Color.White,
-                BackColor = Color.Transparent,
-                FlatStyle = FlatStyle.Flat,
-                Dock = DockStyle.Top,
-                Height = 32,
-                Cursor = Cursors.Hand,
-                Padding = new Padding(8, 0, 0, 0)
+                IconChar            = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun,
+                IconColor           = Color.White,
+                IconSize            = 16,
+                ImageAlign          = ContentAlignment.MiddleLeft,
+                TextAlign           = ContentAlignment.MiddleLeft,
+                TextImageRelation   = TextImageRelation.ImageBeforeText,
+                Text                = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro",
+                Font                = new Font(Theme.FontBase.FontFamily, 9f),
+                ForeColor           = Color.White,
+                BackColor           = Color.Transparent,
+                FlatStyle           = FlatStyle.Flat,
+                Dock                = DockStyle.Top,
+                Height              = 32,
+                Cursor              = Cursors.Hand,
+                Padding             = new Padding(12, 0, 8, 0),
             };
             btnTheme.FlatAppearance.BorderSize = 0;
             btnTheme.Click += (s, e) =>
             {
                 ThemeManager.Toggle();
                 btnTheme.IconChar = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun;
-                btnTheme.Text = ThemeManager.Current == ThemeMode.Light ? "  Modo escuro" : "  Modo claro";
+                btnTheme.Text = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro";
             };
             // Order matters: Top added last sits highest visually
             pnlFooter.Controls.Add(btnTheme);
@@ -310,22 +314,23 @@ namespace CoworkingApp
         {
             var btn = new IconButton
             {
-                Text = "  " + label,
-                IconChar = icon,
-                IconColor = Theme.SidebarText,
-                IconSize = 16,
-                ImageAlign = ContentAlignment.MiddleLeft,
-                TextAlign = ContentAlignment.MiddleLeft,
-                FlatStyle = FlatStyle.Flat,
-                ForeColor = Theme.SidebarText,
-                BackColor = Color.Transparent,
-                Font = new Font(Theme.FontBase.FontFamily, 9.5f),
-                Height = 36,
-                Width = 180,
-                Padding = new Padding(10, 0, 0, 0),
-                Margin = new Padding(0, 0, 0, 2),
-                Cursor = Cursors.Hand,
-                UseVisualStyleBackColor = false
+                Text                = label,
+                IconChar            = icon,
+                IconColor           = Theme.SidebarText,
+                IconSize            = 18,
+                ImageAlign          = ContentAlignment.MiddleLeft,
+                TextAlign           = ContentAlignment.MiddleLeft,
+                TextImageRelation   = TextImageRelation.ImageBeforeText,
+                FlatStyle           = FlatStyle.Flat,
+                ForeColor           = Theme.SidebarText,
+                BackColor           = Color.Transparent,
+                Font                = new Font(Theme.FontBase.FontFamily, 9.5f),
+                Height              = 38,
+                Width               = 184,
+                Padding             = new Padding(14, 0, 8, 0),
+                Margin              = new Padding(0, 0, 0, 3),
+                Cursor              = Cursors.Hand,
+                UseVisualStyleBackColor = false,
             };
             btn.FlatAppearance.BorderSize = 0;
             btn.FlatAppearance.MouseOverBackColor = Theme.SidebarBgActive;
