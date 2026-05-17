@@ -700,7 +700,7 @@ namespace CoworkingApp.Controls
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
             var cmbCliente = UcClientes.AddModernSelectDataSource(tbl, "Cliente *", dsClientes, "nome", "cliente_id");
             var cmbRecurso = UcClientes.AddModernSelectDataSource(tbl, "Recurso *", dsRecursos, "label", "recurso_id");
-            var dtData     = UcClientes.AddDate(tbl, "Data *");
+            var dtData     = UcClientes.AddModernDateField(tbl, "Data *");
             var txtHIni    = UcClientes.AddField(tbl, "Hora início (HH:MM)", IconChar.Sun,            placeholder: "09:00");
             var txtHFim    = UcClientes.AddField(tbl, "Hora fim (HH:MM)",    IconChar.Moon,           placeholder: "10:00");
             var txtParts   = UcClientes.AddField(tbl, "Nº Participantes",    IconChar.Users,          placeholder: "4");

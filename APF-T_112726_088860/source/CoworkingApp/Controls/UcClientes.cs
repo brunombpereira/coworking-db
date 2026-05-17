@@ -746,6 +746,19 @@ namespace CoworkingApp.Controls
             return sel;
         }
 
+        /// <summary>AddModernDateField — campo data dark consistente com
+        /// o filtro 'Período' do toolbar (substitui o DateTimePicker
+        /// nativo Windows-style).</summary>
+        internal static ModernDateField AddModernDateField(TableLayoutPanel tbl, string label)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 12) };
+            var dt  = new ModernDateField { Dock = DockStyle.Top, Height = 42, Value = DateTime.Today };
+            pnl.Controls.Add(dt);
+            pnl.Controls.Add(Theme.FieldLabel(label));
+            tbl.Controls.Add(pnl);
+            return dt;
+        }
+
         internal static ComboBox AddComboDataSource(TableLayoutPanel tbl, string label, object dataSource, string display, string value)
         {
             var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 10) };
