@@ -25,16 +25,17 @@ namespace CoworkingApp
         {
             _saveCallback = onSave;
 
-            // ── Form (dialog discreto, não overlay) ──────────────────────────
+            // ── Form (dialog discreto centrado no ecrã) ──────────────────────
             this.AutoScaleMode       = AutoScaleMode.Dpi;
             this.AutoScaleDimensions = new SizeF(96F, 96F);
             this.FormBorderStyle     = FormBorderStyle.None;
-            this.StartPosition       = FormStartPosition.CenterParent;
+            this.StartPosition       = FormStartPosition.CenterScreen;
             this.ShowInTaskbar       = false;
             this.BackColor           = Theme.CardBorder; // border 1px à volta
             this.Padding             = new Padding(1);
             this.KeyPreview          = true;
             this.Font                = Theme.FontBase;
+            this.TopMost             = true;
 
             this.KeyDown += (s, e) =>
             {
@@ -138,9 +139,23 @@ namespace CoworkingApp
 
         public new DialogResult ShowDialog(IWin32Window owner)
         {
-            // CenterParent já definido em StartPosition; não esticar para
-            // cobrir o owner.
-            return base.ShowDialog(owner);
+            // Mostrar overlay com blur do parent antes de abrir o dialog
+            // → efeito frosted glass por trás do modal.
+            BlurOverlayForm overlay = null;
+            if (owner is Form parentForm && !parentForm.IsDisposed)
+            {
+                overlay = new BlurOverlayForm(parentForm);
+                overlay.Show(parentForm);
+            }
+            try
+            {
+                return base.ShowDialog(owner);
+            }
+            finally
+            {
+                overlay?.Close();
+                overlay?.Dispose();
+            }
         }
 
         private void SizeToContent(int cardWidth)
