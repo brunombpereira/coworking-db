@@ -733,6 +733,19 @@ namespace CoworkingApp.Controls
             return sel;
         }
 
+        /// <summary>AddModernSelect com DataTable (display/value cols).</summary>
+        internal static ModernSelect AddModernSelectDataSource(TableLayoutPanel tbl, string label,
+                                                                DataTable dt, string displayCol, string valueCol)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 12) };
+            var sel = new ModernSelect { Dock = DockStyle.Top, Height = 42 };
+            if (dt != null) sel.BindDataTable(dt, displayCol, valueCol);
+            pnl.Controls.Add(sel);
+            pnl.Controls.Add(Theme.FieldLabel(label));
+            tbl.Controls.Add(pnl);
+            return sel;
+        }
+
         internal static ComboBox AddComboDataSource(TableLayoutPanel tbl, string label, object dataSource, string display, string value)
         {
             var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 10) };
