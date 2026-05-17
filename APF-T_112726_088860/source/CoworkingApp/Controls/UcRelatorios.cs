@@ -26,7 +26,7 @@ namespace CoworkingApp.Controls
         private ModernButton     _btnPesqDisp;
         private ScrollableList   _listDisp;
         private Panel            _dispEmpty;
-        private Label            _kpiDispCount;
+        private Label            _dispHeader;
 
         // Tab 2
         private ModernSelect     _cmbCliCli;
@@ -155,7 +155,7 @@ namespace CoworkingApp.Controls
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));  // filtros
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 84));  // KPI
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));  // header contextual
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // lista
 
             // ─── Filtros (Locations sem overlap) ──────────────────────
@@ -180,29 +180,15 @@ namespace CoworkingApp.Controls
             _btnPesqDisp.Click += (s, e) => LoadDispData();
             filterRow.Controls.AddRange(new Control[] { _segTipo, _dtDispData, _hIni, _hFim, _btnPesqDisp });
 
-            // ─── KPI count
-            var kpiCard = new ModernCard
+            // ─── Header contextual (em vez de KPI separado)
+            _dispHeader = new Label
             {
-                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
-                BorderColor = Theme.CardBorder, CornerRadius = 10, ShowShadow = false,
-                Margin = new Padding(0, 8, 0, 8),
+                Text = "Define os filtros e clica em Pesquisar",
+                Font = Theme.FontSection, ForeColor = Theme.TextSecondary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Fill,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Margin = new Padding(0, 6, 0, 4),
             };
-            var kpiInner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
-            var lblKpiTitle = new Label
-            {
-                Text = "Recursos disponíveis", Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
-                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 20, TextAlign = ContentAlignment.MiddleLeft,
-            };
-            _kpiDispCount = new Label
-            {
-                Text = "—", Font = new Font(Theme.FontBase.FontFamily, 20f, FontStyle.Bold),
-                ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
-                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-            };
-            // Ordem correta: Fill primeiro (bottom z), Top depois (top z).
-            kpiInner.Controls.Add(_kpiDispCount);
-            kpiInner.Controls.Add(lblKpiTitle);
-            kpiCard.Controls.Add(kpiInner);
 
             // ─── Lista ───
             var listHost = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
@@ -213,9 +199,9 @@ namespace CoworkingApp.Controls
             listHost.Controls.Add(_listDisp);
             listHost.Controls.Add(_dispEmpty);
 
-            root.Controls.Add(filterRow, 0, 0);
-            root.Controls.Add(kpiCard,   0, 1);
-            root.Controls.Add(listHost,  0, 2);
+            root.Controls.Add(filterRow,   0, 0);
+            root.Controls.Add(_dispHeader, 0, 1);
+            root.Controls.Add(listHost,    0, 2);
             card.Controls.Add(root);
             return card;
         }
@@ -285,29 +271,39 @@ namespace CoworkingApp.Controls
         {
             _listDisp.Content.SuspendLayout();
             _listDisp.Content.Controls.Clear();
-            _kpiDispCount.Text = dt.Rows.Count.ToString();
 
-            int y = 0;
-            int width = Math.Max(600, _listDisp.ClientSize.Width - 20);
+            string tipo  = isSala ? "salas" : "postos";
+            string horas = isSala ? $" das {_hIni.SelectedText} às {_hFim.SelectedText}" : "";
+            _dispHeader.Text = dt.Rows.Count == 0
+                ? $"Sem {tipo} disponíveis em {_dtDispData.Value:dd/MM/yyyy}{horas}"
+                : $"{dt.Rows.Count} {tipo} disponíveis em {_dtDispData.Value:dd/MM/yyyy}{horas}";
+
+            int totalH = 0;
+            // Adicionar em ordem reversa porque Dock=Top processado em REV z-order:
+            // último adicionado é topmost. Para preservar a ordem visual queremos
+            // o primeiro do DataTable em cima → adicioná-lo por último.
+            var cards = new List<Control>();
             foreach (DataRow r in dt.Rows)
             {
                 string espaco = r["espaco"].ToString();
                 string nome   = r["nome"].ToString();
-                string tipo   = r["tipo"].ToString();
+                string tipoR  = r["tipo"].ToString();
                 decimal preco = Convert.ToDecimal(r["preco"]);
                 int? extra    = r["extra"] is DBNull ? (int?)null : Convert.ToInt32(r["extra"]);
                 string unidade = isSala ? "/hora" : "/dia";
 
-                var card = BuildResourceCard(espaco, nome, tipo, extra, preco, unidade);
-                card.Location = new Point(0, y);
-                card.Width    = width;
-                card.Anchor   = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-                _listDisp.Content.Controls.Add(card);
-                y += card.Height + 8;
+                var card = BuildResourceCard(espaco, nome, tipoR, extra, preco, unidade);
+                card.Dock = DockStyle.Top;
+                cards.Add(card);
+                totalH += card.Height + 6;
             }
+            // Reverse: último a adicionar = primeiro item visualmente.
+            for (int i = cards.Count - 1; i >= 0; i--)
+                _listDisp.Content.Controls.Add(cards[i]);
+
             _listDisp.Content.ResumeLayout();
-            _listDisp.UpdateLayout(y);
-            _listDisp.Visible = dt.Rows.Count > 0;
+            _listDisp.UpdateLayout(totalH);
+            _listDisp.Visible  = dt.Rows.Count > 0;
             _dispEmpty.Visible = dt.Rows.Count == 0;
             _dispEmpty.Invalidate();
         }
@@ -315,7 +311,8 @@ namespace CoworkingApp.Controls
         private Control BuildResourceCard(string espaco, string nome, string tipo, int? capacidade, decimal preco, string unidade)
         {
             Color idleBg = Theme.CardBg;
-            var row = new Panel { Height = 72, BackColor = idleBg, Margin = new Padding(0, 0, 0, 6) };
+            // Margin Bottom dá-nos gap visual entre cards quando usamos Dock=Top.
+            var row = new Panel { Height = 76, BackColor = idleBg, Padding = new Padding(0, 0, 0, 6) };
 
             Color tipoColor = (tipo == "Sala") ? Theme.Accent : ColorTranslator.FromHtml("#06b6d4");
             IconChar tipoIcon = (tipo == "Sala") ? IconChar.DoorClosed : IconChar.Chair;
