@@ -15,6 +15,7 @@ namespace CoworkingApp
     {
         private readonly TextBox        _inner;
         private          IconPictureBox _trailing;
+        private          IconPictureBox _leading;
 
         public int   CornerRadius     { get; set; } = 8;
         public Color BorderColorIdle  { get; set; } = Theme.CardBorder;
@@ -41,6 +42,35 @@ namespace CoworkingApp
         {
             add    => _inner.TextChanged += value;
             remove => _inner.TextChanged -= value;
+        }
+
+        /// <summary>Ícone à esquerda (decorativo — ex.: lupa de pesquisa).</summary>
+        public IconChar LeadingIcon
+        {
+            get => _leading?.IconChar ?? IconChar.None;
+            set
+            {
+                if (value == IconChar.None)
+                {
+                    if (_leading != null) { Controls.Remove(_leading); _leading.Dispose(); _leading = null; }
+                    return;
+                }
+                if (_leading == null)
+                {
+                    _leading = new IconPictureBox
+                    {
+                        IconSize  = 16,
+                        IconColor = Theme.TextMuted,
+                        BackColor = Theme.FieldBg,
+                        Size      = new Size(28, 22),
+                        Dock      = DockStyle.Left,
+                        SizeMode  = PictureBoxSizeMode.CenterImage,
+                    };
+                    Controls.Add(_leading);
+                    _leading.SendToBack();
+                }
+                _leading.IconChar = value;
+            }
         }
 
         /// <summary>Ícone clicável à direita (ex.: olho para show/hide password).</summary>

@@ -59,20 +59,21 @@ namespace CoworkingApp.Controls
             {
                 Text  = "+ Novo Cliente",
                 Style = ModernButton.Variant.Primary,
-                Dock  = DockStyle.Top, Width = 130, Height = 34,
+                Dock  = DockStyle.Top, Width = 140, Height = 38,
                 Margin = new Padding(0),
             };
             btnNovo.Click += (s, e) => OpenEditor(null);
 
-            var btnHolder = new Panel { Dock = DockStyle.Right, Width = 130, BackColor = Theme.PageBg, Padding = new Padding(0, 16, 0, 0) };
+            var btnHolder = new Panel { Dock = DockStyle.Right, Width = 140, BackColor = Theme.PageBg, Padding = new Padding(0, 14, 0, 0) };
             btnHolder.Controls.Add(btnNovo);
 
-            _txtSearch = new ModernInput { Dock = DockStyle.Top, Height = 34 };
+            _txtSearch = new ModernInput { Dock = DockStyle.Top, Height = 38 };
             _txtSearch.PlaceholderText = "Procurar nome, NIF, email…";
-            _txtSearch.TextChanged += (s, e) => LoadData();
+            _txtSearch.LeadingIcon     = IconChar.MagnifyingGlass;
+            _txtSearch.TextChanged    += (s, e) => LoadData();
 
             // Holder da search com 20px gap à direita (entre search e botão)
-            var searchHolder = new Panel { Dock = DockStyle.Right, Width = 220, BackColor = Theme.PageBg, Padding = new Padding(0, 16, 20, 0) };
+            var searchHolder = new Panel { Dock = DockStyle.Right, Width = 240, BackColor = Theme.PageBg, Padding = new Padding(0, 14, 20, 0) };
             searchHolder.Controls.Add(_txtSearch);
 
             // Em WinForms o ÚLTIMO Dock=Right adicionado fica mais à direita.
