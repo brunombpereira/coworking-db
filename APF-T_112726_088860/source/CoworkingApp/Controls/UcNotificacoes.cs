@@ -502,7 +502,10 @@ namespace CoworkingApp.Controls
                                       string mensagem, DateTime data, bool jaLida)
         {
             // Body: header com avatar tipo + assunto + meta + mensagem multi-line.
-            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+            // Panel com Dock=Top processa REVERSE z-order → último adicionado
+            // = topmost. Para ordem visual header→assunto→msg, adicionar msg
+            // primeiro e header último.
+            var body = new Panel { Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
 
             // Header com avatar circle (cor do tipo) + chip dot tipo + nome cliente
             Color tipoColor = TipoColor(tipo);
