@@ -92,22 +92,32 @@ namespace CoworkingApp
             content.Dock = DockStyle.Fill;
             _body.Controls.Add(content);
 
-            // Footer
-            var pnlFooter = new Panel { Dock = DockStyle.Bottom, Height = 56, BackColor = Theme.CardBg };
+            // Footer com border-top subtle para separar do body
+            var pnlFooter = new Panel { Dock = DockStyle.Bottom, Height = 64, BackColor = Theme.CardBg };
+            pnlFooter.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(Theme.CardBorder, 1f))
+                    e.Graphics.DrawLine(pen, 0, 0, pnlFooter.Width, 0);
+            };
             var flow = new FlowLayoutPanel
             {
                 Dock = DockStyle.Right,
                 FlowDirection = FlowDirection.RightToLeft,
                 WrapContents = false,
-                Padding = new Padding(0, 12, 18, 12),
-                AutoSize = true
+                Padding = new Padding(0, 14, 20, 14),
+                AutoSize = true,
+                BackColor = Theme.CardBg,
             };
-            // Modo read-only (onSave=null): sem footer — só a cruz X no
-            // header fecha o dialog.
+            // Modo read-only (onSave=null): sem footer — só a cruz X.
             bool readOnly = (onSave == null);
             if (!readOnly)
             {
-                var btnSave = Theme.BtnPrim("Guardar");
+                var btnSave = new ModernButton
+                {
+                    Text = "Guardar", Style = ModernButton.Variant.Primary,
+                    Font = Theme.FontBold, Size = new Size(130, 36),
+                    Margin = new Padding(10, 0, 0, 0),
+                };
                 btnSave.Click += (s, e) =>
                 {
                     try
@@ -127,17 +137,22 @@ namespace CoworkingApp
                             MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     }
                 };
-                var btnCancel = Theme.BtnGray("Cancelar");
+                var btnCancel = new ModernButton
+                {
+                    Text = "Cancelar", Style = ModernButton.Variant.Secondary,
+                    Font = Theme.FontBase, Size = new Size(110, 36),
+                    Margin = new Padding(0),
+                };
                 btnCancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
-                flow.Controls.Add(btnSave);
-                flow.Controls.Add(btnCancel);
+                // Right-to-left flow → primeiro Add = mais à direita.
+                flow.Controls.Add(btnSave);    // Guardar à direita (primary)
+                flow.Controls.Add(btnCancel);  // Cancelar à esquerda
                 pnlFooter.Controls.Add(flow);
             }
             else
             {
                 pnlFooter.Visible = false;
             }
-            // Footer continua exposto para casos especiais; null se readonly.
             Footer = readOnly ? null : pnlFooter;
 
             // Compose
@@ -210,8 +225,8 @@ namespace CoworkingApp
         private void SizeToContent(int cardWidth)
         {
             int prefH = _body.PreferredSize.Height;
-            // Header 48 + footer 56 (se visível) + padding body 32.
-            int footerH = (Footer != null && Footer.Visible) ? 56 : 0;
+            // Header 48 + footer 64 (se visível) + padding body 32.
+            int footerH = (Footer != null && Footer.Visible) ? 64 : 0;
             int contentH = Math.Min(prefH + 48 + footerH + 32, 600);  // cap 600
             int formH    = Math.Max(220, contentH) + 2;               // +2 border
             int formW    = cardWidth + 2;
