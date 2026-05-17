@@ -639,11 +639,11 @@ namespace CoworkingApp.Controls
         private void OpenEditor(int? id)
         {
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-            var txtNome    = UcClientes.AddField(tbl, "Nome *",            IconChar.Star,      placeholder: "Flex Mensal");
-            var cmbTipo    = UcClientes.AddCombo(tbl, "Tipo *",            new[] { "Flex", "Fixo", "Privado" });
-            var txtPreco   = UcClientes.AddField(tbl, "Preço mensal *",    IconChar.EuroSign,   placeholder: "120.00");
+            var txtNome    = UcClientes.AddField(tbl, "Nome *",            IconChar.Star,         placeholder: "Flex Mensal");
+            var cmbTipo    = UcClientes.AddModernSelect(tbl, "Tipo *",     new[] { "Flex", "Fixo", "Privado" });
+            var txtPreco   = UcClientes.AddField(tbl, "Preço mensal *",    IconChar.EuroSign,     placeholder: "120.00");
             var txtDuracao = UcClientes.AddField(tbl, "Duração (meses) *", IconChar.CalendarDays, placeholder: "1");
-            var txtDesc    = UcClientes.AddField(tbl, "Descrição",         IconChar.AlignLeft, placeholder: "Acesso livre a postos Flex");
+            var txtDesc    = UcClientes.AddField(tbl, "Descrição",         IconChar.AlignLeft,    placeholder: "Acesso livre a postos Flex");
 
             cmbTipo.SelectedIndex = 0;
 
@@ -659,8 +659,7 @@ namespace CoworkingApp.Controls
                         {
                             txtNome.Text = r["nome_plano"]?.ToString() ?? "";
                             var tipo = r["tipo_plano"]?.ToString() ?? "Flex";
-                            var idx = cmbTipo.Items.IndexOf(tipo);
-                            cmbTipo.SelectedIndex = idx >= 0 ? idx : 0;
+                            cmbTipo.SelectByDisplay(tipo);
                             txtPreco.Text = Convert.ToDecimal(r["preco_mensal"]).ToString(CultureInfo.InvariantCulture);
                             txtDuracao.Text = r["duracao_meses"]?.ToString() ?? "";
                             txtDesc.Text = r["descricao"] is DBNull ? "" : r["descricao"].ToString();
@@ -672,7 +671,7 @@ namespace CoworkingApp.Controls
             using (var dlg = new FormDialog(id.HasValue ? "Editar Plano" : "Novo Plano", tbl, 480, () =>
             {
                 if (string.IsNullOrWhiteSpace(txtNome.Text)) throw new ApplicationException("Nome é obrigatório.");
-                if (cmbTipo.SelectedItem == null) throw new ApplicationException("Tipo é obrigatório.");
+                if (cmbTipo.SelectedIndex < 0) throw new ApplicationException("Tipo é obrigatório.");
                 if (!decimal.TryParse(txtPreco.Text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal preco) || preco < 0)
                     throw new ApplicationException("Preço inválido.");
                 if (!int.TryParse(txtDuracao.Text, out int dur) || dur <= 0)
@@ -687,7 +686,7 @@ namespace CoworkingApp.Controls
                 {
                     if (id.HasValue) cmd.Parameters.AddWithValue("@id", id.Value);
                     cmd.Parameters.AddWithValue("@n", txtNome.Text.Trim());
-                    cmd.Parameters.AddWithValue("@tp", cmbTipo.SelectedItem.ToString());
+                    cmd.Parameters.AddWithValue("@tp", cmbTipo.SelectedText);
                     cmd.Parameters.AddWithValue("@p", preco);
                     cmd.Parameters.AddWithValue("@d", dur);
                     cmd.Parameters.AddWithValue("@desc", string.IsNullOrWhiteSpace(txtDesc.Text) ? (object)DBNull.Value : txtDesc.Text.Trim());

@@ -720,6 +720,19 @@ namespace CoworkingApp.Controls
             return cmb;
         }
 
+        /// <summary>AddModernSelect — picker custom dark-themed (substitui o
+        /// ComboBox nativo). Aceita string[] e selecciona o primeiro item.</summary>
+        internal static ModernSelect AddModernSelect(TableLayoutPanel tbl, string label, string[] items)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 12) };
+            var sel = new ModernSelect { Dock = DockStyle.Top, Height = 42 };
+            if (items != null && items.Length > 0) sel.AddItems(items);
+            pnl.Controls.Add(sel);
+            pnl.Controls.Add(Theme.FieldLabel(label));
+            tbl.Controls.Add(pnl);
+            return sel;
+        }
+
         internal static ComboBox AddComboDataSource(TableLayoutPanel tbl, string label, object dataSource, string display, string value)
         {
             var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 10) };
