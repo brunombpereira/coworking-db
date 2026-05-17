@@ -9,6 +9,7 @@ namespace CoworkingApp
         private readonly Panel _card;
         private readonly Panel _body;
         private readonly Action _saveCallback;
+        private Form _ownerForCenter;
         /// <summary>Footer do dialog (Guardar/Cancelar ou Fechar) — exposto
         /// para callers em modo read-only adicionarem botões extra.</summary>
         public Panel Footer { get; private set; }
@@ -28,11 +29,11 @@ namespace CoworkingApp
         {
             _saveCallback = onSave;
 
-            // ── Form (dialog discreto centrado no ecrã) ──────────────────────
+            // ── Form (dialog discreto centrado no content area) ──────────────
             this.AutoScaleMode       = AutoScaleMode.Dpi;
             this.AutoScaleDimensions = new SizeF(96F, 96F);
             this.FormBorderStyle     = FormBorderStyle.None;
-            this.StartPosition       = FormStartPosition.CenterScreen;
+            this.StartPosition       = FormStartPosition.Manual; // posicionamos em ShowDialog
             this.ShowInTaskbar       = false;
             this.BackColor           = Theme.CardBorder; // border 1px à volta
             this.Padding             = new Padding(1);
@@ -144,19 +145,25 @@ namespace CoworkingApp
 
             // Tamanho do form = card width (+2 padding) × altura calculada do
             // body + header(48) + footer(56) + padding(32) + 2 border.
-            this.Load  += (s, e) => SizeToContent(width);
+            this.Load  += (s, e) =>
+            {
+                SizeToContent(width);
+                if (_ownerForCenter != null) CenterInContentArea(_ownerForCenter);
+            };
             this.Shown += (s, e) => content.Focus();
         }
 
         public new DialogResult ShowDialog(IWin32Window owner)
         {
-            // Mostrar overlay com blur do parent antes de abrir o dialog
-            // → efeito frosted glass por trás do modal.
             BlurOverlayForm overlay = null;
             if (owner is Form parentForm && !parentForm.IsDisposed)
             {
+                // 1. Overlay com blur do parent.
                 overlay = new BlurOverlayForm(parentForm);
                 overlay.Show(parentForm);
+                // 2. Memorizar parent para o Load chamar CenterInContentArea
+                //    APÓS SizeToContent (Width/Height só ficam válidos lá).
+                _ownerForCenter = parentForm;
             }
             try
             {
@@ -167,6 +174,30 @@ namespace CoworkingApp
                 overlay?.Close();
                 overlay?.Dispose();
             }
+        }
+
+        private void CenterInContentArea(Form parent)
+        {
+            // Procurar a property ContentArea por reflection (não dependemos
+            // de FormMain directamente para evitar circular reference).
+            Rectangle area;
+            var prop = parent.GetType().GetProperty("ContentArea",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (prop != null && prop.GetValue(parent) is Control contentCtrl)
+            {
+                area = contentCtrl.RectangleToScreen(contentCtrl.ClientRectangle);
+            }
+            else
+            {
+                area = parent.Bounds;
+            }
+            // Garantir que o form já tem tamanho válido (SizeToContent corre
+            // no Load — chamamos aqui para que Location esteja correcto antes
+            // do Show).
+            if (this.Width  <= 0 || this.Height <= 0) return;
+            this.Location = new Point(
+                area.X + (area.Width  - this.Width)  / 2,
+                area.Y + (area.Height - this.Height) / 2);
         }
 
         private void SizeToContent(int cardWidth)

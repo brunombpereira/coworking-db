@@ -13,6 +13,10 @@ namespace CoworkingApp
         public static bool LogoutRequested { get; private set; }
 
         private Panel pnlContent;
+        /// <summary>Área de conteúdo principal (sem sidebar) — usada por
+        /// modais para se centrarem visualmente em vez de sobrepor a
+        /// sidebar.</summary>
+        public Panel ContentArea => pnlContent;
         private Button _activeBtn;
         private readonly List<Button> _navBtns = new List<Button>();
         private Label _lblModule;
