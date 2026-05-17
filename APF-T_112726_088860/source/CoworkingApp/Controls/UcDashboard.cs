@@ -468,6 +468,10 @@ namespace CoworkingApp.Controls
                 MarkerBorderColor = Color.White,
                 MarkerBorderWidth = 2,
                 IsValueShownAsLabel = false,
+                // CRÍTICO: 1 categoria por ponto. Sem isto, o framework
+                // tenta parsear '2026-02' como número e falha → todos os
+                // pontos ficam em X=0 (empilhados na mesma vertical).
+                IsXValueIndexed   = true,
             };
             using (var cmd = new SqlCommand(
                 @"SELECT FORMAT(data_pagamento,'yyyy-MM') AS Mes, SUM(valor) AS Total
