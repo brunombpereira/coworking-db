@@ -12,7 +12,7 @@ namespace CoworkingApp.Controls
     {
         private DataGridView dgv;
         private Button btnNovo, btnEditar, btnEliminar;
-        private TextBox txtSearch;
+        private ModernInput txtSearch;
         private Label lblCount;
         private int _selectedId = -1;
 
@@ -40,7 +40,8 @@ namespace CoworkingApp.Controls
             btnEditar.Click   += (s, e) => OpenEditor(_selectedId);
             btnEliminar.Click += BtnEliminar_Click;
 
-            txtSearch = new TextBox { Width = 200, Font = Theme.FontBase, BackColor = Theme.FieldBg, ForeColor = Theme.TextPrimary, Margin = new Padding(12, 4, 0, 0) };
+            txtSearch = new ModernInput { Width = 240, Height = 36, Margin = new Padding(12, 0, 0, 0) };
+            txtSearch.Inner.PlaceholderText = "Procurar nome, NIF, email…";
             txtSearch.TextChanged += (s, e) => LoadData();
             lblCount = new Label { Font = Theme.FontLabel, ForeColor = Theme.TextSecondary, AutoSize = true, Margin = new Padding(8, 10, 0, 0) };
 
@@ -149,14 +150,14 @@ namespace CoworkingApp.Controls
         // Para acesso ao Panel wrapper (ex: esconder a row inteira), usar control.Parent:
         //   var cmb = AddCombo(tbl, "Opcional", new[]{"A","B"});
         //   cmb.Parent.Visible = false;
-        internal static TextBox AddField(TableLayoutPanel tbl, string label)
+        internal static ModernInput AddField(TableLayoutPanel tbl, string label)
         {
-            var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 10) };
-            var txt = Theme.Field();
-            pnl.Controls.Add(txt);
+            var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 12) };
+            var input = new ModernInput { Dock = DockStyle.Top, Height = 38 };
+            pnl.Controls.Add(input);
             pnl.Controls.Add(Theme.FieldLabel(label));
             tbl.Controls.Add(pnl);
-            return txt;
+            return input;
         }
 
         internal static ComboBox AddCombo(TableLayoutPanel tbl, string label, string[] items)

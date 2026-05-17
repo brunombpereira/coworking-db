@@ -30,6 +30,11 @@ namespace CoworkingApp
             get => _inner.UseSystemPasswordChar;
             set => _inner.UseSystemPasswordChar = value;
         }
+        public string PlaceholderText
+        {
+            get => _inner.PlaceholderText;
+            set => _inner.PlaceholderText = value;
+        }
         public TextBox Inner => _inner;
 
         public new event EventHandler TextChanged
