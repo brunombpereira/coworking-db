@@ -23,7 +23,8 @@ namespace CoworkingApp.Controls
 
         private Chart _chartReceita;
         private Chart _chartMetodos;
-        private FlowLayoutPanel _flpProximas;
+        private Panel _proximasList;    // scrollable items (visível só se count > 0)
+        private Panel _proximasEmpty;   // empty state custom-painted (visível só se count = 0)
 
         // Paleta modern (indigo family + emerald accent)
         private static readonly Color[] Palette =
@@ -302,23 +303,66 @@ namespace CoworkingApp.Controls
             header.Controls.Add(lbl);
             header.Controls.Add(iconLbl);
 
-            _flpProximas = new FlowLayoutPanel
+            // Container que alterna list / empty conforme há ou não dados.
+            // Usar dois Panels separados (em vez de um FLP) garante que a
+            // scrollbar só aparece quando há items que excedem o espaço.
+            _proximasList = new Panel
             {
-                Dock          = DockStyle.Fill,
-                FlowDirection = FlowDirection.TopDown,
-                WrapContents  = false,
-                AutoScroll    = true,
-                BackColor     = Theme.CardBg,
+                Dock       = DockStyle.Fill,
+                AutoScroll = true,
+                BackColor  = Theme.CardBg,
+                Visible    = false,
             };
-            // Quando o FLP é redimensionado (ex.: form maximizado), os items
-            // têm de ajustar a sua Width para caber na ClientSize. Caso
-            // contrário a scrollbar horizontal aparece e dispara a vertical.
-            _flpProximas.Resize += (s, e) => ResizeProximasItems();
+            _proximasList.Resize += (s, e) => ResizeProximasItems();
 
-            inner.Controls.Add(_flpProximas);
+            _proximasEmpty = BuildEmptyState("Não há reservas agendadas", IconChar.CalendarCheck);
+            _proximasEmpty.Dock      = DockStyle.Fill;
+            _proximasEmpty.BackColor = Theme.CardBg;
+            _proximasEmpty.Visible   = true;
+
+            inner.Controls.Add(_proximasList);
+            inner.Controls.Add(_proximasEmpty);
             inner.Controls.Add(header);
             card.Controls.Add(inner);
             return card;
+        }
+
+        private Panel BuildEmptyState(string text, IconChar icon)
+        {
+            var pnl = new Panel { BackColor = Theme.CardBg };
+            Image iconImg = null;
+            pnl.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode     = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                // Render do icon lazy (precisa de Parent setado)
+                if (iconImg == null)
+                {
+                    using (var pb = new IconPictureBox
+                           { IconChar = icon, IconSize = 44, IconColor = Theme.TextMuted })
+                    {
+                        if (pb.Image != null) iconImg = (Image)pb.Image.Clone();
+                    }
+                }
+
+                var textSize = TextRenderer.MeasureText(g, text, Theme.FontBase,
+                    Size.Empty, TextFormatFlags.NoPadding);
+                int iconSize = 44, gap = 14;
+                int totalH   = iconSize + gap + textSize.Height;
+                int startY   = Math.Max(8, (pnl.Height - totalH) / 2);
+                int iconX    = (pnl.Width - iconSize) / 2;
+                int textX    = (pnl.Width - textSize.Width) / 2;
+
+                if (iconImg != null)
+                    g.DrawImage(iconImg, iconX, startY, iconSize, iconSize);
+                TextRenderer.DrawText(g, text, Theme.FontBase,
+                    new Point(textX, startY + iconSize + gap), Theme.TextMuted,
+                    TextFormatFlags.NoPadding);
+            };
+            pnl.Resize += (s, e) => pnl.Invalidate();
+            return pnl;
         }
 
         // ── Data loading ────────────────────────────────────────────────
@@ -467,18 +511,18 @@ namespace CoworkingApp.Controls
 
         private void ResizeProximasItems()
         {
-            if (_flpProximas == null) return;
-            // Largura útil: ClientSize já desconta scrollbar quando visível.
-            int w = _flpProximas.ClientSize.Width - 2;
+            if (_proximasList == null) return;
+            int w = _proximasList.ClientSize.Width;
             if (w < 100) return;
-            foreach (Control c in _flpProximas.Controls)
+            foreach (Control c in _proximasList.Controls)
                 c.Width = w;
         }
 
         private void LoadProximas(SqlConnection conn)
         {
-            _flpProximas.Controls.Clear();
+            _proximasList.Controls.Clear();
             int count = 0;
+            int y     = 0;
             using (var cmd = new SqlCommand(
                 @"SELECT TOP 6
                        c.nome AS Cliente,
@@ -499,54 +543,29 @@ namespace CoworkingApp.Controls
             {
                 while (reader.Read())
                 {
-                    _flpProximas.Controls.Add(BuildProximaItem(
+                    var item = BuildProximaItem(
                         cliente: reader["Cliente"].ToString(),
                         recurso: reader["Recurso"].ToString(),
                         tipo:    reader["tipo"].ToString(),
                         data:    (DateTime)reader["data_reserva"],
                         hora:    reader["hora_inicio"] is DBNull ? null : (TimeSpan?)reader["hora_inicio"],
                         estado:  reader["estado"].ToString()
-                    ));
+                    );
+                    item.Location = new Point(0, y);
+                    item.Anchor   = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+                    item.Width    = _proximasList.ClientSize.Width;
+                    _proximasList.Controls.Add(item);
+                    y += item.Height + 4;
                     count++;
                 }
             }
-            if (count == 0)
-            {
-                var empty = new Panel
-                {
-                    Width = _flpProximas.ClientSize.Width - 20,
-                    Height = 120,
-                    BackColor = Theme.CardBg,
-                    Margin = new Padding(0, 24, 0, 0),
-                };
-                var emptyIcon = new IconPictureBox
-                {
-                    IconChar  = IconChar.CalendarCheck,
-                    IconColor = Theme.TextMuted,
-                    IconSize  = 36,
-                    Size      = new Size(40, 40),
-                    BackColor = Theme.CardBg,
-                    SizeMode  = PictureBoxSizeMode.CenterImage,
-                    Anchor    = AnchorStyles.Top,
-                    Location  = new Point((empty.Width - 40) / 2, 16),
-                };
-                var emptyLbl = new Label
-                {
-                    Text      = "Não há reservas agendadas",
-                    Font      = Theme.FontBase,
-                    ForeColor = Theme.TextMuted,
-                    BackColor = Theme.CardBg,
-                    AutoSize  = false,
-                    Size      = new Size(empty.Width, 24),
-                    Location  = new Point(0, 64),
-                    TextAlign = ContentAlignment.MiddleCenter,
-                };
-                empty.Controls.Add(emptyIcon);
-                empty.Controls.Add(emptyLbl);
-                _flpProximas.Controls.Add(empty);
-            }
 
-            ResizeProximasItems();   // fixa Width dos items para caber sem h-scroll
+            // Toggle visibility: lista OU empty state — nunca os dois.
+            _proximasList.Visible  = count > 0;
+            _proximasEmpty.Visible = count == 0;
+            _proximasEmpty.Invalidate();   // forçar repaint do empty state
+
+            ResizeProximasItems();
         }
 
         private Control BuildProximaItem(string cliente, string recurso, string tipo,
