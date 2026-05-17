@@ -7,6 +7,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Globalization;
 using System.Windows.Forms;
+using CoworkingApp;
 using FontAwesome.Sharp;
 
 namespace CoworkingApp.Controls
