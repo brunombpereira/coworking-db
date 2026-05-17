@@ -42,8 +42,8 @@ namespace CoworkingApp.Controls
         private readonly List<Control> _postosCards = new List<Control>();
 
         private const int SmallCardW = 280;
-        private const int SmallCardH = 220;
-        private const int CardGap    = 12;
+        private const int SmallCardH = 250;
+        private const int CardGap    = 14;
 
         public UcEspacos()
         {
@@ -527,7 +527,7 @@ namespace CoworkingApp.Controls
                 BackColor = idleBg, BorderColor = Theme.CardBorder,
                 CornerRadius = 14, ShowShadow = false, Cursor = Cursors.Hand,
             };
-            var inner = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(20, 16, 20, 14) };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(22, 18, 22, 16) };
 
             var estadoPill = new StatusPill
             {
@@ -535,6 +535,7 @@ namespace CoworkingApp.Controls
                 Width = 110, Height = 24, BackColor = idleBg,
             };
             estadoPill.SetColors(EstadoBg(estado), EstadoFg(estado));
+            var spAfterPill = new Panel { Dock = DockStyle.Top, Height = 12, BackColor = idleBg };
 
             var lblNome = new Label
             {
@@ -549,7 +550,7 @@ namespace CoworkingApp.Controls
                 Text = espaco, Font = Theme.FontSub, ForeColor = Theme.TextSecondary, BackColor = idleBg,
                 Dock = DockStyle.Top, Height = 20, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
-            var spDur = new Panel { Dock = DockStyle.Top, Height = 8, BackColor = idleBg };
+            var spDur = new Panel { Dock = DockStyle.Top, Height = 14, BackColor = idleBg };
             var lblPreco = new Label
             {
                 Text = Theme.FormatEuro(preco) + " /hora",
@@ -557,27 +558,30 @@ namespace CoworkingApp.Controls
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
                 Dock = DockStyle.Top, Height = 34, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
+            var spPrice = new Panel { Dock = DockStyle.Top, Height = 4, BackColor = idleBg };
             var lblCap = new Label
             {
                 Text = $"{capacidade} lugar" + (capacidade == 1 ? "" : "es"),
                 Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = idleBg,
                 Dock = DockStyle.Top, Height = 20, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
-            var footer = new Panel { Dock = DockStyle.Bottom, Height = 36, BackColor = idleBg };
+            var footer = new Panel { Dock = DockStyle.Bottom, Height = 40, BackColor = idleBg };
             var btnEdit = MakeIconBtn(IconChar.Pen, Theme.Accent, idleBg, () => OpenSalaEditor(id));
             var btnDel  = MakeIconBtn(IconChar.TrashCan, Theme.StatusDangerFg, idleBg, () => DeleteSala(id, nome));
             btnEdit.Dock = DockStyle.Right;
             btnDel.Dock  = DockStyle.Right;
-            footer.Controls.Add(btnDel);
-            footer.Controls.Add(btnEdit);
+            footer.Controls.Add(btnEdit);  // adicionado primeiro = mais à esquerda dos Right
+            footer.Controls.Add(btnDel);   // adicionado depois = rightmost
 
             inner.Controls.Add(footer);
             inner.Controls.Add(lblCap);
+            inner.Controls.Add(spPrice);
             inner.Controls.Add(lblPreco);
             inner.Controls.Add(spDur);
             inner.Controls.Add(lblEspaco);
             inner.Controls.Add(spNome);
             inner.Controls.Add(lblNome);
+            inner.Controls.Add(spAfterPill);
             inner.Controls.Add(estadoPill);
             card.Controls.Add(inner);
 
@@ -657,7 +661,7 @@ namespace CoworkingApp.Controls
                 BackColor = idleBg, BorderColor = Theme.CardBorder,
                 CornerRadius = 14, ShowShadow = false, Cursor = Cursors.Hand,
             };
-            var inner = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(20, 16, 20, 14) };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(22, 18, 22, 16) };
 
             // Tipo badge colorido + Estado pill
             Color cyan   = ColorTranslator.FromHtml("#06b6d4");
@@ -671,6 +675,7 @@ namespace CoworkingApp.Controls
                 Width = 90, Height = 24, BackColor = idleBg,
             };
             tipoPill.SetColors(Color.FromArgb(40, tipoColor), tipoColor);
+            var spAfterTipo = new Panel { Dock = DockStyle.Top, Height = 12, BackColor = idleBg };
 
             var lblCodigo = new Label
             {
@@ -684,7 +689,7 @@ namespace CoworkingApp.Controls
                 Text = espaco, Font = Theme.FontSub, ForeColor = Theme.TextSecondary, BackColor = idleBg,
                 Dock = DockStyle.Top, Height = 20, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
-            var spDur = new Panel { Dock = DockStyle.Top, Height = 8, BackColor = idleBg };
+            var spDur = new Panel { Dock = DockStyle.Top, Height = 14, BackColor = idleBg };
             var lblPreco = new Label
             {
                 Text = Theme.FormatEuro(preco) + " /dia",
@@ -692,29 +697,31 @@ namespace CoworkingApp.Controls
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
                 Dock = DockStyle.Top, Height = 34, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
+            var spPrice = new Panel { Dock = DockStyle.Top, Height = 6, BackColor = idleBg };
             var estadoPill = new StatusPill
             {
                 Text = estado, Dock = DockStyle.Top,
                 Width = 110, Height = 22, BackColor = idleBg,
-                Margin = new Padding(0, 4, 0, 0),
             };
             estadoPill.SetColors(EstadoBg(estado), EstadoFg(estado));
 
-            var footer = new Panel { Dock = DockStyle.Bottom, Height = 36, BackColor = idleBg };
+            var footer = new Panel { Dock = DockStyle.Bottom, Height = 40, BackColor = idleBg };
             var btnEdit = MakeIconBtn(IconChar.Pen, Theme.Accent, idleBg, () => OpenPostoEditor(id));
             var btnDel  = MakeIconBtn(IconChar.TrashCan, Theme.StatusDangerFg, idleBg, () => DeletePosto(id, codigo));
             btnEdit.Dock = DockStyle.Right;
             btnDel.Dock  = DockStyle.Right;
-            footer.Controls.Add(btnDel);
-            footer.Controls.Add(btnEdit);
+            footer.Controls.Add(btnEdit);  // primeiro = à esquerda dos Right
+            footer.Controls.Add(btnDel);   // depois = rightmost
 
             inner.Controls.Add(footer);
             inner.Controls.Add(estadoPill);
+            inner.Controls.Add(spPrice);
             inner.Controls.Add(lblPreco);
             inner.Controls.Add(spDur);
             inner.Controls.Add(lblEspaco);
             inner.Controls.Add(spNome);
             inner.Controls.Add(lblCodigo);
+            inner.Controls.Add(spAfterTipo);
             inner.Controls.Add(tipoPill);
             card.Controls.Add(inner);
 
