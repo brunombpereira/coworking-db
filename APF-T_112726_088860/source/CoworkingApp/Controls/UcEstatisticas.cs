@@ -171,7 +171,13 @@ namespace CoworkingApp.Controls
 
         private Chart MakeChart(string seriesName, SeriesChartType type)
         {
-            var c = new Chart { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+            // MinimumSize=(1,1) evita ArgumentException "Height must be > 0px"
+            // que ocorre durante o layout inicial quando o parent tem H=0.
+            var c = new Chart
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                MinimumSize = new Size(1, 1),
+            };
             var area = new ChartArea("main") { BackColor = Color.Transparent };
             area.AxisX.MajorGrid.Enabled = false;
             area.AxisX.LineColor = Theme.CardBorder;
