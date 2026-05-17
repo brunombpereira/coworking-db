@@ -39,7 +39,7 @@ namespace CoworkingApp
                 case 52014:                                    // admin_toggle_user_active
                     return ex.Message;
                 default:
-                    return "Erro ao comunicar com a base de dados.";
+                    return $"Erro ao comunicar com a base de dados.\n\nDetalhe (#{ex.Number}): {ex.Message}";
             }
         }
     }
