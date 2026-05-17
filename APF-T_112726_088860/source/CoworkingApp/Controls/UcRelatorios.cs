@@ -852,22 +852,29 @@ namespace CoworkingApp.Controls
         // ─── TAB 3: Análise ─────────────────────────────────────────────
         private Control BuildTabAna()
         {
-            var card = new ModernCard
+            // Outer Panel(PageBg) → cards interiores ficam visíveis.
+            var panel = new Panel
             {
-                Name = "tabAna", Dock = DockStyle.Fill, BackColor = Theme.CardBg, Visible = false,
-                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+                Name = "tabAna", Dock = DockStyle.Fill, BackColor = Theme.PageBg, Visible = false,
             };
             var root = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = Theme.CardBg,
-                Padding = new Padding(16, 14, 16, 16),
+                Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, BackColor = Theme.PageBg,
+                Padding = new Padding(0, 4, 0, 0),
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));   // filtro
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));   // filtro card
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // KPIs
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // charts
 
-            var filterRow = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+            // Filter dentro de ModernCard próprio.
+            var filterCard = new ModernCard
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg,
+                BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
+                Margin = new Padding(0, 0, 0, 12),
+            };
+            var filterInner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
             var lblP = new Label
             {
                 Text = "Período", Font = new Font(Theme.FontBase.FontFamily, 9f, FontStyle.Bold),
@@ -888,13 +895,14 @@ namespace CoworkingApp.Controls
                 Size = new Size(110, 40), Location = new Point(370, 8),
             };
             _btnAnaAplicar.Click += (s, e) => LoadAnaData();
-            filterRow.Controls.AddRange(new Control[] { lblP, _dtAnaIni, lblArrow, _dtAnaFim, _btnAnaAplicar });
+            filterInner.Controls.AddRange(new Control[] { lblP, _dtAnaIni, lblArrow, _dtAnaFim, _btnAnaAplicar });
+            filterCard.Controls.Add(filterInner);
 
             // KPIs (3 cards)
             var kpiGrid = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Theme.CardBg,
-                Margin = new Padding(0, 8, 0, 8),
+                Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Theme.PageBg,
+                Margin = new Padding(0, 0, 0, 12),
             };
             for (int i = 0; i < 3; i++) kpiGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
             kpiGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -906,27 +914,28 @@ namespace CoworkingApp.Controls
             kpiGrid.Controls.Add(kb, 1, 0);
             kpiGrid.Controls.Add(kc, 2, 0);
 
-            // Charts (2 col: mensal + pie/ocupação)
+            // Charts (2 col x 2 row: mensal + pie em cima, ocupação span baixo)
             var chartGrid = new TableLayoutPanel
             {
-                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, BackColor = Theme.CardBg,
+                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, BackColor = Theme.PageBg,
             };
             chartGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60f));
             chartGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40f));
             chartGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
             chartGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
 
-            chartGrid.Controls.Add(BuildChartCard("Receita mensal", out _chartReceitaMensal, isLine: false, isPie: false), 0, 0);
-            chartGrid.Controls.Add(BuildChartCard("Métodos de pagamento", out _chartMetodos,       isLine: false, isPie: true),  1, 0);
+            chartGrid.Controls.Add(BuildChartCard("Receita mensal",       out _chartReceitaMensal, isLine: false, isPie: false), 0, 0);
+            chartGrid.Controls.Add(BuildChartCard("Métodos de pagamento", out _chartMetodos,        isLine: false, isPie: true),  1, 0);
             var ocup = BuildChartCard("Ocupação por espaço", out _chartOcupacao, isLine: false, isPie: false);
             chartGrid.SetColumnSpan(ocup, 2);
+            ocup.Margin = new Padding(0, 0, 0, 0); // último — sem margin right (já no span)
             chartGrid.Controls.Add(ocup, 0, 1);
 
-            root.Controls.Add(filterRow, 0, 0);
-            root.Controls.Add(kpiGrid,   0, 1);
-            root.Controls.Add(chartGrid, 0, 2);
-            card.Controls.Add(root);
-            return card;
+            root.Controls.Add(filterCard, 0, 0);
+            root.Controls.Add(kpiGrid,    0, 1);
+            root.Controls.Add(chartGrid,  0, 2);
+            panel.Controls.Add(root);
+            return panel;
         }
 
         private Control BuildChartCard(string title, out Chart chart, bool isLine, bool isPie)
