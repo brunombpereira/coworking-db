@@ -86,22 +86,38 @@ namespace CoworkingApp.Controls
             var row1 = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, BackColor = Theme.PageBg };
             for (int i = 0; i < 4; i++)
                 row1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
-            row1.Controls.Add(BuildHeroKpi("Receita do mês", IconChar.SackDollar,  out _lblReceitaValue,  out _lblReceitaDelta, isAccent: true), 0, 0);
-            row1.Controls.Add(BuildKpi    ("Reservas hoje",  IconChar.CalendarDay, out _lblReservasValue, out _lblReservasDelta),               1, 0);
-            row1.Controls.Add(BuildKpi    ("Adesões ativas", IconChar.Star,        out _lblAdesoesValue,  out _lblAdesoesDelta),                2, 0);
-            row1.Controls.Add(BuildKpi    ("Ocupação hoje",  IconChar.ChartPie,    out _lblOcupValue,     out _lblOcupDelta),                   3, 0);
+            var hero  = BuildHeroKpi("Receita do mês", IconChar.SackDollar,  out _lblReceitaValue,  out _lblReceitaDelta, isAccent: true);
+            var kpi1  = BuildKpi    ("Reservas hoje",  IconChar.CalendarDay, out _lblReservasValue, out _lblReservasDelta);
+            var kpi2  = BuildKpi    ("Adesões ativas", IconChar.Star,        out _lblAdesoesValue,  out _lblAdesoesDelta);
+            var kpi3  = BuildKpi    ("Ocupação hoje",  IconChar.ChartPie,    out _lblOcupValue,     out _lblOcupDelta);
+            // Sobrepor margins para alinhar outer edges com as outras rows.
+            hero.Margin = new Padding(0, 0, 4, 8);
+            kpi1.Margin = new Padding(4, 0, 4, 8);
+            kpi2.Margin = new Padding(4, 0, 4, 8);
+            kpi3.Margin = new Padding(4, 0, 0, 8);
+            row1.Controls.Add(hero, 0, 0);
+            row1.Controls.Add(kpi1, 1, 0);
+            row1.Controls.Add(kpi2, 2, 0);
+            row1.Controls.Add(kpi3, 3, 0);
 
             // Row 2: line chart + doughnut
             var row2 = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Theme.PageBg };
             row2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 60f));
             row2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40f));
-            row2.Controls.Add(BuildChartCard("Receita — últimos 6 meses", IconChar.ChartLine, out _chartReceita, isLine: true),  0, 0);
-            row2.Controls.Add(BuildChartCard("Métodos de pagamento",      IconChar.CreditCard, out _chartMetodos, isLine: false), 1, 0);
+            var cardReceita = BuildChartCard("Receita — últimos 6 meses", IconChar.ChartLine, out _chartReceita, isLine: true);
+            var cardMetodos = BuildChartCard("Métodos de pagamento",      IconChar.CreditCard, out _chartMetodos, isLine: false);
+            cardReceita.Margin = new Padding(0, 0, 4, 8);
+            cardMetodos.Margin = new Padding(4, 0, 0, 8);
+            row2.Controls.Add(cardReceita, 0, 0);
+            row2.Controls.Add(cardMetodos, 1, 0);
 
-            // Row 3: próximas reservas
+            // Row 3: próximas reservas (full-width, sem margins)
+            var cardProx = BuildProximasCard();
+            cardProx.Margin = new Padding(0, 0, 0, 0);
+
             content.Controls.Add(row1, 0, 0);
             content.Controls.Add(row2, 0, 1);
-            content.Controls.Add(BuildProximasCard(), 0, 2);
+            content.Controls.Add(cardProx, 0, 2);
 
             Controls.Add(content);
             Controls.Add(pnlTitle);
@@ -117,7 +133,8 @@ namespace CoworkingApp.Controls
                 BorderColor  = isAccent ? Color.Empty  : Theme.CardBorder,
                 CornerRadius = 12,
                 ShowShadow   = false,
-                Margin       = new Padding(0, 0, 8, 0),
+                // Margin é definida pelo caller (BuildUI) para alinhamento
+                // consistente entre rows.
             };
 
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = card.BackColor, Padding = new Padding(18, 14, 18, 12) };
@@ -211,7 +228,7 @@ namespace CoworkingApp.Controls
                 BorderColor  = Theme.CardBorder,
                 CornerRadius = 12,
                 ShowShadow   = false,
-                Margin       = new Padding(4, 8, 4, 8),
+                // Margin definida no caller.
             };
 
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(18, 14, 18, 14) };
@@ -282,7 +299,7 @@ namespace CoworkingApp.Controls
                 BorderColor  = Theme.CardBorder,
                 CornerRadius = 12,
                 ShowShadow   = false,
-                Margin       = new Padding(0, 8, 0, 0),
+                // Margin definida no caller.
             };
 
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(18, 14, 18, 14) };
