@@ -56,10 +56,10 @@ namespace CoworkingApp
                 {
                     _trailing = new IconPictureBox
                     {
-                        IconSize  = 16,
+                        IconSize  = 22,                    // antes 16 → blur por subpixel-AA pequeno
                         IconColor = Theme.TextSecondary,
                         BackColor = Theme.FieldBg,
-                        Size      = new Size(28, 22),
+                        Size      = new Size(34, 26),
                         Dock      = DockStyle.Right,
                         Cursor    = Cursors.Hand,
                         SizeMode  = PictureBoxSizeMode.CenterImage,
