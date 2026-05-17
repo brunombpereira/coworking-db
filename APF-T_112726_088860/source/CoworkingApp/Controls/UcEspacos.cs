@@ -121,18 +121,27 @@ namespace CoworkingApp.Controls
                 using (var pen = new Pen(Theme.CardBorder, 1))
                     e.Graphics.DrawLine(pen, 0, bar.Height - 1, bar.Width, bar.Height - 1);
             };
-            _tabEspacos = new TabButton { Text = "Espaços", Icon = IconChar.Building };
-            _tabSalas   = new TabButton { Text = "Salas",   Icon = IconChar.DoorOpen };
-            _tabPostos  = new TabButton { Text = "Postos",  Icon = IconChar.Chair };
-            _tabEspacos.Location = new Point(0,   8);
-            _tabSalas.Location   = new Point(120, 8);
-            _tabPostos.Location  = new Point(240, 8);
+            _tabEspacos = new TabButton { Text = "Espaços", Icon = IconChar.Building, Margin = new Padding(0, 6, 4, 0) };
+            _tabSalas   = new TabButton { Text = "Salas",   Icon = IconChar.DoorOpen, Margin = new Padding(0, 6, 4, 0) };
+            _tabPostos  = new TabButton { Text = "Postos",  Icon = IconChar.Chair,    Margin = new Padding(0, 6, 0, 0) };
             _tabEspacos.Click += (s, e) => SwitchTab(Tab.Espacos);
             _tabSalas.Click   += (s, e) => SwitchTab(Tab.Salas);
             _tabPostos.Click  += (s, e) => SwitchTab(Tab.Postos);
-            bar.Controls.Add(_tabEspacos);
-            bar.Controls.Add(_tabSalas);
-            bar.Controls.Add(_tabPostos);
+
+            // FlowLayoutPanel respeita o AutoSize de cada TabButton (calculado
+            // por texto). Antes tinha Locations hardcoded (0, 120, 240) que
+            // criavam gaps/overlaps quando o RecalcSize por texto mudou os
+            // widths.
+            var flow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.PageBg,
+                FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
+                AutoSize = false, Padding = new Padding(0),
+            };
+            flow.Controls.Add(_tabEspacos);
+            flow.Controls.Add(_tabSalas);
+            flow.Controls.Add(_tabPostos);
+            bar.Controls.Add(flow);
             return bar;
         }
 
