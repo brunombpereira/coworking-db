@@ -44,7 +44,7 @@ namespace CoworkingApp.Controls
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));   // title
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 160));  // hero
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 172));  // hero (era 160)
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // KPIs
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // content
 
@@ -145,8 +145,8 @@ namespace CoworkingApp.Controls
             var lblSub = new Label
             {
                 Text = subline, Font = Theme.FontBase, ForeColor = Theme.TextSecondary,
-                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 24,
-                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(0, 8, 0, 0),
+                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 32,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(0, 6, 0, 0),
             };
 
             middle.Controls.Add(lblSub);
