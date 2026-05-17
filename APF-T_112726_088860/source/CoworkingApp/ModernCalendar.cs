@@ -20,7 +20,7 @@ namespace CoworkingApp
         private DateTime _value = DateTime.Today;
         private DateTime _displayMonth; // primeiro dia do mês mostrado
 
-        private Rectangle _rectPrev, _rectNext;
+        private Rectangle _rectPrev, _rectNext, _rectPrevYear, _rectNextYear;
         private readonly Rectangle[,] _rectDays = new Rectangle[6, 7];
         private readonly DateTime?[,]  _dateGrid = new DateTime?[6, 7];
 
@@ -52,8 +52,10 @@ namespace CoworkingApp
 
         protected override void OnMouseClick(MouseEventArgs e)
         {
-            if (_rectPrev.Contains(e.Location)) { _displayMonth = _displayMonth.AddMonths(-1); Invalidate(); return; }
-            if (_rectNext.Contains(e.Location)) { _displayMonth = _displayMonth.AddMonths(1);  Invalidate(); return; }
+            if (_rectPrevYear.Contains(e.Location)) { _displayMonth = _displayMonth.AddYears(-1);  Invalidate(); return; }
+            if (_rectNextYear.Contains(e.Location)) { _displayMonth = _displayMonth.AddYears(1);   Invalidate(); return; }
+            if (_rectPrev    .Contains(e.Location)) { _displayMonth = _displayMonth.AddMonths(-1); Invalidate(); return; }
+            if (_rectNext    .Contains(e.Location)) { _displayMonth = _displayMonth.AddMonths(1);  Invalidate(); return; }
 
             for (int r = 0; r < 6; r++)
                 for (int c = 0; c < 7; c++)
@@ -71,8 +73,9 @@ namespace CoworkingApp
 
         protected override void OnMouseMove(MouseEventArgs e)
         {
-            // hover visual
-            Cursor = (_rectPrev.Contains(e.Location) || _rectNext.Contains(e.Location)) ? Cursors.Hand : Cursors.Default;
+            bool onArrow = _rectPrev    .Contains(e.Location) || _rectNext    .Contains(e.Location)
+                        || _rectPrevYear.Contains(e.Location) || _rectNextYear.Contains(e.Location);
+            Cursor = onArrow ? Cursors.Hand : Cursors.Default;
             for (int r = 0; r < 6; r++)
                 for (int c = 0; c < 7; c++)
                     if (_rectDays[r, c].Contains(e.Location) && _dateGrid[r, c].HasValue)
@@ -100,13 +103,19 @@ namespace CoworkingApp
 
         private void DrawHeader(Graphics g)
         {
-            // Setas prev/next (chevrons) + label "Maio 2026"
-            int btnSize = 28;
-            _rectPrev = new Rectangle(Padding, (HeaderH - btnSize) / 2, btnSize, btnSize);
-            _rectNext = new Rectangle(Width - Padding - btnSize, (HeaderH - btnSize) / 2, btnSize, btnSize);
+            int btnSize = 26;
+            int y       = (HeaderH - btnSize) / 2;
+            // Esquerda: << ano-1, < mês-1
+            _rectPrevYear = new Rectangle(Padding,                  y, btnSize, btnSize);
+            _rectPrev     = new Rectangle(Padding + btnSize + 4,    y, btnSize, btnSize);
+            // Direita: > mês+1, >> ano+1
+            _rectNext     = new Rectangle(Width - Padding - btnSize * 2 - 4, y, btnSize, btnSize);
+            _rectNextYear = new Rectangle(Width - Padding - btnSize,         y, btnSize, btnSize);
 
-            DrawChevron(g, _rectPrev, true);
-            DrawChevron(g, _rectNext, false);
+            DrawChevron(g, _rectPrevYear, true,  doubleChevron: true);
+            DrawChevron(g, _rectPrev,     true,  doubleChevron: false);
+            DrawChevron(g, _rectNext,     false, doubleChevron: false);
+            DrawChevron(g, _rectNextYear, false, doubleChevron: true);
 
             string label = _displayMonth.ToString("MMMM yyyy", new CultureInfo("pt-PT"));
             label = char.ToUpper(label[0]) + label.Substring(1);
@@ -118,24 +127,58 @@ namespace CoworkingApp
             }
         }
 
-        private void DrawChevron(Graphics g, Rectangle r, bool left)
+        private void DrawChevron(Graphics g, Rectangle r, bool left, bool doubleChevron)
         {
             bool hover = r.Contains(PointToClient(System.Windows.Forms.Cursor.Position));
             Color c = hover ? Theme.Accent : Theme.TextSecondary;
+
+            // Bg hover subtle
+            if (hover)
+            {
+                using (var path = ModernCard.RoundedRect(r, 6))
+                using (var br   = new SolidBrush(Theme.AccentSoft))
+                    g.FillPath(br, path);
+            }
+
             using (var pen = new Pen(c, 1.6f))
             {
                 int cx = r.X + r.Width / 2;
                 int cy = r.Y + r.Height / 2;
-                if (left)
+                int armSize = 4;
+                if (doubleChevron)
                 {
-                    g.DrawLine(pen, cx + 3, cy - 5, cx - 3, cy);
-                    g.DrawLine(pen, cx - 3, cy,     cx + 3, cy + 5);
+                    int off = 4;
+                    if (left)
+                    {
+                        // < <
+                        DrawSingleChevron(g, pen, cx - off,           cy, armSize, true);
+                        DrawSingleChevron(g, pen, cx - off + armSize, cy, armSize, true);
+                    }
+                    else
+                    {
+                        // > >
+                        DrawSingleChevron(g, pen, cx + off,           cy, armSize, false);
+                        DrawSingleChevron(g, pen, cx + off - armSize, cy, armSize, false);
+                    }
                 }
                 else
                 {
-                    g.DrawLine(pen, cx - 3, cy - 5, cx + 3, cy);
-                    g.DrawLine(pen, cx + 3, cy,     cx - 3, cy + 5);
+                    DrawSingleChevron(g, pen, cx, cy, armSize + 1, left);
                 }
+            }
+        }
+
+        private void DrawSingleChevron(Graphics g, Pen pen, int cx, int cy, int arm, bool left)
+        {
+            if (left)
+            {
+                g.DrawLine(pen, cx + arm / 2, cy - arm, cx - arm / 2, cy);
+                g.DrawLine(pen, cx - arm / 2, cy,       cx + arm / 2, cy + arm);
+            }
+            else
+            {
+                g.DrawLine(pen, cx - arm / 2, cy - arm, cx + arm / 2, cy);
+                g.DrawLine(pen, cx + arm / 2, cy,       cx - arm / 2, cy + arm);
             }
         }
 

@@ -24,7 +24,11 @@ namespace CoworkingApp
 
         private bool _hover;
         private Form _popup;
-        private ListBox _list;
+        private Panel _listPanel;
+        private int   _scrollOffset = 0;
+        private const int ItemH      = 28;
+        private const int ScrollbarW = 6;
+        private const int PopupPadV  = 4;
 
         private readonly List<Item> _items = new List<Item>();
         private int _selectedIndex = -1;
@@ -34,6 +38,16 @@ namespace CoworkingApp
             public string Display;
             public object Value;
             public object Raw; // DataRow underlying se vier de DataTable
+        }
+
+        /// <summary>Panel que aceita Focus (necessário para receber MouseWheel).</summary>
+        private class FocusablePanel : Panel
+        {
+            public FocusablePanel()
+            {
+                SetStyle(ControlStyles.Selectable, true);
+                SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.ResizeRedraw, true);
+            }
         }
 
         public event EventHandler SelectedIndexChanged;
@@ -113,37 +127,25 @@ namespace CoworkingApp
         private void ShowPopup()
         {
             if (_popup != null && !_popup.IsDisposed) { _popup.Close(); _popup = null; return; }
+            _scrollOffset = 0;
+            _hoverIdx     = -1;
 
-            _list = new ListBox
-            {
-                Dock           = DockStyle.Fill,
-                BackColor      = Theme.CardBg,
-                ForeColor      = Theme.TextPrimary,
-                BorderStyle    = BorderStyle.None,
-                Font           = Font,
-                IntegralHeight = false,
-                ItemHeight     = 30,
-                DrawMode       = DrawMode.OwnerDrawFixed,
-            };
-            foreach (var it in _items) _list.Items.Add(it.Display);
-            _list.SelectedIndex = _selectedIndex;
-            _list.DrawItem  += List_DrawItem;
-            _list.MouseMove += (s, ev) =>
-            {
-                int idx = _list.IndexFromPoint(ev.Location);
-                if (idx != _hoverIdx) { _hoverIdx = idx; _list.Invalidate(); }
-            };
-            _list.MouseLeave += (s, ev) => { _hoverIdx = -1; _list.Invalidate(); };
-            _list.MouseClick += (s, ev) =>
-            {
-                int idx = _list.IndexFromPoint(ev.Location);
-                if (idx >= 0) { SelectedIndex = idx; _popup?.Close(); }
-            };
+            const int MaxVisible = 8;
+            int totalH    = _items.Count * ItemH + PopupPadV * 2;
+            int visibleH  = Math.Min(totalH, MaxVisible * ItemH + PopupPadV * 2);
 
-            int contentH = Math.Min(_items.Count * _list.ItemHeight + 8, 280);
-            // Inner panel: bg CardBg + padding vertical 4
-            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(0, 4, 0, 4) };
-            inner.Controls.Add(_list);
+            _listPanel = new FocusablePanel
+            {
+                Dock      = DockStyle.Fill,
+                BackColor = Theme.CardBg,
+                TabStop   = true,
+            };
+            _listPanel.MouseMove  += ListPanel_MouseMove;
+            _listPanel.MouseEnter += (s, ev) => _listPanel.Focus();
+            _listPanel.MouseLeave += (s, ev) => { _hoverIdx = -1; _listPanel.Invalidate(); };
+            _listPanel.MouseClick += ListPanel_MouseClick;
+            _listPanel.MouseWheel += ListPanel_MouseWheel;
+            _listPanel.Paint      += ListPanel_Paint;
 
             _popup = new Form
             {
@@ -153,53 +155,115 @@ namespace CoworkingApp
                 TopMost         = true,
                 BackColor       = Theme.CardBorder,
                 Padding         = new Padding(1),
-                Size            = new Size(Width, contentH),
+                Size            = new Size(Width, visibleH + 2),
             };
-            _popup.Controls.Add(inner);
+            _popup.Controls.Add(_listPanel);
 
             var pt = PointToScreen(new Point(0, Height + 4));
             _popup.Location = pt;
             _popup.Deactivate += (s, ev) => _popup.Close();
             _popup.Show(FindForm());
+            _listPanel.Focus(); // habilita MouseWheel
         }
 
-        private void List_DrawItem(object sender, DrawItemEventArgs e)
+        private int VisibleItems() =>
+            (_listPanel.ClientSize.Height - PopupPadV * 2) / ItemH;
+
+        private int MaxScroll() =>
+            Math.Max(0, _items.Count - VisibleItems());
+
+        private int IndexAtPoint(Point p)
         {
-            if (e.Index < 0) return;
-            bool isHover    = (e.Index == _hoverIdx);
-            bool isSelected = (e.Index == _selectedIndex);
+            int y = p.Y - PopupPadV;
+            if (y < 0) return -1;
+            int idx = y / ItemH + _scrollOffset;
+            return (idx >= 0 && idx < _items.Count) ? idx : -1;
+        }
 
-            Color bg = isHover    ? Theme.AccentSoft
-                     : isSelected ? Color.FromArgb(40, Theme.Accent)
-                                  : Theme.CardBg;
-            Color fg = (isSelected && !isHover) ? Theme.Accent : Theme.TextPrimary;
+        private void ListPanel_MouseMove(object sender, MouseEventArgs e)
+        {
+            int idx = IndexAtPoint(e.Location);
+            if (idx != _hoverIdx) { _hoverIdx = idx; _listPanel.Invalidate(); }
+        }
 
-            // Background do item — usar inset para criar gap entre items
-            var itemBg = Rectangle.Inflate(e.Bounds, -4, 0);
+        private void ListPanel_MouseClick(object sender, MouseEventArgs e)
+        {
+            int idx = IndexAtPoint(e.Location);
+            if (idx >= 0) { SelectedIndex = idx; _popup?.Close(); }
+        }
+
+        private void ListPanel_MouseWheel(object sender, MouseEventArgs e)
+        {
+            int max = MaxScroll();
+            if (max <= 0) return;
+            int delta = -Math.Sign(e.Delta);
+            _scrollOffset = Math.Max(0, Math.Min(max, _scrollOffset + delta));
+            _listPanel.Invalidate();
+        }
+
+        private void ListPanel_Paint(object sender, PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode     = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
             using (var br = new SolidBrush(Theme.CardBg))
-                e.Graphics.FillRectangle(br, e.Bounds);
-            if (isHover || isSelected)
+                g.FillRectangle(br, _listPanel.ClientRectangle);
+
+            int visible = VisibleItems();
+            int width   = _listPanel.ClientSize.Width;
+            int max     = MaxScroll();
+            bool needScroll = max > 0;
+            int contentW = needScroll ? width - ScrollbarW - 4 : width;
+
+            for (int i = 0; i < visible && (_scrollOffset + i) < _items.Count; i++)
             {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using (var path = ModernCard.RoundedRect(itemBg, 6))
-                using (var br   = new SolidBrush(bg))
-                    e.Graphics.FillPath(br, path);
+                int idx = _scrollOffset + i;
+                var rect = new Rectangle(0, PopupPadV + i * ItemH, contentW, ItemH);
+                bool isHover    = (idx == _hoverIdx);
+                bool isSelected = (idx == _selectedIndex);
+
+                if (isHover || isSelected)
+                {
+                    var fillR = Rectangle.Inflate(rect, -4, -2);
+                    Color bg = isHover ? Theme.AccentSoft : Color.FromArgb(40, Theme.Accent);
+                    using (var path = ModernCard.RoundedRect(fillR, 6))
+                    using (var brF  = new SolidBrush(bg))
+                        g.FillPath(brF, path);
+                }
+
+                Color fg = (isSelected && !isHover) ? Theme.Accent : Theme.TextPrimary;
+                var txtR = new Rectangle(rect.X + 12, rect.Y, rect.Width - (isSelected ? 32 : 16), rect.Height);
+                TextRenderer.DrawText(g, _items[idx].Display, Font, txtR, fg,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter
+                  | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+
+                if (isSelected)
+                {
+                    int cx = rect.Right - 16, cy = rect.Y + rect.Height / 2;
+                    using (var pen = new Pen(Theme.Accent, 1.8f))
+                    {
+                        g.DrawLine(pen, cx - 4, cy,     cx - 1, cy + 3);
+                        g.DrawLine(pen, cx - 1, cy + 3, cx + 5, cy - 3);
+                    }
+                }
             }
 
-            var txtR = new Rectangle(e.Bounds.X + 12, e.Bounds.Y, e.Bounds.Width - 36, e.Bounds.Height);
-            TextRenderer.DrawText(e.Graphics, _list.Items[e.Index].ToString(), e.Font, txtR, fg,
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
-
-            // Checkmark à direita no selected
-            if (isSelected)
+            // Scrollbar custom (thumb arredondado à direita)
+            if (needScroll)
             {
-                int cx = e.Bounds.Right - 18, cy = e.Bounds.Y + e.Bounds.Height / 2;
-                using (var pen = new Pen(Theme.Accent, 1.8f))
-                {
-                    e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                    e.Graphics.DrawLine(pen, cx - 5, cy,     cx - 1, cy + 4);
-                    e.Graphics.DrawLine(pen, cx - 1, cy + 4, cx + 6, cy - 4);
-                }
+                int trackX = width - ScrollbarW - 2;
+                int trackY = PopupPadV;
+                int trackH = _listPanel.ClientSize.Height - PopupPadV * 2;
+                using (var br = new SolidBrush(Color.FromArgb(20, Theme.TextSecondary)))
+                    g.FillRectangle(br, trackX, trackY, ScrollbarW, trackH);
+
+                float ratio  = (float)visible / _items.Count;
+                int   thumbH = Math.Max(24, (int)(trackH * ratio));
+                int   thumbY = trackY + (int)((trackH - thumbH) * ((float)_scrollOffset / max));
+                using (var path = ModernCard.RoundedRect(new Rectangle(trackX, thumbY, ScrollbarW, thumbH), ScrollbarW / 2))
+                using (var br   = new SolidBrush(Theme.TextMuted))
+                    g.FillPath(br, path);
             }
         }
 
