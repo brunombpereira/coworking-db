@@ -17,8 +17,8 @@ namespace CoworkingApp.Controls
         private Label _kpiTotal, _kpiConfirm, _kpiPend, _kpiRev;
 
         // Toolbar/filtros
-        private DateTimePicker _dtDe, _dtAte;
-        private ComboBox _cmbCliente, _cmbEstado;
+        private ModernDateField _dtDe, _dtAte;
+        private ModernCombo _cmbCliente, _cmbEstado;
         private ModernButton _btnNova;
 
         // Lista
@@ -81,17 +81,16 @@ namespace CoworkingApp.Controls
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
 
-            // ─── Botão Nova ───────────────────────────────────────────
+            // ─── Botão Nova (à direita, anchored) ─────────────────────
             _btnNova = new ModernButton
             {
                 Text = "+ Nova Reserva", Style = ModernButton.Variant.Primary,
                 Font = Theme.FontBold, Size = new Size(160, 40),
-                Location = new Point(0, 4),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
             };
             _btnNova.Click += (s, e) => OpenEditor();
 
-            // ─── Filtros ──────────────────────────────────────────────
+            // ─── Filtros (chips modern) ───────────────────────────────
             _cmbEstado = MakeCombo(130);
             _cmbEstado.Items.AddRange(new object[] { "(Todos)", "Pendente", "Confirmada", "Cancelada", "Concluida" });
             _cmbEstado.SelectedIndex = 0;
@@ -105,23 +104,12 @@ namespace CoworkingApp.Controls
             _dtDe  = MakeDate(new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1));
             _dtDe.ValueChanged  += (s, e) => LoadData();
 
-            // Divider vertical entre o botão e os filtros
-            var divider = new Panel
-            {
-                Width = 1, Height = 30,
-                BackColor = Theme.CardBorder,
-                Location = new Point(176, 9),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left,
-            };
-
-            // Flow dos filtros, encostado à esquerda do divider
             var flow = new FlowLayoutPanel
             {
                 AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
                 BackColor = Theme.CardBg, Padding = new Padding(0),
-                Location = new Point(192, 0),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
             };
             flow.Controls.Add(MakeFilterLabel("Período"));
             flow.Controls.Add(_dtDe);
@@ -133,9 +121,24 @@ namespace CoworkingApp.Controls
             flow.Controls.Add(_cmbEstado);
 
             inner.Controls.Add(flow);
-            inner.Controls.Add(divider);
             inner.Controls.Add(_btnNova);
             card.Controls.Add(inner);
+
+            // Posicionamento: botão à direita, filtros à esquerda do botão,
+            // ambos centrados verticalmente. Re-layout no Resize.
+            void Relayout()
+            {
+                var dr = inner.DisplayRectangle;
+                int btnY = dr.Y + (dr.Height - _btnNova.Height) / 2;
+                _btnNova.Location = new Point(dr.Right - _btnNova.Width, btnY);
+
+                int flowY = dr.Y + (dr.Height - flow.Height) / 2;
+                flow.Location = new Point(_btnNova.Location.X - flow.Width - 16, flowY);
+            }
+            inner.SizeChanged += (s, e) => Relayout();
+            flow.SizeChanged  += (s, e) => Relayout();
+            inner.HandleCreated += (s, e) => Relayout();
+
             return card;
         }
 
@@ -162,32 +165,26 @@ namespace CoworkingApp.Controls
                 ForeColor = Theme.TextMuted,
                 AutoSize = true,
                 BackColor = Theme.CardBg,
-                Margin = new Padding(6, 12, 6, 0),
+                Margin = new Padding(8, 14, 8, 0),
             };
         }
 
-        private ComboBox MakeCombo(int width = 150)
+        private ModernCombo MakeCombo(int width = 150)
         {
-            return new ComboBox
+            return new ModernCombo
             {
-                Width = width, Height = 28,
-                DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat,
-                BackColor = Theme.FieldBg, ForeColor = Theme.TextPrimary,
-                Font = Theme.FontBase,
-                Margin = new Padding(0, 8, 0, 0),
+                Width = width, Height = 36,
+                Margin = new Padding(0, 6, 0, 0),
             };
         }
 
-        private DateTimePicker MakeDate(DateTime initial)
+        private ModernDateField MakeDate(DateTime initial)
         {
-            return new DateTimePicker
+            return new ModernDateField
             {
-                Width = 110, Height = 28,
-                Format = DateTimePickerFormat.Short,
-                Value  = initial,
-                CalendarMonthBackground = Theme.CardBg,
-                Font = Theme.FontBase,
-                Margin = new Padding(0, 8, 0, 0),
+                Width = 130, Height = 36,
+                Value = initial,
+                Margin = new Padding(0, 6, 0, 0),
             };
         }
 
