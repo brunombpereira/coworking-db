@@ -28,7 +28,7 @@ namespace CoworkingApp
         private const int WeekHeadH  = 26;
         private const int CellW      = 36;
         private const int CellH      = 34;
-        private const int Padding    = 12;
+        private const int PadInner   = 12;
 
         public DateTime Value
         {
@@ -45,8 +45,8 @@ namespace CoworkingApp
             BackColor    = Theme.CardBg;
             ForeColor    = Theme.TextPrimary;
             Font         = Theme.FontBase;
-            Width        = Padding * 2 + CellW * 7;            // 7 colunas
-            Height       = HeaderH + WeekHeadH + CellH * 6 + Padding;
+            Width        = PadInner * 2 + CellW * 7;            // 7 colunas
+            Height       = HeaderH + WeekHeadH + CellH * 6 + PadInner;
             _displayMonth = new DateTime(_value.Year, _value.Month, 1);
         }
 
@@ -106,11 +106,11 @@ namespace CoworkingApp
             int btnSize = 26;
             int y       = (HeaderH - btnSize) / 2;
             // Esquerda: << ano-1, < mês-1
-            _rectPrevYear = new Rectangle(Padding,                  y, btnSize, btnSize);
-            _rectPrev     = new Rectangle(Padding + btnSize + 4,    y, btnSize, btnSize);
+            _rectPrevYear = new Rectangle(PadInner,                  y, btnSize, btnSize);
+            _rectPrev     = new Rectangle(PadInner + btnSize + 4,    y, btnSize, btnSize);
             // Direita: > mês+1, >> ano+1
-            _rectNext     = new Rectangle(Width - Padding - btnSize * 2 - 4, y, btnSize, btnSize);
-            _rectNextYear = new Rectangle(Width - Padding - btnSize,         y, btnSize, btnSize);
+            _rectNext     = new Rectangle(Width - PadInner - btnSize * 2 - 4, y, btnSize, btnSize);
+            _rectNextYear = new Rectangle(Width - PadInner - btnSize,         y, btnSize, btnSize);
 
             DrawChevron(g, _rectPrevYear, true,  doubleChevron: true);
             DrawChevron(g, _rectPrev,     true,  doubleChevron: false);
@@ -189,7 +189,7 @@ namespace CoworkingApp
             int y = HeaderH;
             for (int i = 0; i < 7; i++)
             {
-                int x = Padding + i * CellW;
+                int x = PadInner + i * CellW;
                 var r = new Rectangle(x, y, CellW, WeekHeadH);
                 TextRenderer.DrawText(g, DiasSemana[i], new Font(Font.FontFamily, 9f, FontStyle.Bold),
                     r, Theme.TextMuted,
@@ -198,7 +198,7 @@ namespace CoworkingApp
 
             // Linha divisória subtle
             using (var pen = new Pen(Theme.CardBorder, 1))
-                g.DrawLine(pen, Padding, y + WeekHeadH - 1, Width - Padding, y + WeekHeadH - 1);
+                g.DrawLine(pen, PadInner, y + WeekHeadH - 1, Width - PadInner, y + WeekHeadH - 1);
         }
 
         private void DrawGrid(Graphics g)
@@ -217,7 +217,7 @@ namespace CoworkingApp
                 for (int c = 0; c < 7; c++)
                 {
                     int flat = r * 7 + c;
-                    var rect = new Rectangle(Padding + c * CellW, gridY + r * CellH, CellW, CellH);
+                    var rect = new Rectangle(PadInner + c * CellW, gridY + r * CellH, CellW, CellH);
                     _rectDays[r, c] = rect;
 
                     if (flat < firstDow || dayCounter > daysInMonth)

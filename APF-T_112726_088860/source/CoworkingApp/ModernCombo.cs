@@ -33,7 +33,7 @@ namespace CoworkingApp
             set { if (_inner != null) _inner.Text = value; }
         }
 
-        public new event EventHandler SelectedIndexChanged
+        public event EventHandler SelectedIndexChanged
         {
             add    { _inner.SelectedIndexChanged += value; }
             remove { _inner.SelectedIndexChanged -= value; }

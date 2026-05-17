@@ -208,10 +208,7 @@ namespace CoworkingApp.Controls
             var sel = new ModernSelect { Width = 84, Height = 36, Location = new Point(x, 10) };
             for (int h = 0; h < 24; h++)
                 sel.AddItems($"{h:00}:00", $"{h:00}:30");
-            int idx = 0;
-            for (int i = 0; i < sel.Items.Count; i++)
-                if (sel.Items[i].ToString() == defaultVal) { idx = i; break; }
-            sel.SelectedIndex = idx;
+            sel.SelectByDisplay(defaultVal);
             return sel;
         }
 

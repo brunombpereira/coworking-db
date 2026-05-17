@@ -79,6 +79,15 @@ namespace CoworkingApp
         public string SelectedText =>
             (_selectedIndex >= 0 && _selectedIndex < _items.Count) ? _items[_selectedIndex].Display : "";
 
+        public int Count => _items.Count;
+
+        /// <summary>Selecciona o primeiro item cujo Display bate certo (case-sensitive).</summary>
+        public void SelectByDisplay(string display)
+        {
+            for (int i = 0; i < _items.Count; i++)
+                if (_items[i].Display == display) { SelectedIndex = i; return; }
+        }
+
         /// <summary>Adiciona items simples por string. Value = string.</summary>
         public void AddItems(params string[] items)
         {

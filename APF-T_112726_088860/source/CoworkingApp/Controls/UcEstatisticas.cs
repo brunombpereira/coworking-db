@@ -13,7 +13,6 @@ namespace CoworkingApp.Controls
         private Chart _chartReceitaMensal;
         private Chart _chartReceitaMetodo;
         private DataGridView _dgvAdesoesExpirar;
-        private DataGridView _dgvTopClientes;
         private Label _lblTotalClientes;
         private Label _lblTotalReceita;
         private Label _lblReservasMes;
