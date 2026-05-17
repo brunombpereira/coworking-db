@@ -36,7 +36,7 @@ namespace CoworkingApp
 
         private bool _hover;
         private Form _popup;
-        private MonthCalendar _cal;
+        private ModernCalendar _cal;
 
         public ModernDateField()
         {
@@ -61,17 +61,14 @@ namespace CoworkingApp
         {
             if (_popup != null && !_popup.IsDisposed) { _popup.Close(); _popup = null; return; }
 
-            _cal = new MonthCalendar
+            _cal = new ModernCalendar
             {
-                SelectionStart = _value,
-                SelectionEnd   = _value,
-                MaxSelectionCount = 1,
-                ShowToday = true,
-                ShowTodayCircle = true,
+                Value = _value,
+                Dock  = DockStyle.Fill,
             };
-            _cal.DateChanged += (s, ev) =>
+            _cal.DateSelected += (s, d) =>
             {
-                Value = ev.Start;
+                Value = d;
                 _popup?.Close();
             };
 
@@ -81,11 +78,11 @@ namespace CoworkingApp
                 StartPosition   = FormStartPosition.Manual,
                 ShowInTaskbar   = false,
                 TopMost         = true,
-                BackColor       = Theme.CardBg,
-                Padding         = new Padding(2),
+                BackColor       = Theme.CardBorder,
+                Padding         = new Padding(1),
+                Size            = new Size(_cal.Width + 2, _cal.Height + 2),
             };
             _popup.Controls.Add(_cal);
-            _popup.Size = new Size(_cal.Width + 4, _cal.Height + 4);
 
             var screenPt = PointToScreen(new Point(0, Height + 4));
             _popup.Location = screenPt;

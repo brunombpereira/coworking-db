@@ -108,31 +108,43 @@ namespace CoworkingApp
         protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
         protected override void OnClick(EventArgs e)      { ShowPopup();    base.OnClick(e); }
 
+        private int _hoverIdx = -1;
+
         private void ShowPopup()
         {
             if (_popup != null && !_popup.IsDisposed) { _popup.Close(); _popup = null; return; }
 
             _list = new ListBox
             {
-                Dock          = DockStyle.Fill,
-                BackColor     = Theme.CardBg,
-                ForeColor     = Theme.TextPrimary,
-                BorderStyle   = BorderStyle.None,
-                Font          = Font,
+                Dock           = DockStyle.Fill,
+                BackColor      = Theme.CardBg,
+                ForeColor      = Theme.TextPrimary,
+                BorderStyle    = BorderStyle.None,
+                Font           = Font,
                 IntegralHeight = false,
-                ItemHeight    = 26,
-                DrawMode      = DrawMode.OwnerDrawFixed,
+                ItemHeight     = 30,
+                DrawMode       = DrawMode.OwnerDrawFixed,
             };
             foreach (var it in _items) _list.Items.Add(it.Display);
             _list.SelectedIndex = _selectedIndex;
-            _list.DrawItem += List_DrawItem;
+            _list.DrawItem  += List_DrawItem;
+            _list.MouseMove += (s, ev) =>
+            {
+                int idx = _list.IndexFromPoint(ev.Location);
+                if (idx != _hoverIdx) { _hoverIdx = idx; _list.Invalidate(); }
+            };
+            _list.MouseLeave += (s, ev) => { _hoverIdx = -1; _list.Invalidate(); };
             _list.MouseClick += (s, ev) =>
             {
                 int idx = _list.IndexFromPoint(ev.Location);
                 if (idx >= 0) { SelectedIndex = idx; _popup?.Close(); }
             };
 
-            int listH = Math.Min(Math.Max(_items.Count, 1) * _list.ItemHeight + 4, 280);
+            int contentH = Math.Min(_items.Count * _list.ItemHeight + 8, 280);
+            // Inner panel: bg CardBg + padding vertical 4
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(0, 4, 0, 4) };
+            inner.Controls.Add(_list);
+
             _popup = new Form
             {
                 FormBorderStyle = FormBorderStyle.None,
@@ -141,9 +153,9 @@ namespace CoworkingApp
                 TopMost         = true,
                 BackColor       = Theme.CardBorder,
                 Padding         = new Padding(1),
-                Size            = new Size(Width, listH),
+                Size            = new Size(Width, contentH),
             };
-            _popup.Controls.Add(_list);
+            _popup.Controls.Add(inner);
 
             var pt = PointToScreen(new Point(0, Height + 4));
             _popup.Location = pt;
@@ -154,15 +166,41 @@ namespace CoworkingApp
         private void List_DrawItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
-            bool sel = (e.State & DrawItemState.Selected) != 0
-                    || (e.Index == _list.IndexFromPoint(_list.PointToClient(System.Windows.Forms.Cursor.Position)));
-            Color bg = sel ? Theme.AccentSoft : Theme.CardBg;
-            Color fg = Theme.TextPrimary;
-            using (var br = new SolidBrush(bg)) e.Graphics.FillRectangle(br, e.Bounds);
-            var txt = _list.Items[e.Index].ToString();
-            var r = new Rectangle(e.Bounds.X + 10, e.Bounds.Y, e.Bounds.Width - 20, e.Bounds.Height);
-            TextRenderer.DrawText(e.Graphics, txt, e.Font, r, fg,
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+            bool isHover    = (e.Index == _hoverIdx);
+            bool isSelected = (e.Index == _selectedIndex);
+
+            Color bg = isHover    ? Theme.AccentSoft
+                     : isSelected ? Color.FromArgb(40, Theme.Accent)
+                                  : Theme.CardBg;
+            Color fg = (isSelected && !isHover) ? Theme.Accent : Theme.TextPrimary;
+
+            // Background do item — usar inset para criar gap entre items
+            var itemBg = Rectangle.Inflate(e.Bounds, -4, 0);
+            using (var br = new SolidBrush(Theme.CardBg))
+                e.Graphics.FillRectangle(br, e.Bounds);
+            if (isHover || isSelected)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (var path = ModernCard.RoundedRect(itemBg, 6))
+                using (var br   = new SolidBrush(bg))
+                    e.Graphics.FillPath(br, path);
+            }
+
+            var txtR = new Rectangle(e.Bounds.X + 12, e.Bounds.Y, e.Bounds.Width - 36, e.Bounds.Height);
+            TextRenderer.DrawText(e.Graphics, _list.Items[e.Index].ToString(), e.Font, txtR, fg,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+
+            // Checkmark à direita no selected
+            if (isSelected)
+            {
+                int cx = e.Bounds.Right - 18, cy = e.Bounds.Y + e.Bounds.Height / 2;
+                using (var pen = new Pen(Theme.Accent, 1.8f))
+                {
+                    e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    e.Graphics.DrawLine(pen, cx - 5, cy,     cx - 1, cy + 4);
+                    e.Graphics.DrawLine(pen, cx - 1, cy + 4, cx + 6, cy - 4);
+                }
+            }
         }
 
         protected override void OnPaintBackground(PaintEventArgs e) { /* skip */ }
