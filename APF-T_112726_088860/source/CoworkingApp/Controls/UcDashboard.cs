@@ -635,8 +635,10 @@ namespace CoworkingApp.Controls
                 c.MouseEnter += (s, e) => SetHover(true);
                 c.MouseLeave += (s, e) =>
                 {
-                    // Só remove hover se o cursor saiu mesmo do row
-                    var p = row.PointToClient(Cursor.Position);
+                    // Só remove hover se o cursor saiu mesmo do row.
+                    // Qualificar System.Windows.Forms.Cursor — Control.Cursor
+                    // é uma instance property que faria sombra à classe estática.
+                    var p = row.PointToClient(System.Windows.Forms.Cursor.Position);
                     if (!row.ClientRectangle.Contains(p)) SetHover(false);
                 };
                 foreach (Control child in c.Controls) Hook(child);
