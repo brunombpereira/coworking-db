@@ -32,18 +32,29 @@ namespace CoworkingApp
             FormBorderStyle = FormBorderStyle.None;
             StartPosition   = FormStartPosition.Manual;
             ShowInTaskbar   = false;
-            BackColor       = Theme.CardBg;
+            BackColor       = Theme.SidebarBg;          // match sidebar — visual continuity
             DoubleBuffered  = true;
             TopMost         = true;
-            Padding         = new Padding(6);
-            Width           = 220;
+            Padding         = new Padding(6, 8, 6, 8);
+            Width           = 230;
 
-            // Altura calculada (cada item 36, separador 12)
+            // Altura calculada (cada item 40, separador 14)
             int h = Padding.Vertical;
-            foreach (var i in items) h += i.IsSeparator ? 12 : 36;
+            foreach (var i in items) h += i.IsSeparator ? 14 : 40;
             Height = h;
 
             BuildItems();
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            // Cantos arredondados via Region (corners 10px). Edges ligeiramente
+            // serrilhados mas o popup é pequeno e o raio também — aceitável.
+            using (var path = ModernCard.RoundedRect(new Rectangle(0, 0, Width, Height), 10))
+            {
+                Region = new Region(path);
+            }
         }
 
         protected override void OnDeactivate(EventArgs e)
@@ -62,14 +73,8 @@ namespace CoworkingApp
             }
         }
 
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-            // Border subtil à volta do popup
-            var rect = new Rectangle(0, 0, Width - 1, Height - 1);
-            using (var pen = new Pen(Theme.CardBorder, 1))
-                e.Graphics.DrawRectangle(pen, rect);
-        }
+        // Sem OnPaint override — BackColor + Region tratam de tudo. Nada de
+        // border (a sombra do SO via CS_DROPSHADOW já separa do que está atrás).
 
         private void BuildItems()
         {
@@ -81,18 +86,18 @@ namespace CoworkingApp
                 {
                     var sep = new Panel
                     {
-                        Location  = new Point(Padding.Left + 6, y + 5),
-                        Size      = new Size(Width - Padding.Horizontal - 12, 1),
-                        BackColor = Theme.CardBorder,
+                        Location  = new Point(Padding.Left + 8, y + 6),
+                        Size      = new Size(Width - Padding.Horizontal - 16, 1),
+                        BackColor = Color.FromArgb(28, Color.White),
                     };
                     Controls.Add(sep);
-                    y += 12;
+                    y += 14;
                     continue;
                 }
 
                 var item = BuildItem(def, y);
                 Controls.Add(item);
-                y += 36;
+                y += 40;
             }
         }
 
@@ -101,13 +106,13 @@ namespace CoworkingApp
             var item = new ItemControl
             {
                 Location      = new Point(Padding.Left, y),
-                Size          = new Size(Width - Padding.Horizontal, 36),
+                Size          = new Size(Width - Padding.Horizontal, 40),
                 IconChar      = def.Icon,
                 IconColor     = def.IconColor,
                 Text          = def.Text,
-                ForeColor     = Theme.TextPrimary,
-                HoverColor    = Theme.SidebarBgActive,
-                BackColorIdle = Theme.CardBg,
+                ForeColor     = Color.White,
+                HoverColor    = Theme.SidebarBgActive,    // mesmo hover dos nav items
+                BackColorIdle = Theme.SidebarBg,          // mesmo bg do popup → seamless
             };
             item.Click += (s, e) =>
             {
