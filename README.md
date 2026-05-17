@@ -11,14 +11,14 @@ Sistema de gestão de um espaço de coworking, permitindo o registo de clientes,
 | Componente | Tecnologia |
 |---|---|
 | Base de dados | Microsoft SQL Server 2019 Express |
-| Aplicação | C# Windows Forms (.NET Framework) |
-| IDE | Visual Studio 2022+ |
+| Aplicação | C# Windows Forms (.NET 8) |
+| IDE | Visual Studio 2022+ com .NET 8 SDK |
 | Ferramenta BD | SQL Server Management Studio 22 |
 
 ## Pré-requisitos
 
 - SQL Server 2019 Express ou superior
-- Visual Studio 2022+ com workload **.NET Desktop Development**
+- Visual Studio 2022+ com workload **.NET Desktop Development** e .NET 8 SDK
 - SQL Server Management Studio 22
 
 ## Setup da Base de Dados
