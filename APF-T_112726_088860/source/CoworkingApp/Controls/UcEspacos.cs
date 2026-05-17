@@ -108,16 +108,23 @@ namespace CoworkingApp.Controls
             SwitchTab(Tab.Espacos);
         }
 
-        // ── Pill tab bar ────────────────────────────────────────────────
+        // ── Underline tab bar (estilo Linear/GitHub) ────────────────────
         private Control BuildTabBar()
         {
-            var bar = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg, Padding = new Padding(0, 0, 0, 8) };
+            var bar = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg };
+            // Linha subtil ao longo do fundo do bar — active tab destaca-se com
+            // o seu próprio underline em accent que sobrepõe esta linha.
+            bar.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(Theme.CardBorder, 1))
+                    e.Graphics.DrawLine(pen, 0, bar.Height - 1, bar.Width, bar.Height - 1);
+            };
             _tabEspacos = new TabButton { Text = "Espaços", Icon = IconChar.Building };
             _tabSalas   = new TabButton { Text = "Salas",   Icon = IconChar.DoorOpen };
             _tabPostos  = new TabButton { Text = "Postos",  Icon = IconChar.Chair };
             _tabEspacos.Location = new Point(0,   8);
-            _tabSalas.Location   = new Point(150, 8);
-            _tabPostos.Location  = new Point(300, 8);
+            _tabSalas.Location   = new Point(120, 8);
+            _tabPostos.Location  = new Point(240, 8);
             _tabEspacos.Click += (s, e) => SwitchTab(Tab.Espacos);
             _tabSalas.Click   += (s, e) => SwitchTab(Tab.Salas);
             _tabPostos.Click  += (s, e) => SwitchTab(Tab.Postos);
@@ -1103,7 +1110,7 @@ namespace CoworkingApp.Controls
                        | ControlStyles.ResizeRedraw
                        | ControlStyles.UserPaint
                        | ControlStyles.SupportsTransparentBackColor, true);
-                Size = new Size(140, 36);
+                Size = new Size(110, 38);
                 Font = new Font(Theme.FontBase.FontFamily, 10f, FontStyle.Bold);
                 Cursor = Cursors.Hand;
                 BackColor = Color.Transparent;
@@ -1120,26 +1127,33 @@ namespace CoworkingApp.Controls
                     using (var bg = new SolidBrush(Parent.BackColor))
                         g.FillRectangle(bg, ClientRectangle);
 
-                var rect = new Rectangle(0, 0, Width - 1, Height - 1);
-                Color bgFill = _active ? Theme.Accent : (_hover ? Theme.CardBg : Color.Transparent);
-                Color fg     = _active ? Color.White  : (_hover ? Theme.TextPrimary : Theme.TextSecondary);
-                using (var path = ModernCard.RoundedRect(rect, Height / 2))
-                using (var brush = new SolidBrush(bgFill))
-                    g.FillPath(brush, path);
+                Color fg = _active ? Theme.Accent
+                         : _hover  ? Theme.TextPrimary
+                                   : Theme.TextSecondary;
 
-                // Icon à esquerda + texto centrado
+                // Icon + texto inline (left aligned), espaço para underline em baixo
+                int iconLeft = 4;
+                int textLeft = iconLeft;
+                int contentY = (Height - 4 - 16) / 2;  // - 4 reserva para underline
                 if (Icon != IconChar.None)
                 {
                     using (var pb = new IconPictureBox { IconChar = Icon, IconSize = 16, IconColor = fg })
                     {
                         if (pb.Image != null)
-                            g.DrawImage(pb.Image, 16, (Height - 16) / 2, 16, 16);
+                            g.DrawImage(pb.Image, iconLeft, contentY, 16, 16);
                     }
+                    textLeft = iconLeft + 22;
                 }
-                int textLeft = Icon != IconChar.None ? 38 : 0;
-                var textRect = new Rectangle(textLeft, 0, Width - textLeft - 12, Height);
+                var textRect = new Rectangle(textLeft, 0, Width - textLeft - 4, Height - 4);
                 TextRenderer.DrawText(g, Text, Font, textRect, fg,
                     TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+
+                // Underline accent na active tab — sobrepõe a linha do bar.
+                if (_active)
+                {
+                    using (var brush = new SolidBrush(Theme.Accent))
+                        g.FillRectangle(brush, 0, Height - 3, Width, 3);
+                }
             }
         }
     }
