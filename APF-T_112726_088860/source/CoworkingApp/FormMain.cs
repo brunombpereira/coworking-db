@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using CoworkingApp.Controls;
 using FontAwesome.Sharp;
@@ -23,6 +24,32 @@ namespace CoworkingApp
             InitializeComponent();
             BuildUI();
             if (_navBtns.Count > 0) _navBtns[0].PerformClick();
+
+            // Reaplica title bar dark quando o tema mudar (toggle no footer).
+            ThemeManager.ThemeChanged += ApplyDwmTitleBar;
+        }
+
+        // ── Dark title bar (Win10 2004+/11) ─────────────────────────────
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int val, int size);
+        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ApplyDwmTitleBar();
+        }
+
+        private void ApplyDwmTitleBar()
+        {
+            if (!IsHandleCreated) return;
+            try
+            {
+                int useDark = ThemeManager.Current == ThemeMode.Dark ? 1 : 0;
+                DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                                      ref useDark, sizeof(int));
+            }
+            catch { /* não é crítico */ }
         }
 
 
