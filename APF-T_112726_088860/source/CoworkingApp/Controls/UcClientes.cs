@@ -59,24 +59,22 @@ namespace CoworkingApp.Controls
             {
                 Text  = "+ Novo Cliente",
                 Style = ModernButton.Variant.Primary,
-                Dock  = DockStyle.Top, Width = 140, Height = 38,
+                Dock  = DockStyle.Top, Width = 130, Height = 34,
                 Margin = new Padding(0),
             };
             btnNovo.Click += (s, e) => OpenEditor(null);
 
-            // Holder do botão (Dock=Right, padding vertical para alinhar)
-            var btnHolder = new Panel { Dock = DockStyle.Right, Width = 140, BackColor = Theme.PageBg, Padding = new Padding(0, 14, 0, 0) };
+            var btnHolder = new Panel { Dock = DockStyle.Right, Width = 130, BackColor = Theme.PageBg, Padding = new Padding(0, 16, 0, 0) };
             btnHolder.Controls.Add(btnNovo);
 
-            // Search à esquerda do botão Novo, mesmo header
-            _txtSearch = new ModernInput { Dock = DockStyle.Top, Height = 38 };
+            _txtSearch = new ModernInput { Dock = DockStyle.Top, Height = 34 };
             _txtSearch.PlaceholderText = "Procurar nome, NIF, email…";
             _txtSearch.TextChanged += (s, e) => LoadData();
 
-            var searchHolder = new Panel { Dock = DockStyle.Right, Width = 280, BackColor = Theme.PageBg, Padding = new Padding(0, 14, 10, 0) };
+            // Holder da search com 20px gap à direita (entre search e botão)
+            var searchHolder = new Panel { Dock = DockStyle.Right, Width = 220, BackColor = Theme.PageBg, Padding = new Padding(0, 16, 20, 0) };
             searchHolder.Controls.Add(_txtSearch);
 
-            // Ordem: btn primeiro (mais à direita), depois search (à esquerda do btn)
             pnlTitle.Controls.Add(titleArea);
             pnlTitle.Controls.Add(btnHolder);
             pnlTitle.Controls.Add(searchHolder);
@@ -314,7 +312,9 @@ namespace CoworkingApp.Controls
             };
             avatarHolder.Controls.Add(avatar);
 
-            // Acções à direita (edit + delete) — bigger + mais visíveis
+            // Acções à direita (edit + delete) — bg NUNCA muda no hover; só
+            // a cor do próprio ícone. MouseOverBackColor sincronizado com o
+            // estado actual do row (idle ou hover) para evitar o "quadrado".
             var actions = new Panel { Dock = DockStyle.Right, Width = 100, BackColor = idleBg };
             var btnEdit = new IconButton
             {
@@ -324,8 +324,8 @@ namespace CoworkingApp.Controls
                 TabStop = false,
             };
             btnEdit.FlatAppearance.BorderSize = 0;
-            btnEdit.FlatAppearance.MouseOverBackColor = Theme.SidebarBgActive;
-            btnEdit.MouseEnter += (s, e) => btnEdit.IconColor = Theme.TextPrimary;
+            btnEdit.FlatAppearance.MouseOverBackColor = idleBg;
+            btnEdit.MouseEnter += (s, e) => btnEdit.IconColor = Theme.Accent;
             btnEdit.MouseLeave += (s, e) => btnEdit.IconColor = Theme.TextSecondary;
             btnEdit.Click += (s, e) => OpenEditor(id);
 
@@ -337,7 +337,7 @@ namespace CoworkingApp.Controls
                 TabStop = false,
             };
             btnDelete.FlatAppearance.BorderSize = 0;
-            btnDelete.FlatAppearance.MouseOverBackColor = Color.FromArgb(40, Theme.StatusDangerFg);
+            btnDelete.FlatAppearance.MouseOverBackColor = idleBg;
             btnDelete.MouseEnter += (s, e) => btnDelete.IconColor = Theme.StatusDangerFg;
             btnDelete.MouseLeave += (s, e) => btnDelete.IconColor = Theme.TextSecondary;
             btnDelete.Click += (s, e) => DeleteCliente(id, nome);
@@ -386,30 +386,38 @@ namespace CoworkingApp.Controls
                 statsPanel.Controls.Add(lblStats1);
             }
 
-            // Badge adesão (opcional, à direita do statsPanel)
-            Control adesaoBadge = null;
-            if (temAdesao)
-            {
-                adesaoBadge = new StatusPill
-                {
-                    Text  = "Com adesão",
-                    Dock  = DockStyle.Right,
-                    Width = 110, BackColor = idleBg,
-                };
-                ((StatusPill)adesaoBadge).SetColors(Theme.StatusSuccessBg, Theme.StatusSuccessFg);
-            }
-
-            // Texto principal (nome + email + nif/telefone) — Fill
-            // Vertical centering via Padding do container. Total interno:
-            // 24 (nome) + 20 (email) + 20 (meta) = 64. Row 76 → top padding 6.
+            // Texto principal (nome + badge inline + email + nif/telefone) — Fill
             var pnlText = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(0, 6, 0, 0) };
+
+            // Linha do nome — FlowLayoutPanel para meter o badge ao lado
+            var nomeRow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top, Height = 26, AutoSize = false,
+                FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
+                BackColor = idleBg, Padding = new Padding(0),
+            };
             var lblNome = new Label
             {
                 Text = nome, Font = new Font(Theme.FontBase.FontFamily, 11.5f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 24, AutoSize = false,
-                TextAlign = ContentAlignment.MiddleLeft,
+                AutoSize = true, TextAlign = ContentAlignment.MiddleLeft,
+                Margin = new Padding(0, 4, 0, 0),
             };
+            nomeRow.Controls.Add(lblNome);
+
+            if (temAdesao)
+            {
+                var badge = new StatusPill
+                {
+                    Text  = "Com adesão",
+                    Width = 100, Height = 22,
+                    BackColor = idleBg,
+                    Margin = new Padding(10, 3, 0, 0),   // 10px gap + alinhamento vertical c/ nome
+                };
+                badge.SetColors(Theme.StatusSuccessBg, Theme.StatusSuccessFg);
+                nomeRow.Controls.Add(badge);
+            }
+
             var lblEmail = new Label
             {
                 Text = email, Font = Theme.FontSub, ForeColor = Theme.TextSecondary, BackColor = idleBg,
@@ -425,21 +433,25 @@ namespace CoworkingApp.Controls
             };
             pnlText.Controls.Add(lblMeta);
             pnlText.Controls.Add(lblEmail);
-            pnlText.Controls.Add(lblNome);
+            pnlText.Controls.Add(nomeRow);
 
-            // Ordem de adição importa para Dock stack
+            // Ordem dos Right importa (primeiro adicionado = mais à direita):
+            // actions (rightmost) → stats (à sua esquerda) → text fill → avatar left.
             row.Controls.Add(pnlText);     // Fill
-            row.Controls.Add(actions);     // Right
-            if (adesaoBadge != null) row.Controls.Add(adesaoBadge);  // Right (mais à esquerda)
-            row.Controls.Add(statsPanel);  // Right
+            row.Controls.Add(actions);     // Right (rightmost)
+            row.Controls.Add(statsPanel);  // Right (à esquerda das actions)
             row.Controls.Add(avatarHolder); // Left
 
-            // Hover unificado
+            // Hover unificado — sincroniza também o MouseOverBackColor dos
+            // icon buttons para evitar o flash de "quadrado" quando o cursor
+            // passa sobre o lápis/lixeira (queremos só ver a cor do ícone).
             void SetHover(bool on)
             {
                 Color bg = on ? hoverBg : idleBg;
                 row.BackColor = bg;
                 foreach (Control c in row.Controls) PaintChildren(c, bg);
+                btnEdit.FlatAppearance.MouseOverBackColor   = bg;
+                btnDelete.FlatAppearance.MouseOverBackColor = bg;
             }
             void Hook(Control c)
             {
