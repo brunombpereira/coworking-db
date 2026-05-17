@@ -502,7 +502,7 @@ namespace CoworkingApp.Controls
             };
             estadoPill.SetColors(EstadoReservaBg(estado), EstadoReservaFg(estado));
             // Dock=Right + Width fixo → right-aligned dentro do holder.
-            int eW = 8 + 8 + TextRenderer.MeasureText(estado, Theme.FontSub).Width + 4;
+            int eW = StatusPill.MeasureDotWidth(estado, Theme.FontSub);
             estadoPill.Dock  = DockStyle.Right;
             estadoPill.Width = eW;
             estadoHolder.Controls.Add(estadoPill);
