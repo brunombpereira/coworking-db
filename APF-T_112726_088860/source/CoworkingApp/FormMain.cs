@@ -29,6 +29,7 @@ namespace CoworkingApp
         private void BuildUI()
         {
             this.Text = "Coworking — Painel de Gestão";
+            this.Icon = AppIcon.Get(32);
             this.MinimumSize = new Size(900, 600);
             this.WindowState = FormWindowState.Maximized;
             this.Font = Theme.FontBase;
@@ -250,6 +251,12 @@ namespace CoworkingApp
                 AddNavItem(flp, "Estatísticas",  IconChar.ChartBar,       () => Navigate<UcEstatisticas>());
             }
 
+            if (Session.IsAdmin)
+            {
+                AddSectionLabel(flp, "ADMIN");
+                AddNavItem(flp, "Utilizadores",  IconChar.UserShield,     () => Navigate<UcUtilizadores>());
+            }
+
             pnlNav.Controls.Add(flp);
             sidebar.Controls.Add(pnlNav);
             sidebar.Controls.Add(pnlFooter);
@@ -339,7 +346,8 @@ namespace CoworkingApp
                 { typeof(UcAdesoes),       "Adesões"       },
                 { typeof(UcPagamentos),    "Pagamentos"    },
                 { typeof(UcRelatorios),    "Relatórios"    },
-                { typeof(UcEstatisticas),  "Estatísticas"  }
+                { typeof(UcEstatisticas),  "Estatísticas"  },
+                { typeof(UcUtilizadores),  "Utilizadores"  }
             };
             if (names.TryGetValue(typeof(T), out string name))
                 _lblModule.Text = name;

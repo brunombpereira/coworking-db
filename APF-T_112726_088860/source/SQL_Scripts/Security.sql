@@ -32,6 +32,11 @@ GO
 -- registar-se em lista de espera, ver notificações.
 GRANT EXECUTE ON sp_login_user             TO app_cliente;
 GRANT EXECUTE ON sp_change_password        TO app_cliente;
+-- Self-registration: visitantes (sem conta) precisam de invocar este SP.
+-- Em produção convém um login SQL "guest" separado; em dev (Windows Auth)
+-- o utilizador já tem as permissões necessárias.
+GRANT EXECUTE ON sp_registar_cliente_completo TO app_cliente;
+GRANT EXECUTE ON sp_registar_cliente_completo TO app_staff;
 GRANT EXECUTE ON sp_criar_reserva_sala     TO app_cliente;
 GRANT EXECUTE ON sp_criar_reserva_posto    TO app_cliente;
 GRANT EXECUTE ON sp_cancelar_reserva       TO app_cliente;
@@ -89,6 +94,15 @@ GO
 
 -- app_admin: tudo (DDL + DML direto, para administração).
 GRANT CONTROL ON DATABASE::CoworkingDB TO app_admin;
+GO
+
+-- Mesmo com CONTROL, deixamos explícitas as SPs de administração de
+-- utilizadores (documentação + portabilidade se um dia trocar a role).
+GRANT EXECUTE ON sp_admin_create_user        TO app_admin;
+GRANT EXECUTE ON sp_admin_reset_password     TO app_admin;
+GRANT EXECUTE ON sp_admin_toggle_user_active TO app_admin;
+GRANT EXECUTE ON sp_desativar_utilizador     TO app_admin;
+GRANT SELECT  ON vw_utilizadores_listagem    TO app_admin;
 GO
 
 -- =====================================================================
