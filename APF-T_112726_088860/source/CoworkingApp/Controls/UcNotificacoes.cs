@@ -568,16 +568,48 @@ namespace CoworkingApp.Controls
             dlg.Controls.Add(inner);
 
             // Auto-mark-read ao fechar (botão X, click fora, ESC).
+            // Detectar clicks fora via IMessageFilter (Deactivate disparava
+            // prematuramente durante o Show() — race com focus).
+            ClickOutsideFilter filter = null;
             dlg.FormClosed += (s, e) =>
             {
+                if (filter != null) Application.RemoveMessageFilter(filter);
                 if (!jaLida) MarcarLida(id);
                 dlg.Dispose();
             };
-            dlg.Deactivate += (s, e) => dlg.Close();
             dlg.KeyPreview = true;
             dlg.KeyDown   += (s, e) => { if (e.KeyCode == Keys.Escape) dlg.Close(); };
 
             dlg.Show(FindForm());
+
+            // Registar filter SÓ APÓS o Show — assim ignoramos o click que abriu.
+            filter = new ClickOutsideFilter(dlg, () => dlg.Close());
+            Application.AddMessageFilter(filter);
+        }
+
+        /// <summary>Fecha o form ao receber WM_LBUTTONDOWN fora dos seus bounds.</summary>
+        private class ClickOutsideFilter : IMessageFilter
+        {
+            private const int WM_LBUTTONDOWN = 0x201;
+            private const int WM_RBUTTONDOWN = 0x204;
+            private readonly Form   _form;
+            private readonly Action _onOutside;
+            public ClickOutsideFilter(Form form, Action onOutside)
+            {
+                _form = form; _onOutside = onOutside;
+            }
+            public bool PreFilterMessage(ref Message m)
+            {
+                if (m.Msg != WM_LBUTTONDOWN && m.Msg != WM_RBUTTONDOWN) return false;
+                if (_form.IsDisposed) return false;
+                var pt = System.Windows.Forms.Cursor.Position;
+                if (!_form.Bounds.Contains(pt))
+                {
+                    _onOutside();
+                    return false; // não consumir — deixar o click chegar ao destino
+                }
+                return false;
+            }
         }
 
         private static Color TipoColor(string tipo)
