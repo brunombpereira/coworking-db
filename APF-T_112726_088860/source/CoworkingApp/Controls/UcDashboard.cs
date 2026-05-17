@@ -529,83 +529,128 @@ namespace CoworkingApp.Controls
         private Control BuildProximaItem(string cliente, string recurso, string tipo,
                                          DateTime data, TimeSpan? hora, string estado)
         {
+            Color idleBg  = Theme.CardBg;
+            Color hoverBg = MixColors(Theme.CardBg, Color.White, 0.06f);
+
             var row = new Panel
             {
-                Width = 920, Height = 56, Margin = new Padding(0, 0, 0, 6),
-                BackColor = Theme.CardBg,
-            };
-            // Border-bottom subtil
-            row.Paint += (s, e) =>
-            {
-                using (var pen = new Pen(Color.FromArgb(30, Theme.TextMuted), 1))
-                    e.Graphics.DrawLine(pen, 0, row.Height - 1, row.Width, row.Height - 1);
+                Height    = 60,
+                Margin    = new Padding(0, 0, 0, 4),
+                BackColor = idleBg,
+                Cursor    = Cursors.Hand,
             };
 
-            // Avatar inicial
+            // Avatar à esquerda (dock left, fixo)
+            var avatarHolder = new Panel
+            {
+                Dock      = DockStyle.Left,
+                Width     = 56,
+                BackColor = idleBg,
+            };
             var avatar = new AvatarCircle
             {
                 Initial     = cliente,
                 CircleColor = Theme.Accent,
-                Size        = new Size(36, 36),
-                Location    = new Point(0, (row.Height - 36) / 2),
+                Size        = new Size(40, 40),
+                Location    = new Point(4, 10),
             };
+            avatarHolder.Controls.Add(avatar);
 
-            // Cliente + recurso
+            // Pill (estado) à direita
+            var pill = new StatusPill
+            {
+                Text      = estado,
+                Dock      = DockStyle.Right,
+                Width     = 110,
+                Margin    = new Padding(0),
+                BackColor = idleBg,
+            };
+            switch (estado)
+            {
+                case "Confirmada": pill.SetColors(Theme.StatusSuccessBg, Theme.StatusSuccessFg); break;
+                case "Pendente":   pill.SetColors(Theme.StatusWarningBg, Theme.StatusWarningFg); break;
+                case "Concluida":  pill.SetColors(Theme.StatusNeutralBg, Theme.StatusNeutralFg); break;
+                default:           pill.SetColors(Theme.StatusNeutralBg, Theme.StatusNeutralFg); break;
+            }
+
+            // Data + hora — dock right depois da pill
+            string horaTxt = hora.HasValue ? hora.Value.ToString(@"hh\:mm") : "Dia inteiro";
+            var pnlDate = new Panel { Dock = DockStyle.Right, Width = 150, BackColor = idleBg };
+            var lblHora = new Label
+            {
+                Text = horaTxt, Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
+                Dock = DockStyle.Top, Height = 22, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
+            };
+            var lblData = new Label
+            {
+                Text = data.ToString("dd/MM/yyyy"), Font = Theme.FontBase, ForeColor = Theme.TextPrimary,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleRight, BackColor = idleBg,
+                Padding = new Padding(0, 8, 4, 0),
+            };
+            pnlDate.Controls.Add(lblHora);
+            pnlDate.Controls.Add(lblData);
+
+            // Texto no meio (fill)
+            var pnlText = new Panel { Dock = DockStyle.Fill, BackColor = idleBg, Padding = new Padding(4, 0, 0, 0) };
+            var lblRecurso = new Label
+            {
+                Text = $"{tipo} · {recurso}", Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
+                Dock = DockStyle.Top, Height = 20, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft, BackColor = idleBg,
+            };
             var lblCliente = new Label
             {
                 Text = cliente, Font = Theme.FontBold, ForeColor = Theme.TextPrimary,
-                AutoSize = false, Location = new Point(48, 8),
-                Size = new Size(360, 20), TextAlign = ContentAlignment.MiddleLeft,
-                BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft, BackColor = idleBg,
+                Padding = new Padding(0, 8, 0, 0),
             };
-            var lblRecurso = new Label
-            {
-                Text = $"{tipo} · {recurso}",
-                Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
-                AutoSize = false, Location = new Point(48, 30),
-                Size = new Size(360, 18), TextAlign = ContentAlignment.MiddleLeft,
-                BackColor = Theme.CardBg,
-            };
+            pnlText.Controls.Add(lblRecurso);
+            pnlText.Controls.Add(lblCliente);
 
-            // Data + hora
-            string horaTxt = hora.HasValue ? hora.Value.ToString(@"hh\:mm") : "Dia inteiro";
-            var lblData = new Label
-            {
-                Text = data.ToString("dd/MM/yyyy"),
-                Font = Theme.FontBase, ForeColor = Theme.TextPrimary,
-                AutoSize = false, Location = new Point(550, 8),
-                Size = new Size(160, 20), TextAlign = ContentAlignment.MiddleRight,
-                BackColor = Theme.CardBg,
-            };
-            var lblHora = new Label
-            {
-                Text = horaTxt,
-                Font = Theme.FontSub, ForeColor = Theme.TextSecondary,
-                AutoSize = false, Location = new Point(550, 30),
-                Size = new Size(160, 18), TextAlign = ContentAlignment.MiddleRight,
-                BackColor = Theme.CardBg,
-            };
+            // Ordem importa para o dock stacking
+            row.Controls.Add(pnlText);    // Fill — adicionado primeiro, ocupa o resto
+            row.Controls.Add(pill);       // Right — adicionado depois, fica mais à direita
+            row.Controls.Add(pnlDate);    // Right — adicionado por último, fica mais à esquerda das outras Right
+            row.Controls.Add(avatarHolder); // Left
 
-            // Estado pill
-            var pill = new Label
+            // Hover — actualiza bg de tudo
+            void SetHover(bool on)
             {
-                Text = estado,
-                Font = Theme.FontMicro,
-                ForeColor = estado == "Confirmada" ? Theme.StatusSuccessFg : Theme.StatusWarningFg,
-                BackColor = estado == "Confirmada" ? Theme.StatusSuccessBg : Theme.StatusWarningBg,
-                AutoSize = false, Size = new Size(90, 22),
-                Location = new Point(730, (row.Height - 22) / 2),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Padding = new Padding(0),
-            };
+                Color bg = on ? hoverBg : idleBg;
+                row.BackColor          = bg;
+                avatarHolder.BackColor = bg;
+                pnlDate.BackColor      = bg;
+                pnlText.BackColor      = bg;
+                pill.BackColor         = bg;
+                lblHora.BackColor      = bg;
+                lblData.BackColor      = bg;
+                lblRecurso.BackColor   = bg;
+                lblCliente.BackColor   = bg;
+            }
+            void Hook(Control c)
+            {
+                c.MouseEnter += (s, e) => SetHover(true);
+                c.MouseLeave += (s, e) =>
+                {
+                    // Só remove hover se o cursor saiu mesmo do row
+                    var p = row.PointToClient(Cursor.Position);
+                    if (!row.ClientRectangle.Contains(p)) SetHover(false);
+                };
+                foreach (Control child in c.Controls) Hook(child);
+            }
+            Hook(row);
 
-            row.Controls.Add(avatar);
-            row.Controls.Add(lblCliente);
-            row.Controls.Add(lblRecurso);
-            row.Controls.Add(lblData);
-            row.Controls.Add(lblHora);
-            row.Controls.Add(pill);
             return row;
         }
+
+        // Mistura linear de duas cores (0 = a, 1 = b).
+        private static Color MixColors(Color a, Color b, float t)
+            => Color.FromArgb(
+                (int)(a.R + (b.R - a.R) * t),
+                (int)(a.G + (b.G - a.G) * t),
+                (int)(a.B + (b.B - a.B) * t));
     }
 }
