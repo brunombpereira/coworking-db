@@ -36,7 +36,7 @@ namespace CoworkingApp
             MaximizeBox          = false;
             MinimizeBox          = false;
             StartPosition        = FormStartPosition.CenterScreen;
-            ClientSize           = new Size(620, 600);
+            ClientSize           = new Size(620, 520);
             BackColor            = Theme.PageBg;
             ForeColor            = Theme.TextPrimary;
             Font                 = Theme.FontBase;
@@ -65,12 +65,11 @@ namespace CoworkingApp
             // ── Card central ─────────────────────────────────────────────
             var card = new ModernCard
             {
-                Size         = new Size(540, 500),
+                Size         = new Size(540, 430),
                 BackColor    = Theme.CardBg,
                 BorderColor  = Color.Empty,  // sem linha à volta
                 CornerRadius = 14,
-                ShowShadow   = true,
-                ShadowSpread = 20,
+                ShowShadow   = false,        // o contraste PageBg/CardBg já basta no dark
             };
             card.Location = new Point(
                 (ClientSize.Width  - card.Width)  / 2,
@@ -81,12 +80,14 @@ namespace CoworkingApp
             const int padX = 32;
             int       y    = 36;
 
-            // Logo (quadrado indigo simples — sem complexidade)
-            var logo = new Panel
+            // Logo: app icon (rounded "C" indigo, mesmo que aparece na title bar)
+            var logo = new PictureBox
             {
+                Image     = AppIcon.Get(40).ToBitmap(),
                 Size      = new Size(40, 40),
                 Location  = new Point(padX, y),
-                BackColor = Theme.Accent,
+                SizeMode  = PictureBoxSizeMode.StretchImage,
+                BackColor = Theme.CardBg,
             };
             card.Controls.Add(logo);
 
