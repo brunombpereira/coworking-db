@@ -24,7 +24,6 @@ namespace CoworkingApp.Controls
         private Chart _chartReceita;
         private Chart _chartMetodos;
         private FlowLayoutPanel _flpProximas;
-        private bool _proximasWidthSubscribed;
 
         // Paleta modern (indigo family + emerald accent)
         private static readonly Color[] Palette =
@@ -161,6 +160,11 @@ namespace CoworkingApp.Controls
             inner.Controls.Add(topLine);
             card.Controls.Add(inner);
 
+            // Capturar out params em locais — não se pode ler 'out' dentro de
+            // lambdas/local functions (CS1628).
+            Label vLbl = valueLbl;
+            Label dLbl = deltaLbl;
+
             // Hover: bg ligeiramente mais claro (acende) + cursor hand.
             Color idleBg  = card.BackColor;
             Color hoverBg = isAccent
@@ -175,8 +179,8 @@ namespace CoworkingApp.Controls
                 topLine.BackColor = bg;
                 iconLbl.BackColor = bg;
                 lbl.BackColor     = bg;
-                valueLbl.BackColor = bg;
-                deltaLbl.BackColor = bg;
+                vLbl.BackColor    = bg;
+                dLbl.BackColor    = bg;
             }
             void HookCard(Control c)
             {
