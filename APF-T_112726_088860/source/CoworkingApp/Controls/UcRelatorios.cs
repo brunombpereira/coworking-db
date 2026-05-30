@@ -63,10 +63,10 @@ namespace CoworkingApp.Controls
             {
                 Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
                 BackColor = Theme.PageBg,
-                Padding = new Padding(20, 16, 20, 16),
+                Padding = Theme.PagePadding,
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));   // title
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.RowHeightTitle));   // title
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));   // tab bar
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // content
 
@@ -512,8 +512,8 @@ namespace CoworkingApp.Controls
                 Padding = new Padding(0, 4, 0, 0),
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));   // filtro card
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // KPIs
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.RowHeightToolbar));   // filtro card
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.RowHeightKpis));  // KPIs
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // listas
 
             // Filter dentro de ModernCard próprio.
@@ -521,7 +521,7 @@ namespace CoworkingApp.Controls
             {
                 Dock = DockStyle.Fill, BackColor = Theme.CardBg,
                 BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
-                Margin = new Padding(0, 0, 0, 12),
+                Margin = Theme.ToolbarMarginBottom,
             };
             var filterInner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
             var lblCli = new Label
@@ -540,7 +540,7 @@ namespace CoworkingApp.Controls
             var kpiGrid = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Theme.PageBg,
-                Margin = new Padding(0, 0, 0, 12),
+                Margin = Theme.ToolbarMarginBottom,
             };
             for (int i = 0; i < 3; i++) kpiGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
             kpiGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -588,7 +588,7 @@ namespace CoworkingApp.Controls
             {
                 Dock = DockStyle.Fill, BackColor = Theme.CardBg,
                 BorderColor = Theme.CardBorder, CornerRadius = 10, ShowShadow = false,
-                Margin = new Padding(0, 0, 12, 0),
+                Margin = Theme.KpiCardGap,
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
             var topLine = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = Theme.CardBg };
@@ -889,8 +889,8 @@ namespace CoworkingApp.Controls
                 Padding = new Padding(0, 4, 0, 0),
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));   // filtro card
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // KPIs
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.RowHeightToolbar));   // filtro card
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.RowHeightKpis));  // KPIs
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // charts
 
             // Filter dentro de ModernCard próprio.
@@ -898,7 +898,7 @@ namespace CoworkingApp.Controls
             {
                 Dock = DockStyle.Fill, BackColor = Theme.CardBg,
                 BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
-                Margin = new Padding(0, 0, 0, 12),
+                Margin = Theme.ToolbarMarginBottom,
             };
             var filterInner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
             var lblP = new Label
@@ -928,7 +928,7 @@ namespace CoworkingApp.Controls
             var kpiGrid = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Theme.PageBg,
-                Margin = new Padding(0, 0, 0, 12),
+                Margin = Theme.ToolbarMarginBottom,
             };
             for (int i = 0; i < 3; i++) kpiGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
             kpiGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));

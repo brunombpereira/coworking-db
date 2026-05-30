@@ -48,11 +48,11 @@ namespace CoworkingApp.Controls
             {
                 Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
                 BackColor = Theme.PageBg,
-                Padding = new Padding(20, 16, 20, 16),
+                Padding = Theme.PagePadding,
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));   // title
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // KPIs
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.RowHeightTitle));   // title
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.RowHeightKpis));  // KPIs
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // 2×2 charts/lista
 
             root.Controls.Add(BuildTitle(), 0, 0);
@@ -78,7 +78,7 @@ namespace CoworkingApp.Controls
             var grid = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
-                BackColor = Theme.PageBg, Margin = new Padding(0, 0, 0, 12),
+                BackColor = Theme.PageBg, Margin = Theme.ToolbarMarginBottom,
             };
             for (int i = 0; i < 4; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
             grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -87,7 +87,7 @@ namespace CoworkingApp.Controls
             var k2 = BuildKpi($"Receita {DateTime.Now.Year}", IconChar.EuroSign, Theme.StatusSuccessFg, out _lblTotalReceita);
             var k3 = BuildKpi("Reservas (mês actual)",  IconChar.CalendarDays, Theme.Accent,          out _lblReservasMes);
             var k4 = BuildKpi("Ocupação média (hoje)",  IconChar.ChartPie,     Theme.StatusOrangeFg,  out _lblOcupacao);
-            k4.Margin = new Padding(0);
+            k4.Margin = Theme.KpiCardLast;
             grid.Controls.Add(k1, 0, 0);
             grid.Controls.Add(k2, 1, 0);
             grid.Controls.Add(k3, 2, 0);
@@ -101,7 +101,7 @@ namespace CoworkingApp.Controls
             {
                 Dock = DockStyle.Fill, BackColor = Theme.CardBg,
                 BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
-                Margin = new Padding(0, 0, 12, 0),
+                Margin = Theme.KpiCardGap,
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(18, 14, 18, 14) };
 

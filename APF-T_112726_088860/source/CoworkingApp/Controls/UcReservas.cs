@@ -49,12 +49,12 @@ namespace CoworkingApp.Controls
             {
                 Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
                 BackColor = Theme.PageBg,
-                Padding = new Padding(20, 16, 20, 16),
+                Padding = Theme.PagePadding,
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));   // title
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));   // toolbar
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // KPIs
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.RowHeightTitle));   // title
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.RowHeightToolbar));   // toolbar
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.RowHeightKpis));  // KPIs
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // list
 
             root.Controls.Add(BuildTitle(),   0, 0);
@@ -84,7 +84,7 @@ namespace CoworkingApp.Controls
             {
                 Dock = DockStyle.Fill, BackColor = Theme.CardBg,
                 BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
-                Margin = new Padding(0, 0, 0, 12),
+                Margin = Theme.ToolbarMarginBottom,
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(16, 12, 16, 12) };
 
@@ -201,7 +201,7 @@ namespace CoworkingApp.Controls
             {
                 Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1,
                 BackColor = Theme.PageBg,
-                Margin = new Padding(0, 0, 0, 12),
+                Margin = Theme.ToolbarMarginBottom,
             };
             for (int i = 0; i < 4; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
             grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -210,7 +210,7 @@ namespace CoworkingApp.Controls
             var k2 = BuildKpi("Confirmadas",      IconChar.CircleCheck,  Theme.StatusSuccessFg, out _kpiConfirm);
             var k3 = BuildKpi("Pendentes",        IconChar.Clock,        Theme.StatusWarningFg, out _kpiPend);
             var k4 = BuildKpi("Receita prevista", IconChar.EuroSign,     Theme.Accent,           out _kpiRev);
-            k4.Margin = new Padding(0); // último: sem margin à direita
+            k4.Margin = Theme.KpiCardLast; // último: sem margin à direita
             grid.Controls.Add(k1, 0, 0);
             grid.Controls.Add(k2, 1, 0);
             grid.Controls.Add(k3, 2, 0);
@@ -224,7 +224,7 @@ namespace CoworkingApp.Controls
             {
                 Dock = DockStyle.Fill, BackColor = Theme.CardBg,
                 BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
-                Margin = new Padding(0, 0, 12, 0),
+                Margin = Theme.KpiCardGap,
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(18, 14, 18, 14) };
 
@@ -266,7 +266,7 @@ namespace CoworkingApp.Controls
                 Dock = DockStyle.Fill, BackColor = Theme.CardBg,
                 BorderColor = Theme.CardBorder, CornerRadius = 12, ShowShadow = false,
             };
-            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(10, 10, 10, 10) };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = Theme.ListInnerPadding };
 
             // ── Top bar com SegmentedControl Lista/Mapa ──────────────────
             var topBar = new Panel { Dock = DockStyle.Top, Height = 48, BackColor = Theme.CardBg };

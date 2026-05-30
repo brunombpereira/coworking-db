@@ -52,7 +52,7 @@ namespace CoworkingApp.Controls
             var pnlTitle = new Panel
             {
                 Dock = DockStyle.Top, Height = 72, BackColor = Theme.PageBg,
-                Padding = new Padding(24, 18, 24, 0),
+                Padding = new Padding(Theme.PageHPad, 14, Theme.PageHPad, 0),
             };
             var lblTitle = new Label
             {
@@ -76,7 +76,7 @@ namespace CoworkingApp.Controls
             {
                 Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
                 BackColor = Theme.PageBg,
-                Padding   = new Padding(24, 12, 24, 24),
+                Padding   = new Padding(Theme.PageHPad, 12, Theme.PageHPad, 16),
             };
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 130f));
             content.RowStyles.Add(new RowStyle(SizeType.Percent, 60f));

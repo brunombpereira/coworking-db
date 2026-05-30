@@ -84,6 +84,25 @@ namespace CoworkingApp
         public static readonly Font FontMicro   = new Font(FontFamily, 8f, FontStyle.Bold);
         public static readonly Font FontSub     = new Font(FontFamily, 9f);
 
+        // ── Layout (padding/margin standard para os UCs) ─────────────────────
+        // O padrão card-list usa um TableLayoutPanel root com 4 rows:
+        //   Title (48px) / Toolbar ModernCard (72px) / KPIs (108px) / List (Fill)
+        // Estas constantes garantem que todos os UCs partilham os mesmos
+        // valores — qualquer ajuste futuro é num só sítio.
+        //
+        // Nota: UCs com header rico (título + subtitle + action no topo —
+        // ex: UcDashboard, UcClientes, UcPlanos, UcEspacos) usam estrutura
+        // header-separado e por isso só aplicam o `PageHPad` na horizontal.
+        public static readonly Padding PagePadding         = new Padding(20, 16, 20, 16);
+        public static readonly Padding ToolbarMarginBottom = new Padding(0, 0, 0, 12);
+        public static readonly Padding ListInnerPadding    = new Padding(10);
+        public static readonly Padding KpiCardGap          = new Padding(0, 0, 12, 0); // não-último
+        public static readonly Padding KpiCardLast         = new Padding(0);            // último
+        public const int RowHeightTitle   = 48;
+        public const int RowHeightToolbar = 72;
+        public const int RowHeightKpis    = 108;
+        public const int PageHPad         = 20;
+
         // ── Helpers ──────────────────────────────────────────────────────────
         public static string FormatEuro(decimal value)
             => value.ToString("#,##0.00", new CultureInfo("pt-PT")) + " €";

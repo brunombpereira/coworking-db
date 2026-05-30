@@ -37,7 +37,7 @@ namespace CoworkingApp.Controls
             var pnlTitle = new Panel
             {
                 Dock = DockStyle.Top, Height = 84, BackColor = Theme.PageBg,
-                Padding = new Padding(24, 18, 24, 0),
+                Padding = new Padding(Theme.PageHPad, 14, Theme.PageHPad, 0),
             };
             var titleArea = new Panel { Dock = DockStyle.Fill, BackColor = Theme.PageBg };
             var lblTitle = new Label
@@ -87,7 +87,7 @@ namespace CoworkingApp.Controls
             var content = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
-                BackColor = Theme.PageBg, Padding = new Padding(24, 12, 24, 24),
+                BackColor = Theme.PageBg, Padding = new Padding(Theme.PageHPad, 12, Theme.PageHPad, 16),
             };
             content.RowStyles.Add(new RowStyle(SizeType.Absolute, 110f));   // stats
             content.RowStyles.Add(new RowStyle(SizeType.Percent,  100f));   // lista
@@ -166,7 +166,7 @@ namespace CoworkingApp.Controls
                 Dock = DockStyle.Fill, BackColor = Theme.CardBg, BorderColor = Theme.CardBorder,
                 CornerRadius = 12, ShowShadow = false,
             };
-            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(8, 8, 8, 8) };
+            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = Theme.ListInnerPadding };
 
             _listContainer = new ScrollableList
             {
