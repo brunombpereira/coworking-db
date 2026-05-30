@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using CoworkingApp.Controls;
@@ -21,6 +22,10 @@ namespace CoworkingApp
         private readonly List<Button> _navBtns = new List<Button>();
         private Label _lblModule;
         private System.Windows.Forms.Timer _clockTimer;
+        private Panel _pnlConn;
+        private Label _lblConn;
+        private bool _connOk;
+        private System.Windows.Forms.Timer _connTimer;
 
         public FormMain()
         {
@@ -105,8 +110,57 @@ namespace CoworkingApp
                 Width = 200,
                 TextAlign = ContentAlignment.MiddleRight
             };
+            // Indicador de ligação à BD (entre o módulo e o relógio).
+            // Dot custom-painted + label de texto. Dock=Left com offset à
+            // direita do _lblModule (que tem Width=200).
+            _pnlConn = new Panel
+            {
+                Dock = DockStyle.Left,
+                Width = 130,
+                BackColor = Theme.CardBg,
+                Padding = new Padding(0, 0, 0, 0),
+            };
+            _pnlConn.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                int diam = 8;
+                int x = 4;
+                int y = (_pnlConn.Height - diam) / 2;
+                using (var br = new SolidBrush(_connOk ? Theme.StatusSuccessFg : Theme.StatusDangerFg))
+                    g.FillEllipse(br, x, y, diam, diam);
+            };
+            _lblConn = new Label
+            {
+                Text = "—",
+                ForeColor = Theme.TextSecondary,
+                Font = Theme.FontBase,
+                Dock = DockStyle.Fill,
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(18, 0, 0, 0),
+                BackColor = Theme.CardBg,
+            };
+            _pnlConn.Controls.Add(_lblConn);
+
+            pnlStatus.Controls.Add(_pnlConn);
             pnlStatus.Controls.Add(_lblModule);
             pnlStatus.Controls.Add(lblClock);
+
+            // Check inicial síncrono (rápido — timeout 2s) e periódico
+            // assíncrono a cada 30s para não bloquear a UI.
+            RefreshConnIndicator(Database.IsAvailable());
+            _connTimer = new System.Windows.Forms.Timer { Interval = 30000 };
+            _connTimer.Tick += (s, e) =>
+            {
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    bool ok = Database.IsAvailable();
+                    if (IsHandleCreated)
+                        BeginInvoke((Action)(() => RefreshConnIndicator(ok)));
+                });
+            };
+            _connTimer.Start();
 
             _clockTimer = new System.Windows.Forms.Timer { Interval = 1000 };
             _clockTimer.Tick += (s, e) => lblClock.Text = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss");
@@ -358,6 +412,14 @@ namespace CoworkingApp
             };
             if (names.TryGetValue(typeof(T), out string name))
                 _lblModule.Text = name;
+        }
+
+        private void RefreshConnIndicator(bool ok)
+        {
+            _connOk = ok;
+            _lblConn.Text = ok ? "LIGADO" : "SEM LIGAÇÃO";
+            _lblConn.ForeColor = ok ? Theme.StatusSuccessFg : Theme.StatusDangerFg;
+            _pnlConn.Invalidate();
         }
     }
 }

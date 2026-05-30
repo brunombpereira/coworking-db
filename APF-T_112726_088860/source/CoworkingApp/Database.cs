@@ -15,6 +15,26 @@ namespace CoworkingApp
             catch { conn.Dispose(); throw; }
         }
 
+        /// <summary>True se a BD responde a um SELECT 1. Não faz throw —
+        /// usado pelo indicador da status bar.</summary>
+        public static bool IsAvailable()
+        {
+            try
+            {
+                using (var conn = new SqlConnection(ConnectionString))
+                {
+                    conn.Open();
+                    using (var cmd = new SqlCommand("SELECT 1", conn))
+                    {
+                        cmd.CommandTimeout = 2;
+                        cmd.ExecuteScalar();
+                    }
+                }
+                return true;
+            }
+            catch { return false; }
+        }
+
         public static string SqlErrorMessage(SqlException ex)
         {
             switch (ex.Number)
