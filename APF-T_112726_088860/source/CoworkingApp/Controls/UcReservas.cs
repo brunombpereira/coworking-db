@@ -26,6 +26,13 @@ namespace CoworkingApp.Controls
         private Panel _listInner;
         private Panel _empty;
 
+        // Toggle Lista/Mapa + Mapa view
+        private SegmentedControl _viewToggle;
+        private Panel _pnlListView;
+        private Panel _pnlMapaView;
+        private MapaReservasView _mapaCanvas;
+        private Label _lblMapaInfo;
+
         public UcReservas()
         {
             BackColor = Theme.PageBg;
@@ -261,6 +268,29 @@ namespace CoworkingApp.Controls
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(10, 10, 10, 10) };
 
+            // ── Top bar com SegmentedControl Lista/Mapa ──────────────────
+            var topBar = new Panel { Dock = DockStyle.Top, Height = 48, BackColor = Theme.CardBg };
+            _viewToggle = new SegmentedControl
+            {
+                Segments = new[] { "Lista", "Mapa" },
+                Width = 180, Height = 36,
+                Location = new Point(4, 6),
+                SelectedIndex = 0,
+            };
+            _viewToggle.SelectedIndexChanged += (s, e) => SwitchView();
+            _lblMapaInfo = new Label
+            {
+                Text = "", Font = Theme.FontSub, ForeColor = Theme.TextMuted,
+                BackColor = Theme.CardBg, AutoSize = false, Height = 36,
+                Location = new Point(200, 6), Width = 600,
+                TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 0, 0, 0),
+            };
+            topBar.Controls.Add(_lblMapaInfo);
+            topBar.Controls.Add(_viewToggle);
+
+            // ── Vista LISTA ──────────────────────────────────────────────
+            _pnlListView = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
+
             _listHost = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, AutoScroll = true, Visible = false };
             _listInner = new Panel { Dock = DockStyle.Top, BackColor = Theme.CardBg, Height = 0 };
             _listHost.Controls.Add(_listInner);
@@ -269,10 +299,169 @@ namespace CoworkingApp.Controls
             _empty = BuildEmptyState("Sem reservas no intervalo selecionado", IconChar.CalendarXmark);
             _empty.Dock = DockStyle.Fill;
 
-            inner.Controls.Add(_listHost);
-            inner.Controls.Add(_empty);
+            _pnlListView.Controls.Add(_listHost);
+            _pnlListView.Controls.Add(_empty);
+
+            // ── Vista MAPA ───────────────────────────────────────────────
+            _pnlMapaView = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Visible = false };
+            _mapaCanvas = new MapaReservasView { Dock = DockStyle.Fill };
+            _mapaCanvas.ReservaClicked += rid => OpenReservaDetailById(rid);
+            _pnlMapaView.Controls.Add(_mapaCanvas);
+
+            // ── Order matters: ambas as views Dock=Fill, topBar Dock=Top ─
+            inner.Controls.Add(_pnlMapaView);
+            inner.Controls.Add(_pnlListView);
+            inner.Controls.Add(topBar);
+
             card.Controls.Add(inner);
             return card;
+        }
+
+        private void SwitchView()
+        {
+            bool mapa = _viewToggle.SelectedIndex == 1;
+            _pnlListView.Visible = !mapa;
+            _pnlMapaView.Visible = mapa;
+            if (mapa)
+            {
+                _lblMapaInfo.Text = $"Dia: {_dtDe.Value:dd/MM/yyyy}  ·  click numa reserva para ver detalhes";
+                RenderMapa();
+            }
+            else
+            {
+                _lblMapaInfo.Text = "";
+            }
+        }
+
+        private void OpenReservaDetailById(int reservaId)
+        {
+            // Re-query para obter dados completos da reserva e abrir detalhe.
+            try
+            {
+                using (var conn = Database.GetConnection())
+                using (var cmd = new SqlCommand(@"
+                    SELECT r.reserva_id AS id, c.nome AS cliente,
+                           CASE WHEN s.recurso_id IS NOT NULL THEN 'Sala ' + s.nome
+                                ELSE 'Posto ' + p.codigo END AS recurso,
+                           rc.tipo AS tipo_rec,
+                           r.data_reserva AS dt, r.hora_inicio AS hi, r.hora_fim AS hf,
+                           r.valor AS valor, r.estado AS estado,
+                           r.num_participantes AS num_pess
+                    FROM reserva r
+                    JOIN cliente c    ON r.cliente_id = c.cliente_id
+                    JOIN recurso rc   ON r.recurso_id = rc.recurso_id
+                    LEFT JOIN sala s  ON rc.recurso_id = s.recurso_id
+                    LEFT JOIN posto p ON rc.recurso_id = p.recurso_id
+                    WHERE r.reserva_id = @id", conn))
+                {
+                    cmd.Parameters.AddWithValue("@id", reservaId);
+                    using (var rd = cmd.ExecuteReader())
+                    {
+                        if (rd.Read())
+                        {
+                            OpenReservaDetail(
+                                Convert.ToInt32(rd["id"]),
+                                rd["cliente"].ToString(),
+                                rd["recurso"].ToString(),
+                                rd["tipo_rec"].ToString(),
+                                (DateTime)rd["dt"],
+                                rd["hi"] is DBNull ? (TimeSpan?)null : (TimeSpan)rd["hi"],
+                                rd["hf"] is DBNull ? (TimeSpan?)null : (TimeSpan)rd["hf"],
+                                Convert.ToDecimal(rd["valor"]),
+                                rd["estado"].ToString(),
+                                rd["num_pess"] is DBNull ? (int?)null : Convert.ToInt32(rd["num_pess"]));
+                        }
+                    }
+                }
+            }
+            catch (SqlException ex)
+            {
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void RenderMapa()
+        {
+            if (_mapaCanvas == null) return;
+            DateTime dia = _dtDe.Value.Date;
+            int? cliId = null;
+            if (_cmbCliente != null && _cmbCliente.SelectedIndex > 0
+                && _cmbCliente.SelectedValue != null && !(_cmbCliente.SelectedValue is DBNull))
+                cliId = Convert.ToInt32(_cmbCliente.SelectedValue);
+            string estadoFiltro = (_cmbEstado != null && _cmbEstado.SelectedIndex > 0) ? _cmbEstado.SelectedText : null;
+
+            var salas = new List<MapaReservasView.SalaInfo>();
+            var reservas = new List<MapaReservasView.ReservaCell>();
+
+            try
+            {
+                using (var conn = Database.GetConnection())
+                {
+                    using (var cmd = new SqlCommand(@"
+                        SELECT s.recurso_id, e.nome AS espaco, s.nome AS sala
+                        FROM sala s
+                        JOIN espaco e ON s.espaco_id = e.espaco_id
+                        WHERE s.estado = 'Disponivel'
+                        ORDER BY e.nome, s.nome", conn))
+                    using (var rd = cmd.ExecuteReader())
+                    {
+                        while (rd.Read())
+                        {
+                            salas.Add(new MapaReservasView.SalaInfo
+                            {
+                                RecursoId = Convert.ToInt32(rd["recurso_id"]),
+                                Espaco = rd["espaco"].ToString(),
+                                Sala = rd["sala"].ToString(),
+                            });
+                        }
+                    }
+
+                    var whereParts = new List<string>
+                    {
+                        "r.data_reserva = @d",
+                        "r.hora_inicio IS NOT NULL",
+                        "r.hora_fim IS NOT NULL",
+                    };
+                    if (cliId.HasValue) whereParts.Add("r.cliente_id = @c");
+                    if (estadoFiltro != null) whereParts.Add("r.estado = @e");
+
+                    string sql = $@"
+                        SELECT r.reserva_id, r.recurso_id, r.hora_inicio, r.hora_fim,
+                               r.estado, r.valor, c.nome AS cliente
+                        FROM reserva r
+                        JOIN cliente c ON r.cliente_id = c.cliente_id
+                        WHERE {string.Join(" AND ", whereParts)}";
+
+                    using (var cmd = new SqlCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@d", dia);
+                        if (cliId.HasValue) cmd.Parameters.AddWithValue("@c", cliId.Value);
+                        if (estadoFiltro != null) cmd.Parameters.AddWithValue("@e", estadoFiltro);
+                        using (var rd = cmd.ExecuteReader())
+                        {
+                            while (rd.Read())
+                            {
+                                reservas.Add(new MapaReservasView.ReservaCell
+                                {
+                                    ReservaId = Convert.ToInt32(rd["reserva_id"]),
+                                    RecursoId = Convert.ToInt32(rd["recurso_id"]),
+                                    HoraInicio = (TimeSpan)rd["hora_inicio"],
+                                    HoraFim = (TimeSpan)rd["hora_fim"],
+                                    Estado = rd["estado"].ToString(),
+                                    Valor = Convert.ToDecimal(rd["valor"]),
+                                    Cliente = rd["cliente"].ToString(),
+                                });
+                            }
+                        }
+                    }
+                }
+
+                _mapaCanvas.SetData(salas, reservas);
+            }
+            catch (SqlException ex)
+            {
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private Panel BuildEmptyState(string text, IconChar icon)
@@ -380,6 +569,13 @@ namespace CoworkingApp.Controls
             catch (SqlException ex)
             {
                 MessageBox.Show(Database.SqlErrorMessage(ex), "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            // Se o Mapa estiver activo, refrescar também (filtros partilhados).
+            if (_viewToggle != null && _viewToggle.SelectedIndex == 1)
+            {
+                _lblMapaInfo.Text = $"Dia: {_dtDe.Value:dd/MM/yyyy}  ·  click numa reserva para ver detalhes";
+                RenderMapa();
             }
         }
 
