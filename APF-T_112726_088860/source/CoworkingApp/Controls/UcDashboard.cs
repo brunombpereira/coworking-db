@@ -189,6 +189,7 @@ namespace CoworkingApp.Controls
                 ? MixColors(idleBg, Color.White, 0.05f)
                 : MixColors(idleBg, Color.White, 0.06f);
 
+            Color idleBorder = card.BorderColor;
             void SetCardHover(bool on)
             {
                 Color bg = on ? hoverBg : idleBg;
@@ -199,6 +200,13 @@ namespace CoworkingApp.Controls
                 lbl.BackColor     = bg;
                 vLbl.BackColor    = bg;
                 dLbl.BackColor    = bg;
+                // Hover: border accent indigo (excepto no card hero accent
+                // que já tem cor própria).
+                if (!isAccent)
+                {
+                    card.BorderColor = on ? Theme.Accent : idleBorder;
+                    card.Invalidate();
+                }
             }
             void HookCard(Control c)
             {
@@ -468,6 +476,10 @@ namespace CoworkingApp.Controls
                 MarkerBorderColor = Color.White,
                 MarkerBorderWidth = 2,
                 IsValueShownAsLabel = false,
+                // CRÍTICO: 1 categoria por ponto. Sem isto, o framework
+                // tenta parsear '2026-02' como número e falha → todos os
+                // pontos ficam em X=0 (empilhados na mesma vertical).
+                IsXValueIndexed   = true,
             };
             using (var cmd = new SqlCommand(
                 @"SELECT FORMAT(data_pagamento,'yyyy-MM') AS Mes, SUM(valor) AS Total
@@ -481,7 +493,8 @@ namespace CoworkingApp.Controls
                 {
                     string mes = reader.GetString(0);
                     decimal total = reader.GetDecimal(1);
-                    s.Points.AddXY(mes, total);
+                    int idx = s.Points.AddXY(mes, total);
+                    s.Points[idx].ToolTip = $"{mes}: {Theme.FormatEuro(total)}";
                 }
             }
             _chartReceita.Series.Add(s);
@@ -500,11 +513,14 @@ namespace CoworkingApp.Controls
             {
                 while (reader.Read())
                 {
-                    int idx = s.Points.AddXY(reader.GetString(0), reader.GetInt32(1));
+                    string metodo = reader.GetString(0);
+                    int count = reader.GetInt32(1);
+                    int idx = s.Points.AddXY(metodo, count);
                     s.Points[idx].Color      = Palette[i % Palette.Length];
                     s.Points[idx].Label      = "#PERCENT{P0}";
                     s.Points[idx].LabelForeColor = Color.White;
-                    s.Points[idx].LegendText = reader.GetString(0);
+                    s.Points[idx].LegendText = metodo;
+                    s.Points[idx].ToolTip    = $"{metodo}: {count} pagamento" + (count == 1 ? "" : "s") + " (#PERCENT{P1})";
                     i++;
                 }
             }

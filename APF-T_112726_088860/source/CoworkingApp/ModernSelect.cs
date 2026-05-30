@@ -79,6 +79,11 @@ namespace CoworkingApp
         public string SelectedText =>
             (_selectedIndex >= 0 && _selectedIndex < _items.Count) ? _items[_selectedIndex].Display : "";
 
+        /// <summary>Raw DataRow underlying do item seleccionado (quando vem de
+        /// BindDataTable). Permite ler colunas extra além da display/value.</summary>
+        public object SelectedRawData =>
+            (_selectedIndex >= 0 && _selectedIndex < _items.Count) ? _items[_selectedIndex].Raw : null;
+
         public int Count => _items.Count;
 
         /// <summary>Selecciona o primeiro item cujo Display bate certo (case-sensitive).</summary>

@@ -9,6 +9,10 @@ namespace CoworkingApp
         private readonly Panel _card;
         private readonly Panel _body;
         private readonly Action _saveCallback;
+        private Form _ownerForCenter;
+        /// <summary>Footer do dialog (Guardar/Cancelar ou Fechar) — exposto
+        /// para callers em modo read-only adicionarem botões extra.</summary>
+        public Panel Footer { get; private set; }
 
         /// <summary>
         /// Modal genérico para forms de criar/editar.
@@ -25,28 +29,29 @@ namespace CoworkingApp
         {
             _saveCallback = onSave;
 
-            // ── Form (overlay) ───────────────────────────────────────────────
+            // ── Form (dialog discreto centrado no content area) ──────────────
             this.AutoScaleMode       = AutoScaleMode.Dpi;
             this.AutoScaleDimensions = new SizeF(96F, 96F);
             this.FormBorderStyle     = FormBorderStyle.None;
-            this.StartPosition = FormStartPosition.Manual;
-            this.ShowInTaskbar = false;
-            this.BackColor = Theme.ModalOverlay;
-            this.Opacity = Theme.ModalOpacity;
-            this.KeyPreview = true;
-            this.Font = Theme.FontBase;
+            this.StartPosition       = FormStartPosition.Manual; // posicionamos em ShowDialog
+            this.ShowInTaskbar       = false;
+            this.BackColor           = Theme.CardBorder; // border 1px à volta
+            this.Padding             = new Padding(1);
+            this.KeyPreview          = true;
+            this.Font                = Theme.FontBase;
+            this.TopMost             = true;
 
             this.KeyDown += (s, e) =>
             {
                 if (e.KeyCode == Keys.Escape) { DialogResult = DialogResult.Cancel; Close(); }
             };
 
-            // ── Card central ─────────────────────────────────────────────────
+            // ── Card preenche o form (border 1px do Padding do Form fica visível) ─
             _card = new Panel
             {
+                Dock = DockStyle.Fill,
                 BackColor = Theme.CardBg,
-                Width = width,
-                Padding = new Padding(0)
+                Padding = new Padding(0),
             };
 
             // Header
@@ -87,41 +92,77 @@ namespace CoworkingApp
             content.Dock = DockStyle.Fill;
             _body.Controls.Add(content);
 
-            // Footer
-            var pnlFooter = new Panel { Dock = DockStyle.Bottom, Height = 56, BackColor = Theme.CardBg };
+            // Footer — sem linha divisória (era descontínua porque o flow
+            // panel à direita ficava por cima de parte dela).
+            var pnlFooter = new Panel { Dock = DockStyle.Bottom, Height = 68, BackColor = Theme.CardBg };
             var flow = new FlowLayoutPanel
             {
                 Dock = DockStyle.Right,
                 FlowDirection = FlowDirection.RightToLeft,
                 WrapContents = false,
-                Padding = new Padding(0, 12, 18, 12),
-                AutoSize = true
+                Padding = new Padding(0, 16, 24, 16),
+                AutoSize = true,
+                BackColor = Theme.CardBg,
             };
-            var btnSave = Theme.BtnPrim("Guardar");
-            btnSave.Click += (s, e) =>
+            // Modo read-only (onSave=null): sem footer — só a cruz X.
+            bool readOnly = (onSave == null);
+            if (!readOnly)
             {
-                try
+                var btnSave = new ModernButton
                 {
-                    _saveCallback?.Invoke();
-                    DialogResult = DialogResult.OK;
-                    Close();
-                }
-                catch (Microsoft.Data.SqlClient.SqlException ex)
+                    Text = "Guardar", Style = ModernButton.Variant.Primary,
+                    Font = Theme.FontBold, Size = new Size(140, 36),
+                    Margin = new Padding(12, 0, 0, 0),
+                };
+                btnSave.Click += (s, e) =>
                 {
-                    MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                catch (ApplicationException ex)
+                    try
+                    {
+                        _saveCallback?.Invoke();
+                        DialogResult = DialogResult.OK;
+                        Close();
+                    }
+                    catch (Microsoft.Data.SqlClient.SqlException ex)
+                    {
+                        MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    catch (ApplicationException ex)
+                    {
+                        MessageBox.Show(ex.Message, "Validação",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                };
+                // Cancelar como text-button (sem border) — visual menos
+                // proeminente que o Guardar.
+                var btnCancel = new Button
                 {
-                    MessageBox.Show(ex.Message, "Validação",
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-            };
-            var btnCancel = Theme.BtnGray("Cancelar");
-            btnCancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
-            flow.Controls.Add(btnSave);
-            flow.Controls.Add(btnCancel);
-            pnlFooter.Controls.Add(flow);
+                    Text = "Cancelar",
+                    Font = Theme.FontBold,
+                    Size = new Size(100, 36),
+                    Margin = new Padding(0),
+                    BackColor = Theme.CardBg,
+                    ForeColor = Theme.TextSecondary,
+                    FlatStyle = FlatStyle.Flat,
+                    Cursor = Cursors.Hand,
+                    TabStop = false,
+                };
+                btnCancel.FlatAppearance.BorderSize = 0;
+                btnCancel.FlatAppearance.MouseOverBackColor = Theme.CardBg;
+                btnCancel.MouseEnter += (s, e) => btnCancel.ForeColor = Theme.TextPrimary;
+                btnCancel.MouseLeave += (s, e) => btnCancel.ForeColor = Theme.TextSecondary;
+                btnCancel.Click      += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
+
+                // Right-to-left flow → primeiro Add = mais à direita.
+                flow.Controls.Add(btnSave);
+                flow.Controls.Add(btnCancel);
+                pnlFooter.Controls.Add(flow);
+            }
+            else
+            {
+                pnlFooter.Visible = false;
+            }
+            Footer = readOnly ? null : pnlFooter;
 
             // Compose
             _card.Controls.Add(_body);
@@ -130,32 +171,75 @@ namespace CoworkingApp
 
             this.Controls.Add(_card);
 
-            this.Load += (s, e) => CenterCard();
+            // Tamanho do form = card width (+2 padding) × altura calculada do
+            // body + header(48) + footer(56) + padding(32) + 2 border.
+            this.Load  += (s, e) =>
+            {
+                SizeToContent(width);
+                if (_ownerForCenter != null) CenterInContentArea(_ownerForCenter);
+            };
             this.Shown += (s, e) => content.Focus();
         }
 
         public new DialogResult ShowDialog(IWin32Window owner)
         {
-            // Cobrir o owner
-            if (owner is Form ownerForm)
+            BlurOverlayForm overlay = null;
+            if (owner is Form parentForm && !parentForm.IsDisposed)
             {
-                this.Bounds = ownerForm.Bounds;
+                // 1. Overlay com blur do parent.
+                overlay = new BlurOverlayForm(parentForm);
+                overlay.Show(parentForm);
+                // 2. Memorizar parent para o Load chamar CenterInContentArea
+                //    APÓS SizeToContent (Width/Height só ficam válidos lá).
+                _ownerForCenter = parentForm;
             }
-            else
+            try
             {
-                this.WindowState = FormWindowState.Maximized;
+                return base.ShowDialog(owner);
             }
-            return base.ShowDialog(owner);
+            finally
+            {
+                overlay?.Close();
+                overlay?.Dispose();
+            }
         }
 
-        private void CenterCard()
+        private void CenterInContentArea(Form parent)
         {
-            // Auto-fit altura do card pelo body preferred + header + footer
+            // Centrar na área cliente do form (exclui title bar). Inclui a
+            // sidebar (user pediu) mas tenta excluir a status bar (Dock=Bottom
+            // no FormMain) para que o centro Y bata visualmente.
+            if (this.Width <= 0 || this.Height <= 0) return;
+            Rectangle area = parent.RectangleToScreen(parent.ClientRectangle);
+
+            int statusH = 0;
+            foreach (Control c in parent.Controls)
+            {
+                if (c.Dock == DockStyle.Bottom && c.Visible)
+                {
+                    statusH = c.Height;
+                    break;
+                }
+            }
+            area = new Rectangle(area.X, area.Y, area.Width, area.Height - statusH);
+
+            // Slight bias para top-left: 40% no eixo Y (em vez de 50%) e
+            // -32 px no eixo X. Dá uma posição visualmente menos centrada
+            // ao meio absoluto e mais próxima do canto superior esquerdo.
+            int x = area.X + (area.Width  - this.Width)  / 2 - 32;
+            int y = area.Y + (int)((area.Height - this.Height) * 0.4);
+            this.Location = new Point(x, y);
+        }
+
+        private void SizeToContent(int cardWidth)
+        {
             int prefH = _body.PreferredSize.Height;
-            int total = Math.Min(prefH + 48 + 56 + 32, this.Height - 40);
-            _card.Height = Math.Max(180, total);
-            _card.Left = (this.Width - _card.Width) / 2;
-            _card.Top = (this.Height - _card.Height) / 2;
+            // Header 48 + footer 68 (se visível) + padding body 32.
+            int footerH = (Footer != null && Footer.Visible) ? 68 : 0;
+            int contentH = Math.Min(prefH + 48 + footerH + 32, 600);  // cap 600
+            int formH    = Math.Max(220, contentH) + 2;               // +2 border
+            int formW    = cardWidth + 2;
+            this.Size = new Size(formW, formH);
         }
     }
 }

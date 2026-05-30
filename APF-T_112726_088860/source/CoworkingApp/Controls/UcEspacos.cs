@@ -121,18 +121,27 @@ namespace CoworkingApp.Controls
                 using (var pen = new Pen(Theme.CardBorder, 1))
                     e.Graphics.DrawLine(pen, 0, bar.Height - 1, bar.Width, bar.Height - 1);
             };
-            _tabEspacos = new TabButton { Text = "Espaços", Icon = IconChar.Building };
-            _tabSalas   = new TabButton { Text = "Salas",   Icon = IconChar.DoorOpen };
-            _tabPostos  = new TabButton { Text = "Postos",  Icon = IconChar.Chair };
-            _tabEspacos.Location = new Point(0,   8);
-            _tabSalas.Location   = new Point(120, 8);
-            _tabPostos.Location  = new Point(240, 8);
+            _tabEspacos = new TabButton { Text = "Espaços", Icon = IconChar.Building, Margin = new Padding(0, 6, 4, 0) };
+            _tabSalas   = new TabButton { Text = "Salas",   Icon = IconChar.DoorOpen, Margin = new Padding(0, 6, 4, 0) };
+            _tabPostos  = new TabButton { Text = "Postos",  Icon = IconChar.Chair,    Margin = new Padding(0, 6, 0, 0) };
             _tabEspacos.Click += (s, e) => SwitchTab(Tab.Espacos);
             _tabSalas.Click   += (s, e) => SwitchTab(Tab.Salas);
             _tabPostos.Click  += (s, e) => SwitchTab(Tab.Postos);
-            bar.Controls.Add(_tabEspacos);
-            bar.Controls.Add(_tabSalas);
-            bar.Controls.Add(_tabPostos);
+
+            // FlowLayoutPanel respeita o AutoSize de cada TabButton (calculado
+            // por texto). Antes tinha Locations hardcoded (0, 120, 240) que
+            // criavam gaps/overlaps quando o RecalcSize por texto mudou os
+            // widths.
+            var flow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, BackColor = Theme.PageBg,
+                FlowDirection = FlowDirection.LeftToRight, WrapContents = false,
+                AutoSize = false, Padding = new Padding(0),
+            };
+            flow.Controls.Add(_tabEspacos);
+            flow.Controls.Add(_tabSalas);
+            flow.Controls.Add(_tabPostos);
+            bar.Controls.Add(flow);
             return bar;
         }
 
@@ -461,7 +470,7 @@ namespace CoworkingApp.Controls
             row.Controls.Add(avatarHolder);
 
             HookHover(row, idleBg, hoverBg, btnEdit, btnDel);
-            HookClick(row, btnEdit, btnDel, () => OpenEspacoEditor(id));
+            HookClick(row, btnEdit, btnDel, () => OpenEspacoDetail(id, nome, morada, telefone, email, abertura, fecho, numSalas, numPostos));
             return row;
         }
 
@@ -597,7 +606,7 @@ namespace CoworkingApp.Controls
             card.Controls.Add(inner);
 
             HookHover(card, idleBg, hoverBg, btnEdit, btnDel);
-            HookClick(card, btnEdit, btnDel, () => OpenSalaEditor(id));
+            HookClick(card, btnEdit, btnDel, () => OpenSalaDetail(id, nome, espaco, capacidade, preco, estado));
             return card;
         }
 
@@ -748,12 +757,103 @@ namespace CoworkingApp.Controls
             card.Controls.Add(inner);
 
             HookHover(card, idleBg, hoverBg, btnEdit, btnDel);
-            HookClick(card, btnEdit, btnDel, () => OpenPostoEditor(id));
+            HookClick(card, btnEdit, btnDel, () => OpenPostoDetail(id, codigo, espaco, tipo, preco, estado));
             return card;
         }
 
+        // ── Detail helpers (read-only modals) ──────────────────────────
+        private Panel BuildDetailHeader(IconChar icon, Color color, string title, string subtitle)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Theme.CardBg };
+            Image img = null;
+            using (var pb = new IconPictureBox { IconChar = icon, IconSize = 26, IconColor = Color.White })
+                if (pb.Image != null) img = (Image)pb.Image.Clone();
+            pnl.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                int diam = 56;
+                int cx = 0, cy = (pnl.Height - diam) / 2;
+                using (var br = new SolidBrush(color)) g.FillEllipse(br, cx, cy, diam, diam);
+                if (img != null) g.DrawImage(img, cx + (diam - 26) / 2, cy + (diam - 26) / 2 + 1, 26, 26);
+                using (var f = new Font(Theme.FontBase.FontFamily, 16f, FontStyle.Bold))
+                {
+                    TextRenderer.DrawText(g, title, f, new Point(diam + 14, cy + 4),
+                        Theme.TextPrimary, TextFormatFlags.NoPadding);
+                }
+                if (!string.IsNullOrEmpty(subtitle))
+                {
+                    TextRenderer.DrawText(g, subtitle, Theme.FontSub, new Point(diam + 14, cy + 34),
+                        Theme.TextSecondary, TextFormatFlags.NoPadding);
+                }
+            };
+            return pnl;
+        }
+
+        private static Panel BuildDetailField(string label, string value)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Theme.CardBg, Padding = new Padding(0, 8, 0, 0) };
+            pnl.Controls.Add(new Label
+            {
+                Text = value, Font = Theme.FontBase, ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 24, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            pnl.Controls.Add(new Label
+            {
+                Text = label.ToUpper(), Font = Theme.FontMicro, ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
+                Dock = DockStyle.Top, Height = 16, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            return pnl;
+        }
+
+        private void OpenEspacoDetail(int id, string nome, string morada, string telefone, string email,
+                                       TimeSpan abertura, TimeSpan fecho, int numSalas, int numPostos)
+        {
+            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+            body.Controls.Add(BuildDetailField("Postos",   numPostos.ToString()));
+            body.Controls.Add(BuildDetailField("Salas",    numSalas.ToString()));
+            body.Controls.Add(BuildDetailField("Horário",  $"{abertura:hh\\:mm} – {fecho:hh\\:mm}"));
+            body.Controls.Add(BuildDetailField("Email",    string.IsNullOrEmpty(email) ? "—" : email));
+            body.Controls.Add(BuildDetailField("Telefone", string.IsNullOrEmpty(telefone) ? "—" : telefone));
+            body.Controls.Add(BuildDetailField("Morada",   morada));
+            body.Controls.Add(BuildDetailHeader(IconChar.Building, Theme.Accent, nome, null));
+            using (var dlg = new FormDialog($"Espaço — {nome}", body, 480, onSave: null))
+                dlg.ShowDialog(FindForm());
+        }
+
+        private void OpenSalaDetail(int id, string nome, string espaco, int capacidade, decimal preco, string estado)
+        {
+            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+            body.Controls.Add(BuildDetailField("Estado",     estado));
+            body.Controls.Add(BuildDetailField("Preço/Hora", Theme.FormatEuro(preco)));
+            body.Controls.Add(BuildDetailField("Capacidade", capacidade + (capacidade == 1 ? " lugar" : " lugares")));
+            body.Controls.Add(BuildDetailField("Espaço",     espaco));
+            body.Controls.Add(BuildDetailHeader(IconChar.DoorClosed, Theme.Accent, nome, "Sala"));
+            using (var dlg = new FormDialog($"Sala — {nome}", body, 480, onSave: null))
+                dlg.ShowDialog(FindForm());
+        }
+
+        private void OpenPostoDetail(int id, string codigo, string espaco, string tipo, decimal preco, string estado)
+        {
+            Color tipoColor = tipo == "Flex" ? ColorTranslator.FromHtml("#06b6d4")
+                            : tipo == "Fixo" ? Theme.Accent
+                            : ColorTranslator.FromHtml("#8b5cf6");
+            IconChar tipoIcon = tipo == "Flex" ? IconChar.PersonRunning
+                              : tipo == "Fixo" ? IconChar.Chair
+                              : IconChar.DoorClosed;
+            var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+            body.Controls.Add(BuildDetailField("Estado",    estado));
+            body.Controls.Add(BuildDetailField("Preço/Dia", Theme.FormatEuro(preco)));
+            body.Controls.Add(BuildDetailField("Tipo",      tipo));
+            body.Controls.Add(BuildDetailField("Espaço",    espaco));
+            body.Controls.Add(BuildDetailHeader(tipoIcon, tipoColor, codigo, "Posto " + tipo));
+            using (var dlg = new FormDialog($"Posto — {codigo}", body, 480, onSave: null))
+                dlg.ShowDialog(FindForm());
+        }
+
         // ── Helpers ─────────────────────────────────────────────────────
-        internal static Color MixColors(Color a, Color b, float t)
+        public static Color MixColors(Color a, Color b, float t)
             => Color.FromArgb(
                 (int)(a.R + (b.R - a.R) * t),
                 (int)(a.G + (b.G - a.G) * t),
@@ -782,7 +882,7 @@ namespace CoworkingApp.Controls
             }
         }
 
-        internal static IconButton MakeIconBtn(IconChar icon, Color hoverColor, Color bg, Action onClick)
+        public static IconButton MakeIconBtn(IconChar icon, Color hoverColor, Color bg, Action onClick)
         {
             var btn = new IconButton
             {
@@ -798,7 +898,7 @@ namespace CoworkingApp.Controls
             return btn;
         }
 
-        internal static void HookHover(Control root, Color idleBg, Color hoverBg,
+        public static void HookHover(Control root, Color idleBg, Color hoverBg,
                                        IconButton btnEdit, IconButton btnDel)
         {
             void PaintAll(Control c, Color bg) { c.BackColor = bg; foreach (Control x in c.Controls) PaintAll(x, bg); }
@@ -825,7 +925,7 @@ namespace CoworkingApp.Controls
             Hook(root);
         }
 
-        internal static void HookClick(Control root, Control btnEdit, Control btnDel, Action onClick)
+        public static void HookClick(Control root, Control btnEdit, Control btnDel, Action onClick)
         {
             void Hook(Control c)
             {
@@ -840,12 +940,12 @@ namespace CoworkingApp.Controls
         private void OpenEspacoEditor(int? id)
         {
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-            var txtNome     = UcClientes.AddField(tbl, "Nome *");
-            var txtMorada   = UcClientes.AddField(tbl, "Morada *");
-            var txtTelefone = UcClientes.AddField(tbl, "Telefone");
-            var txtEmail    = UcClientes.AddField(tbl, "Email");
-            var txtAbertura = UcClientes.AddField(tbl, "Hora abertura (HH:MM) *");
-            var txtFecho    = UcClientes.AddField(tbl, "Hora fecho (HH:MM) *");
+            var txtNome     = UcClientes.AddField(tbl, "Nome *",     IconChar.Building,  placeholder: "Coworking Aveiro Centro");
+            var txtMorada   = UcClientes.AddField(tbl, "Morada *",   IconChar.LocationDot, placeholder: "Rua Direita 100, Aveiro");
+            var txtTelefone = UcClientes.AddField(tbl, "Telefone",   IconChar.Phone,     placeholder: "234 111 222");
+            var txtEmail    = UcClientes.AddField(tbl, "Email",      IconChar.Envelope,  placeholder: "aveiro@cowork.pt");
+            var txtAbertura = UcClientes.AddField(tbl, "Hora abertura (HH:MM) *", IconChar.Sun, placeholder: "08:00");
+            var txtFecho    = UcClientes.AddField(tbl, "Hora fecho (HH:MM) *",    IconChar.Moon,      placeholder: "20:00");
             txtAbertura.Text = "08:00";
             txtFecho.Text    = "20:00";
 
@@ -869,7 +969,7 @@ namespace CoworkingApp.Controls
                     }
                 }
             }
-            using (var dlg = new FormDialog(id.HasValue ? "Editar Espaço" : "Novo Espaço", tbl, 420, () =>
+            using (var dlg = new FormDialog(id.HasValue ? "Editar Espaço" : "Novo Espaço", tbl, 500, () =>
             {
                 if (string.IsNullOrWhiteSpace(txtNome.Text)) throw new ApplicationException("Nome é obrigatório.");
                 if (string.IsNullOrWhiteSpace(txtMorada.Text)) throw new ApplicationException("Morada é obrigatória.");
@@ -928,12 +1028,11 @@ namespace CoworkingApp.Controls
         private void OpenSalaEditor(int? id)
         {
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-            var cmbEspaco = UcClientes.AddComboDataSource(tbl, "Espaço *", LoadEspacosForCombo(), "nome", "espaco_id");
-            var txtNome   = UcClientes.AddField(tbl, "Nome *");
-            var txtCap    = UcClientes.AddField(tbl, "Capacidade *");
-            var txtPreco  = UcClientes.AddField(tbl, "Preço/Hora *");
-            var cmbEstado = UcClientes.AddCombo(tbl, "Estado *", new[] { "Disponivel", "Indisponivel", "Manutencao", "Inativo" });
-            cmbEstado.SelectedIndex = 0;
+            var cmbEspaco = UcClientes.AddModernSelectDataSource(tbl, "Espaço *", LoadEspacosForCombo(), "nome", "espaco_id");
+            var txtNome   = UcClientes.AddField(tbl, "Nome *",       IconChar.DoorClosed, placeholder: "Sala A");
+            var txtCap    = UcClientes.AddField(tbl, "Capacidade *", IconChar.Users,      placeholder: "8");
+            var txtPreco  = UcClientes.AddField(tbl, "Preço/Hora *", IconChar.EuroSign,   placeholder: "15.00");
+            var cmbEstado = UcClientes.AddModernSelect(tbl, "Estado *", new[] { "Disponivel", "Indisponivel", "Manutencao", "Inativo" });
 
             if (id.HasValue)
             {
@@ -950,13 +1049,12 @@ namespace CoworkingApp.Controls
                             txtNome.Text = r["nome"]?.ToString() ?? "";
                             txtCap.Text = r["capacidade"]?.ToString() ?? "";
                             txtPreco.Text = Convert.ToDecimal(r["preco_hora"]).ToString(CultureInfo.InvariantCulture);
-                            var idx = cmbEstado.Items.IndexOf(r["estado"]?.ToString() ?? "Disponivel");
-                            cmbEstado.SelectedIndex = idx >= 0 ? idx : 0;
+                            cmbEstado.SelectByDisplay(r["estado"]?.ToString() ?? "Disponivel");
                         }
                     }
                 }
             }
-            using (var dlg = new FormDialog(id.HasValue ? "Editar Sala" : "Nova Sala", tbl, 420, () =>
+            using (var dlg = new FormDialog(id.HasValue ? "Editar Sala" : "Nova Sala", tbl, 500, () =>
             {
                 if (string.IsNullOrWhiteSpace(txtNome.Text)) throw new ApplicationException("Nome é obrigatório.");
                 if (!int.TryParse(txtCap.Text, out int cap) || cap <= 0) throw new ApplicationException("Capacidade inválida (> 0).");
@@ -973,7 +1071,7 @@ namespace CoworkingApp.Controls
                             cmd.Parameters.AddWithValue("@n", txtNome.Text.Trim());
                             cmd.Parameters.AddWithValue("@c", cap);
                             cmd.Parameters.AddWithValue("@p", preco);
-                            cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedItem.ToString());
+                            cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedText);
                             cmd.ExecuteNonQuery();
                         }
                     }
@@ -989,7 +1087,7 @@ namespace CoworkingApp.Controls
                             cmd.Parameters.AddWithValue("@n", txtNome.Text.Trim());
                             cmd.Parameters.AddWithValue("@c", cap);
                             cmd.Parameters.AddWithValue("@p", preco);
-                            cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedItem.ToString());
+                            cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedText);
                             cmd.ExecuteNonQuery();
                         }
                     }
@@ -1028,13 +1126,11 @@ namespace CoworkingApp.Controls
         private void OpenPostoEditor(int? id)
         {
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-            var cmbEspaco = UcClientes.AddComboDataSource(tbl, "Espaço *", LoadEspacosForCombo(), "nome", "espaco_id");
-            var txtCodigo = UcClientes.AddField(tbl, "Código *");
-            var cmbTipo   = UcClientes.AddCombo(tbl, "Tipo *", new[] { "Flex", "Fixo", "Privado" });
-            var txtPreco  = UcClientes.AddField(tbl, "Preço/Dia *");
-            var cmbEstado = UcClientes.AddCombo(tbl, "Estado *", new[] { "Disponivel", "Indisponivel", "Manutencao", "Inativo" });
-            cmbTipo.SelectedIndex = 0;
-            cmbEstado.SelectedIndex = 0;
+            var cmbEspaco = UcClientes.AddModernSelectDataSource(tbl, "Espaço *", LoadEspacosForCombo(), "nome", "espaco_id");
+            var txtCodigo = UcClientes.AddField(tbl, "Código *",    IconChar.Hashtag,  placeholder: "AV-F01");
+            var cmbTipo   = UcClientes.AddModernSelect(tbl, "Tipo *", new[] { "Flex", "Fixo", "Privado" });
+            var txtPreco  = UcClientes.AddField(tbl, "Preço/Dia *", IconChar.EuroSign, placeholder: "12.00");
+            var cmbEstado = UcClientes.AddModernSelect(tbl, "Estado *", new[] { "Disponivel", "Indisponivel", "Manutencao", "Inativo" });
 
             if (id.HasValue)
             {
@@ -1049,16 +1145,14 @@ namespace CoworkingApp.Controls
                             cmbEspaco.SelectedValue = r["espaco_id"];
                             cmbEspaco.Enabled = false;
                             txtCodigo.Text = r["codigo"]?.ToString() ?? "";
-                            var idxT = cmbTipo.Items.IndexOf(r["tipo_posto"]?.ToString() ?? "Flex");
-                            cmbTipo.SelectedIndex = idxT >= 0 ? idxT : 0;
+                            cmbTipo.SelectByDisplay(r["tipo_posto"]?.ToString() ?? "Flex");
                             txtPreco.Text = Convert.ToDecimal(r["preco_dia"]).ToString(CultureInfo.InvariantCulture);
-                            var idxE = cmbEstado.Items.IndexOf(r["estado"]?.ToString() ?? "Disponivel");
-                            cmbEstado.SelectedIndex = idxE >= 0 ? idxE : 0;
+                            cmbEstado.SelectByDisplay(r["estado"]?.ToString() ?? "Disponivel");
                         }
                     }
                 }
             }
-            using (var dlg = new FormDialog(id.HasValue ? "Editar Posto" : "Novo Posto", tbl, 420, () =>
+            using (var dlg = new FormDialog(id.HasValue ? "Editar Posto" : "Novo Posto", tbl, 500, () =>
             {
                 if (string.IsNullOrWhiteSpace(txtCodigo.Text)) throw new ApplicationException("Código é obrigatório.");
                 if (!decimal.TryParse(txtPreco.Text.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out decimal preco) || preco < 0) throw new ApplicationException("Preço inválido.");
@@ -1072,9 +1166,9 @@ namespace CoworkingApp.Controls
                         {
                             cmd.Parameters.AddWithValue("@id", id.Value);
                             cmd.Parameters.AddWithValue("@c", txtCodigo.Text.Trim());
-                            cmd.Parameters.AddWithValue("@t", cmbTipo.SelectedItem.ToString());
+                            cmd.Parameters.AddWithValue("@t", cmbTipo.SelectedText);
                             cmd.Parameters.AddWithValue("@p", preco);
-                            cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedItem.ToString());
+                            cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedText);
                             cmd.ExecuteNonQuery();
                         }
                     }
@@ -1088,9 +1182,9 @@ namespace CoworkingApp.Controls
                             cmd.Parameters.AddWithValue("@rid", newRid);
                             cmd.Parameters.AddWithValue("@eid", Convert.ToInt32(cmbEspaco.SelectedValue));
                             cmd.Parameters.AddWithValue("@c", txtCodigo.Text.Trim());
-                            cmd.Parameters.AddWithValue("@t", cmbTipo.SelectedItem.ToString());
+                            cmd.Parameters.AddWithValue("@t", cmbTipo.SelectedText);
                             cmd.Parameters.AddWithValue("@p", preco);
-                            cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedItem.ToString());
+                            cmd.Parameters.AddWithValue("@e", cmbEstado.SelectedText);
                             cmd.ExecuteNonQuery();
                         }
                     }

@@ -6,6 +6,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Globalization;
 using System.Windows.Forms;
+using CoworkingApp;
 using FontAwesome.Sharp;
 using Microsoft.Data.SqlClient;
 
@@ -500,151 +501,88 @@ namespace CoworkingApp.Controls
         private void OpenDetailPopup(int id, string cliente, string tipo, string assunto,
                                       string mensagem, DateTime data, bool jaLida)
         {
-            const int PopupW    = 520;
-            const int PadBody   = 24;
-            const int HeaderH   = 56;
-            const int MetaH     = 22;
-            const int SpacerH   = 14;
-            int contentW = PopupW - PadBody * 2 - 2;
+            // Body: header com avatar tipo + assunto + meta + mensagem multi-line.
+            // Panel com Dock=Top processa REVERSE z-order → último adicionado
+            // = topmost. Para ordem visual header→assunto→msg, adicionar msg
+            // primeiro e header último.
+            var body = new Panel { Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
 
-            var assuntoFont = new Font(Theme.FontBase.FontFamily, 15f, FontStyle.Bold);
-
-            // Medir com Label real (usa o mesmo wrap engine que vai renderizar).
-            int MeasureLabel(string text, Font font, int width)
+            // Header com avatar circle (cor do tipo) + chip dot tipo + nome cliente
+            Color tipoColor = TipoColor(tipo);
+            var header = new Panel { Dock = DockStyle.Top, Height = 70, BackColor = Theme.CardBg };
+            Image img = null;
+            using (var pb = new IconPictureBox { IconChar = TipoIcon(tipo), IconSize = 22, IconColor = Color.White })
+                if (pb.Image != null) img = (Image)pb.Image.Clone();
+            header.Paint += (s, e) =>
             {
-                using (var tmp = new Label
+                var g = e.Graphics;
+                g.SmoothingMode     = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                int diam = 48;
+                int cx = 0, cy = (header.Height - diam) / 2;
+                using (var br = new SolidBrush(tipoColor)) g.FillEllipse(br, cx, cy, diam, diam);
+                if (img != null) g.DrawImage(img, cx + (diam - 22) / 2, cy + (diam - 22) / 2 + 1, 22, 22);
+                using (var f = new Font(Theme.FontBase.FontFamily, 9f, FontStyle.Bold))
                 {
-                    Text = text ?? "—", Font = font, AutoSize = true,
-                    MaximumSize = new Size(width, 0),
-                })
-                {
-                    return tmp.PreferredSize.Height;
+                    TextRenderer.DrawText(g, tipo.ToUpper(), f,
+                        new Point(diam + 14, cy + 6), tipoColor, TextFormatFlags.NoPadding);
                 }
-            }
+                using (var f = new Font(Theme.FontBase.FontFamily, 11f))
+                {
+                    TextRenderer.DrawText(g, $"{cliente} · {data:dd/MM/yyyy HH:mm}", f,
+                        new Point(diam + 14, cy + 28), Theme.TextSecondary, TextFormatFlags.NoPadding);
+                }
+            };
 
-            int assuntoH = MeasureLabel(assunto,  assuntoFont,    contentW) + 8;
-            int msgH     = MeasureLabel(mensagem, Theme.FontBase, contentW) + 12;
+            // Assunto (potencialmente multi-line, com wrap)
+            const int contentW = 480 - 48 - 2;
+            var assuntoFont = new Font(Theme.FontBase.FontFamily, 15f, FontStyle.Bold);
+            int assuntoH = MeasureLabelHeight(assunto, assuntoFont, contentW) + 8;
             assuntoH = Math.Max(32, assuntoH);
-            msgH     = Math.Max(20, msgH);
-
-            int popupH = HeaderH + assuntoH + MetaH + SpacerH + msgH + 4 /*top body padding*/ + PadBody /*bottom*/ + 2 /*border*/;
-
-            var dlg = new Form
-            {
-                FormBorderStyle = FormBorderStyle.None,
-                StartPosition   = FormStartPosition.CenterParent,
-                BackColor       = Theme.CardBorder,
-                Padding         = new Padding(1),
-                Size            = new Size(PopupW, popupH),
-                ShowInTaskbar   = false,
-            };
-            var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg };
-
-            // ─── Header (Dock=Top) com tipo pill + botão X ──────────
-            var header = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = Theme.CardBg };
-            var tipoPill = new StatusPill
-            {
-                Text = tipo, Height = 24, Width = 200, BackColor = Theme.CardBg,
-                Style = StatusPill.PillStyle.Dot, Font = Theme.FontSub,
-            };
-            tipoPill.SetColors(Color.FromArgb(40, TipoColor(tipo)), TipoColor(tipo));
-
-            var btnClose = new IconButton
-            {
-                IconChar = IconChar.Xmark, IconSize = 22, IconColor = Theme.TextSecondary,
-                FlatStyle = FlatStyle.Flat, Size = new Size(40, 40),
-                BackColor = Theme.CardBg, Cursor = Cursors.Hand, TabStop = false,
-            };
-            btnClose.FlatAppearance.BorderSize         = 0;
-            btnClose.FlatAppearance.MouseOverBackColor = Theme.CardBg;
-            btnClose.MouseEnter += (s, e) => btnClose.IconColor = Theme.StatusDangerFg;
-            btnClose.MouseLeave += (s, e) => btnClose.IconColor = Theme.TextSecondary;
-            btnClose.Click      += (s, e) => dlg.Close();
-
-            header.Controls.Add(tipoPill);
-            header.Controls.Add(btnClose);
-
-            void LayoutHeader()
-            {
-                tipoPill.Location = new Point(24, (header.Height - tipoPill.Height) / 2);
-                btnClose.Location = new Point(header.Width - btnClose.Width - 12, (header.Height - btnClose.Height) / 2);
-            }
-            header.Resize       += (s, e) => LayoutHeader();
-            header.HandleCreated += (s, e) => LayoutHeader();
-
-            // ─── Corpo (Dock=Fill) com assunto + meta + mensagem ────
-            var body = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(PadBody, 4, PadBody, PadBody) };
             var lblAssunto = new Label
             {
                 Text = assunto, Font = assuntoFont,
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
                 Dock = DockStyle.Top, Height = assuntoH, AutoSize = false,
                 TextAlign = ContentAlignment.TopLeft,
+                Padding = new Padding(0, 14, 0, 0),
             };
-            var lblMeta = new Label
-            {
-                Text = $"{cliente} · {data:dd/MM/yyyy HH:mm}",
-                Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = Theme.CardBg,
-                Dock = DockStyle.Top, Height = MetaH, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-            };
-            var spacer = new Panel { Dock = DockStyle.Top, Height = SpacerH, BackColor = Theme.CardBg };
+
+            // Mensagem (multi-line wrap)
+            int msgH = MeasureLabelHeight(mensagem ?? "—", Theme.FontBase, contentW) + 12;
+            msgH = Math.Max(40, msgH);
             var lblMsg = new Label
             {
                 Text = mensagem ?? "", Font = Theme.FontBase,
                 ForeColor = Theme.TextSecondary, BackColor = Theme.CardBg,
-                Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.TopLeft,
+                Dock = DockStyle.Top, Height = msgH + 16, AutoSize = false,
+                TextAlign = ContentAlignment.TopLeft,
+                Padding = new Padding(0, 12, 0, 0),
             };
+
             body.Controls.Add(lblMsg);
-            body.Controls.Add(spacer);
-            body.Controls.Add(lblMeta);
             body.Controls.Add(lblAssunto);
+            body.Controls.Add(header);
 
-            inner.Controls.Add(body);
-            inner.Controls.Add(header);
-            dlg.Controls.Add(inner);
-
-            // Auto-mark-read ao fechar (botão X, click fora, ESC).
-            // Detectar clicks fora via IMessageFilter (Deactivate disparava
-            // prematuramente durante o Show() — race com focus).
-            ClickOutsideFilter filter = null;
-            dlg.FormClosed += (s, e) =>
+            // FormDialog em modo read-only (sem footer, só X) → auto-mark-read
+            // no FormClosed se a notificação não estava lida.
+            using (var dlg = new FormDialog($"Notificação", body, 520, onSave: null))
             {
-                if (filter != null) Application.RemoveMessageFilter(filter);
-                if (!jaLida) MarcarLida(id);
-                dlg.Dispose();
-            };
-            dlg.KeyPreview = true;
-            dlg.KeyDown   += (s, e) => { if (e.KeyCode == Keys.Escape) dlg.Close(); };
-
-            dlg.Show(FindForm());
-
-            // Registar filter SÓ APÓS o Show — assim ignoramos o click que abriu.
-            filter = new ClickOutsideFilter(dlg, () => dlg.Close());
-            Application.AddMessageFilter(filter);
+                dlg.FormClosed += (s, e) => { if (!jaLida) MarcarLida(id); };
+                dlg.ShowDialog(FindForm());
+            }
         }
 
-        /// <summary>Fecha o form ao receber WM_LBUTTONDOWN fora dos seus bounds.</summary>
-        private class ClickOutsideFilter : IMessageFilter
+        // Mede altura wrap-aware (igual ao Label real que vai render).
+        private static int MeasureLabelHeight(string text, Font font, int width)
         {
-            private const int WM_LBUTTONDOWN = 0x201;
-            private const int WM_RBUTTONDOWN = 0x204;
-            private readonly Form   _form;
-            private readonly Action _onOutside;
-            public ClickOutsideFilter(Form form, Action onOutside)
+            using (var tmp = new Label
             {
-                _form = form; _onOutside = onOutside;
-            }
-            public bool PreFilterMessage(ref Message m)
+                Text = text ?? "—", Font = font, AutoSize = true,
+                MaximumSize = new Size(width, 0),
+            })
             {
-                if (m.Msg != WM_LBUTTONDOWN && m.Msg != WM_RBUTTONDOWN) return false;
-                if (_form.IsDisposed) return false;
-                var pt = System.Windows.Forms.Cursor.Position;
-                if (!_form.Bounds.Contains(pt))
-                {
-                    _onOutside();
-                    return false; // não consumir — deixar o click chegar ao destino
-                }
-                return false;
+                return tmp.PreferredSize.Height;
             }
         }
 

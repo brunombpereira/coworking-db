@@ -13,6 +13,10 @@ namespace CoworkingApp
         public static bool LogoutRequested { get; private set; }
 
         private Panel pnlContent;
+        /// <summary>Área de conteúdo principal (sem sidebar) — usada por
+        /// modais para se centrarem visualmente em vez de sobrepor a
+        /// sidebar.</summary>
+        public Panel ContentArea => pnlContent;
         private Button _activeBtn;
         private readonly List<Button> _navBtns = new List<Button>();
         private Label _lblModule;
@@ -320,6 +324,15 @@ namespace CoworkingApp
             btn.ForeColor = Theme.SidebarTextActive;
             if (btn is IconButton newBtn) newBtn.IconColor = Theme.SidebarTextActive;
             btn.Font = new Font(Theme.FontBase.FontFamily, 9.5f, FontStyle.Bold);
+        }
+
+        /// <summary>Navega para um UC pelo seu Type (chamável por outros UCs
+        /// via cast do parent FormMain). Exemplo: ((FormMain)FindForm())
+        /// .NavigateTo(typeof(UcReservas)).</summary>
+        public void NavigateTo(Type ucType)
+        {
+            var method = typeof(FormMain).GetMethod("Navigate", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            method?.MakeGenericMethod(ucType).Invoke(this, null);
         }
 
         private void Navigate<T>() where T : Control, new()

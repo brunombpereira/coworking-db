@@ -36,7 +36,7 @@ namespace CoworkingApp
             MaximizeBox          = false;
             MinimizeBox          = false;
             StartPosition        = FormStartPosition.CenterScreen;
-            ClientSize           = new Size(620, 560);
+            ClientSize           = new Size(620, 500);
             BackColor            = Theme.PageBg;
             ForeColor            = Theme.TextPrimary;
             Font                 = Theme.FontBase;
@@ -65,7 +65,7 @@ namespace CoworkingApp
             // ── Card central ─────────────────────────────────────────────
             var card = new ModernCard
             {
-                Size         = new Size(540, 470),
+                Size         = new Size(540, 420),
                 BackColor    = Theme.CardBg,
                 BorderColor  = Color.Empty,  // sem linha à volta
                 CornerRadius = 14,

@@ -186,6 +186,12 @@ namespace CoworkingApp.Controls
                 Size = new Size(120, 40), Location = new Point(522, 8),
             };
             _btnPesqDisp.Click += (s, e) => LoadDispData();
+            // Mudar Sala/Posto ou hora deve refazer a pesquisa logo (UX
+            // melhor do que ter que voltar a clicar 'Pesquisar').
+            _segTipo.SelectedIndexChanged    += (s, e) => { try { LoadDispData(); } catch { } };
+            _dtDispData.ValueChanged          += (s, e) => { try { LoadDispData(); } catch { } };
+            _hIni.SelectedIndexChanged        += (s, e) => { try { LoadDispData(); } catch { } };
+            _hFim.SelectedIndexChanged        += (s, e) => { try { LoadDispData(); } catch { } };
             filterRow.Controls.AddRange(new Control[] { _segTipo, _dtDispData, _hIni, _hFim, _btnPesqDisp });
 
             // ─── Header contextual (em vez de KPI separado)
@@ -392,11 +398,7 @@ namespace CoworkingApp.Controls
                 Text = "Reservar", Style = ModernButton.Variant.Primary,
                 Font = Theme.FontBold, Dock = DockStyle.Top, Height = 36,
             };
-            btnReservar.Click += (s, e) =>
-            {
-                MessageBox.Show($"Abrir nova reserva para '{nome}' em {_dtDispData.Value:dd/MM/yyyy}.",
-                    "Reservar", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            };
+            btnReservar.Click += (s, e) => NavigateToReservas();
             actions.Controls.Add(btnReservar);
 
             // ─── Preço + chip Disponível (centrado vertical) ─────────
@@ -470,6 +472,30 @@ namespace CoworkingApp.Controls
             Hook(row);
 
             return wrap;
+        }
+
+        private void NavigateToReservas()
+        {
+            try
+            {
+                var form = FindForm();
+                var method = form?.GetType().GetMethod("NavigateTo",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (method != null)
+                {
+                    method.Invoke(form, new object[] { typeof(UcReservas) });
+                }
+                else
+                {
+                    MessageBox.Show("Abre o menu 'Reservas' na sidebar e clica em '+ Nova Reserva'.",
+                        "Reservar", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch
+            {
+                MessageBox.Show("Não foi possível abrir o ecrã de Reservas.",
+                    "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         // ─── TAB 2: Por Cliente ─────────────────────────────────────────
@@ -924,11 +950,13 @@ namespace CoworkingApp.Controls
             chartGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
             chartGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 50f));
 
-            chartGrid.Controls.Add(BuildChartCard("Receita mensal",       out _chartReceitaMensal, isLine: false, isPie: false), 0, 0);
-            chartGrid.Controls.Add(BuildChartCard("Métodos de pagamento", out _chartMetodos,        isLine: false, isPie: true),  1, 0);
-            var ocup = BuildChartCard("Ocupação por espaço", out _chartOcupacao, isLine: false, isPie: false);
+            chartGrid.Controls.Add(BuildChartCard("Receita mensal",       IconChar.ChartBar,   out _chartReceitaMensal, isLine: false, isPie: false), 0, 0);
+            chartGrid.Controls.Add(BuildChartCard("Métodos de pagamento", IconChar.CreditCard, out _chartMetodos,        isLine: false, isPie: true),  1, 0);
+            var ocup = BuildChartCard("Ocupação por espaço", IconChar.Building, out _chartOcupacao, isLine: false, isPie: false);
+            // Override: Ocupação mede nº de reservas (não €) → format inteiro.
+            _chartOcupacao.ChartAreas[0].AxisY.LabelStyle.Format = "0";
             chartGrid.SetColumnSpan(ocup, 2);
-            ocup.Margin = new Padding(0, 0, 0, 0); // último — sem margin right (já no span)
+            ocup.Margin = new Padding(0, 0, 0, 0);
             chartGrid.Controls.Add(ocup, 0, 1);
 
             root.Controls.Add(filterCard, 0, 0);
@@ -938,7 +966,7 @@ namespace CoworkingApp.Controls
             return panel;
         }
 
-        private Control BuildChartCard(string title, out Chart chart, bool isLine, bool isPie)
+        private Control BuildChartCard(string title, IconChar icon, out Chart chart, bool isLine, bool isPie)
         {
             var card = new ModernCard
             {
@@ -947,11 +975,22 @@ namespace CoworkingApp.Controls
                 Margin = new Padding(0, 0, 12, 12),
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(14, 10, 14, 14) };
-            var lblTitle = new Label
+
+            // Header com ícone + título — consistente com Estatísticas.
+            var header = new Panel { Dock = DockStyle.Top, Height = 30, BackColor = Theme.CardBg };
+            header.Controls.Add(new Label
             {
                 Text = title, Font = Theme.FontSection, ForeColor = Theme.TextPrimary,
-                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 26, TextAlign = ContentAlignment.MiddleLeft,
-            };
+                BackColor = Theme.CardBg, Dock = DockStyle.Fill, AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(6, 0, 0, 0),
+            });
+            header.Controls.Add(new IconPictureBox
+            {
+                IconChar = icon, IconSize = 16, IconColor = Theme.Accent,
+                BackColor = Theme.CardBg, Dock = DockStyle.Left, Width = 22,
+                SizeMode = PictureBoxSizeMode.CenterImage,
+            });
+
             chart = new Chart { Dock = DockStyle.Fill, BackColor = Theme.CardBg, MinimumSize = new Size(1, 1) };
             var area = new ChartArea("main") { BackColor = Color.Transparent };
             area.AxisX.LineColor = Theme.CardBorder;
@@ -960,6 +999,7 @@ namespace CoworkingApp.Controls
             area.AxisY.LabelStyle.ForeColor = Theme.TextMuted;
             area.AxisX.MajorGrid.LineColor = Color.Transparent;
             area.AxisY.MajorGrid.LineColor = Theme.CardBorder;
+            if (!isPie) area.AxisY.LabelStyle.Format = "€ #,##0";
             if (isPie) { area.Position.Auto = true; }
             chart.ChartAreas.Add(area);
 
@@ -968,15 +1008,24 @@ namespace CoworkingApp.Controls
                 ChartType = isPie ? SeriesChartType.Doughnut : (isLine ? SeriesChartType.Line : SeriesChartType.Column),
                 Color = Theme.Accent, BorderWidth = 2,
             };
+            if (!isPie && !isLine)
+            {
+                // Column chart: forçar 1 categoria por ponto (X strings não
+                // empilhadas) + labels com valor.
+                ser.IsXValueIndexed     = true;
+                ser["PointWidth"]       = "0.6";
+            }
             chart.Series.Add(ser);
             if (isPie)
             {
                 var leg = new Legend("leg") { Docking = Docking.Right, BackColor = Color.Transparent, ForeColor = Theme.TextSecondary, Font = Theme.FontSub };
                 chart.Legends.Add(leg);
                 ser.Legend = "leg";
+                ser["DoughnutRadius"] = "55";
+                ser.LegendText        = "#VALX (#PERCENT{P0})";
             }
-            inner.Controls.Add(chart);     // Fill primeiro (bottom z)
-            inner.Controls.Add(lblTitle);  // Top depois (top z, processa primeiro)
+            inner.Controls.Add(chart);
+            inner.Controls.Add(header);
             card.Controls.Add(inner);
             return card;
         }
@@ -1027,7 +1076,12 @@ namespace CoworkingApp.Controls
                         cmd.Parameters.AddWithValue("@f", _dtAnaFim.Value.Date);
                         using (var rdr = cmd.ExecuteReader())
                             while (rdr.Read())
-                                serM.Points.AddXY(rdr.GetString(0), Convert.ToDouble(rdr.GetDecimal(1)));
+                            {
+                                string mes = rdr.GetString(0);
+                                decimal tot = rdr.GetDecimal(1);
+                                int idx = serM.Points.AddXY(mes, Convert.ToDouble(tot));
+                                serM.Points[idx].ToolTip = $"{mes}: {Theme.FormatEuro(tot)}";
+                            }
                     }
 
                     // Métodos pie
@@ -1041,7 +1095,12 @@ namespace CoworkingApp.Controls
                         cmd.Parameters.AddWithValue("@f", _dtAnaFim.Value.Date);
                         using (var rdr = cmd.ExecuteReader())
                             while (rdr.Read())
-                                serP.Points.AddXY(rdr.GetString(0), rdr.GetInt32(1));
+                            {
+                                string met = rdr.GetString(0);
+                                int count = rdr.GetInt32(1);
+                                int idx = serP.Points.AddXY(met, count);
+                                serP.Points[idx].ToolTip = $"{met}: {count} pagamento" + (count == 1 ? "" : "s");
+                            }
                     }
                     Color[] pal = new[]
                     {
@@ -1065,7 +1124,12 @@ namespace CoworkingApp.Controls
                         cmd.Parameters.AddWithValue("@f", _dtAnaFim.Value.Date);
                         using (var rdr = cmd.ExecuteReader())
                             while (rdr.Read())
-                                serO.Points.AddXY(rdr.GetString(0), rdr.GetInt32(1));
+                            {
+                                string esp = rdr.GetString(0);
+                                int n = rdr.GetInt32(1);
+                                int idx = serO.Points.AddXY(esp, n);
+                                serO.Points[idx].ToolTip = $"{esp}: {n} reserva" + (n == 1 ? "" : "s");
+                            }
                     }
                 }
             }

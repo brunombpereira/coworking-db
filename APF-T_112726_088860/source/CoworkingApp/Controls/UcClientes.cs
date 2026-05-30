@@ -19,7 +19,7 @@ namespace CoworkingApp.Controls
     {
         private Label _kpiTotal, _kpiNovos, _kpiComAdesao;
         private ModernInput _txtSearch;
-        private Panel _listContainer;
+        private ScrollableList _listContainer;
         private Panel _emptyState;
 
         public UcClientes()
@@ -168,12 +168,11 @@ namespace CoworkingApp.Controls
             };
             var inner = new Panel { Dock = DockStyle.Fill, BackColor = Theme.CardBg, Padding = new Padding(8, 8, 8, 8) };
 
-            _listContainer = new Panel
+            _listContainer = new ScrollableList
             {
-                Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.CardBg,
-                Visible = false,
+                Dock = DockStyle.Fill, BackColor = Theme.CardBg, Visible = false,
             };
-            _listContainer.Resize += (s, e) => ResizeCards();
+            _listContainer.Content.BackColor = Theme.CardBg;
 
             _emptyState = BuildEmptyState("Nenhum cliente encontrado", IconChar.UserSlash);
             _emptyState.Dock = DockStyle.Fill;
@@ -243,8 +242,12 @@ namespace CoworkingApp.Controls
 
         private void LoadClients(SqlConnection conn)
         {
-            _listContainer.Controls.Clear();
-            int y = 0, count = 0;
+            _listContainer.Content.SuspendLayout();
+            _listContainer.Content.Controls.Clear();
+
+            var cards = new System.Collections.Generic.List<Control>();
+            int totalH = 0;
+            int count = 0;
             using (var cmd = new SqlCommand(
                 @"SELECT c.cliente_id, c.nome, c.nif, c.email, c.telefone, c.data_registo,
                         (SELECT COUNT(*) FROM reserva WHERE cliente_id = c.cliente_id)        AS num_reservas,
@@ -270,28 +273,22 @@ namespace CoworkingApp.Controls
                             ultimaReserva: r["ultima"] is DBNull ? null : (DateTime?)r["ultima"],
                             temAdesao:   Convert.ToInt32(r["tem_adesao"]) == 1
                         );
-                        card.Location = new Point(0, y);
-                        card.Anchor   = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-                        card.Width    = _listContainer.ClientSize.Width;
-                        _listContainer.Controls.Add(card);
-                        y += card.Height + 6;
+                        card.Dock = DockStyle.Top;
+                        cards.Add(card);
+                        totalH += card.Height + 6;
                         count++;
                     }
                 }
             }
+            // Adicionar reverse — Dock=Top processa em reverse z-order.
+            for (int i = cards.Count - 1; i >= 0; i--)
+                _listContainer.Content.Controls.Add(cards[i]);
+            _listContainer.Content.ResumeLayout();
+            _listContainer.UpdateLayout(totalH);
 
             _listContainer.Visible = count > 0;
             _emptyState.Visible    = count == 0;
             _emptyState.Invalidate();
-            ResizeCards();
-        }
-
-        private void ResizeCards()
-        {
-            if (_listContainer == null) return;
-            int w = _listContainer.ClientSize.Width;
-            if (w < 100) return;
-            foreach (Control c in _listContainer.Controls) c.Width = w;
         }
 
         // ── Client card ─────────────────────────────────────────────────
@@ -414,9 +411,11 @@ namespace CoworkingApp.Controls
                 var badge = new StatusPill
                 {
                     Text  = "Com adesão",
-                    Width = 100, Height = 22,
+                    Width = 140, Height = 22,
                     BackColor = idleBg,
-                    Margin = new Padding(10, 3, 0, 0),   // 10px gap + alinhamento vertical c/ nome
+                    AutoWidthFromText = true,
+                    HorizontalPadding = 14,            // mais ar à volta do texto
+                    Margin = new Padding(10, 3, 0, 0), // 10px gap + alinhamento vertical c/ nome
                 };
                 badge.SetColors(Theme.StatusSuccessBg, Theme.StatusSuccessFg);
                 nomeRow.Controls.Add(badge);
@@ -470,16 +469,123 @@ namespace CoworkingApp.Controls
             }
             Hook(row);
 
-            // Click no row (fora dos action buttons) → abre editor
+            // Click no row (fora dos action buttons) → abre detalhe (read-only)
             void HookRowClick(Control c)
             {
                 if (c == btnEdit || c == btnDelete) return;
-                c.Click += (s, e) => OpenEditor(id);
+                c.Click += (s, e) => OpenDetail(id, nome, nif, email, telefone,
+                                                 numReservas, ultimaReserva, temAdesao);
                 foreach (Control child in c.Controls) HookRowClick(child);
             }
             HookRowClick(row);
 
             return row;
+        }
+
+        // ── Detail (read-only) ──────────────────────────────────────────
+        private void OpenDetail(int id, string nome, string nif, string email, string telefone,
+                                int numReservas, DateTime? ultimaReserva, bool temAdesao)
+        {
+            var body = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 1,
+                AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            };
+
+            // Avatar circle grande (60) com inicial
+            var avatarRow = new Panel { Dock = DockStyle.Top, Height = 80, BackColor = Theme.CardBg };
+            string initial = string.IsNullOrEmpty(nome) ? "?" : nome.Substring(0, 1).ToUpper();
+            avatarRow.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+                int diam = 60;
+                int cx = 0, cy = (avatarRow.Height - diam) / 2;
+                using (var br = new SolidBrush(Theme.Accent))
+                    g.FillEllipse(br, cx, cy, diam, diam);
+                using (var f = new Font(Theme.FontBase.FontFamily, 22f, FontStyle.Bold))
+                {
+                    var ts = TextRenderer.MeasureText(g, initial, f, Size.Empty, TextFormatFlags.NoPadding);
+                    TextRenderer.DrawText(g, initial, f,
+                        new Point(cx + (diam - ts.Width) / 2, cy + (diam - ts.Height) / 2),
+                        Color.White, TextFormatFlags.NoPadding);
+                }
+                // Nome ao lado
+                using (var f = new Font(Theme.FontBase.FontFamily, 16f, FontStyle.Bold))
+                {
+                    TextRenderer.DrawText(g, nome, f, new Point(diam + 14, cy + 6),
+                        Theme.TextPrimary, TextFormatFlags.NoPadding);
+                }
+                // Chip 'Com adesão' se aplicável
+                if (temAdesao)
+                {
+                    int chipX = diam + 14, chipY = cy + 38;
+                    var pillRect = new Rectangle(chipX, chipY, 90, 22);
+                    using (var path = ModernCard.RoundedRect(pillRect, 11))
+                    using (var br = new SolidBrush(Theme.StatusSuccessBg))
+                        g.FillPath(br, path);
+                    TextRenderer.DrawText(g, "Com adesão", Theme.FontMicro, pillRect,
+                        Theme.StatusSuccessFg,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                }
+            };
+
+            // Adicionar fields (Dock=Top, reverse z-order → adicionar último
+            // = topo. Aqui queremos avatar em cima → adicionar último.)
+            body.Controls.Add(BuildDetailField("Última reserva",
+                ultimaReserva.HasValue ? ultimaReserva.Value.ToString("dd/MM/yyyy") : "—"));
+            body.Controls.Add(BuildDetailField("Nº reservas",  numReservas.ToString()));
+            body.Controls.Add(BuildDetailField("Telefone",     telefone ?? "—"));
+            body.Controls.Add(BuildDetailField("Email",        email));
+            body.Controls.Add(BuildDetailField("NIF",          nif));
+            body.Controls.Add(avatarRow);
+
+            // Modo read-only (onSave=null) → FormDialog mostra só 'Fechar'.
+            // Acrescentamos 'Editar dados' no Footer exposto.
+            using (var dlg = new CoworkingApp.FormDialog($"Detalhes — {nome}", body, 460, onSave: null))
+            {
+                var btnEditar = new ModernButton
+                {
+                    Text = "Editar dados", Style = ModernButton.Variant.Primary,
+                    Font = Theme.FontBold, Size = new Size(150, 36),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                };
+                // Posicionar à esquerda do botão Fechar dentro do footer.
+                btnEditar.Click += (s, e) => { dlg.DialogResult = DialogResult.OK; dlg.Close(); };
+                if (dlg.Footer != null)
+                {
+                    // Inserir o botão à esquerda dentro do FlowLayoutPanel do footer.
+                    foreach (Control flow in dlg.Footer.Controls)
+                    {
+                        if (flow is FlowLayoutPanel flp)
+                        {
+                            flp.Controls.Add(btnEditar);
+                            break;
+                        }
+                    }
+                }
+                if (dlg.ShowDialog(this.FindForm()) == DialogResult.OK)
+                    OpenEditor(id);
+            }
+        }
+
+        private static Panel BuildDetailField(string label, string value)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, Height = 50, BackColor = Theme.CardBg, Padding = new Padding(0, 8, 0, 0) };
+            pnl.Controls.Add(new Label
+            {
+                Text = value, Font = Theme.FontBase, ForeColor = Theme.TextPrimary,
+                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 24,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            pnl.Controls.Add(new Label
+            {
+                Text = label.ToUpper(), Font = Theme.FontMicro, ForeColor = Theme.TextMuted,
+                BackColor = Theme.CardBg, Dock = DockStyle.Top, Height = 16,
+                AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+            });
+            return pnl;
         }
 
         private static void PaintChildren(Control c, Color bg)
@@ -498,10 +604,10 @@ namespace CoworkingApp.Controls
         private void OpenEditor(int? id)
         {
             var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-            var txtNome = AddField(tbl, "Nome *");
-            var txtNif  = AddField(tbl, "NIF *");
-            var txtEmail = AddField(tbl, "Email *");
-            var txtTelefone = AddField(tbl, "Telefone");
+            var txtNome     = AddField(tbl, "Nome *",     IconChar.User,         placeholder: "Ana Silva");
+            var txtNif      = AddField(tbl, "NIF *",      IconChar.IdCard,       placeholder: "123456789");
+            var txtEmail    = AddField(tbl, "Email *",    IconChar.Envelope,     placeholder: "ana@example.com");
+            var txtTelefone = AddField(tbl, "Telefone",   IconChar.Phone,        placeholder: "912 345 678");
 
             if (id.HasValue)
             {
@@ -522,7 +628,7 @@ namespace CoworkingApp.Controls
                 }
             }
 
-            using (var dlg = new CoworkingApp.FormDialog(id.HasValue ? "Editar Cliente" : "Novo Cliente", tbl, 380, () =>
+            using (var dlg = new CoworkingApp.FormDialog(id.HasValue ? "Editar Cliente" : "Novo Cliente", tbl, 480, () =>
             {
                 if (string.IsNullOrWhiteSpace(txtNome.Text)) throw new ApplicationException("Nome é obrigatório.");
                 if (!Regex.IsMatch(txtNif.Text.Trim(), @"^\d{9}$")) throw new ApplicationException("NIF inválido (9 dígitos).");
@@ -587,9 +693,16 @@ namespace CoworkingApp.Controls
         //   var cmb = AddCombo(tbl, "Opcional", new[]{"A","B"});
         //   cmb.Parent.Visible = false;
         internal static ModernInput AddField(TableLayoutPanel tbl, string label)
+            => AddField(tbl, label, IconChar.None, placeholder: null);
+
+        /// <summary>AddField com ícone leading + placeholder opcional.</summary>
+        internal static ModernInput AddField(TableLayoutPanel tbl, string label,
+                                              IconChar icon, string placeholder = null)
         {
             var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 12) };
-            var input = new ModernInput { Dock = DockStyle.Top, Height = 38 };
+            var input = new ModernInput { Dock = DockStyle.Top, Height = 42 };
+            if (icon != IconChar.None) input.LeadingIcon = icon;
+            if (placeholder != null)  input.PlaceholderText = placeholder;
             pnl.Controls.Add(input);
             pnl.Controls.Add(Theme.FieldLabel(label));
             tbl.Controls.Add(pnl);
@@ -605,6 +718,45 @@ namespace CoworkingApp.Controls
             pnl.Controls.Add(Theme.FieldLabel(label));
             tbl.Controls.Add(pnl);
             return cmb;
+        }
+
+        /// <summary>AddModernSelect — picker custom dark-themed (substitui o
+        /// ComboBox nativo). Aceita string[] e selecciona o primeiro item.</summary>
+        internal static ModernSelect AddModernSelect(TableLayoutPanel tbl, string label, string[] items)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 12) };
+            var sel = new ModernSelect { Dock = DockStyle.Top, Height = 42 };
+            if (items != null && items.Length > 0) sel.AddItems(items);
+            pnl.Controls.Add(sel);
+            pnl.Controls.Add(Theme.FieldLabel(label));
+            tbl.Controls.Add(pnl);
+            return sel;
+        }
+
+        /// <summary>AddModernSelect com DataTable (display/value cols).</summary>
+        internal static ModernSelect AddModernSelectDataSource(TableLayoutPanel tbl, string label,
+                                                                DataTable dt, string displayCol, string valueCol)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 12) };
+            var sel = new ModernSelect { Dock = DockStyle.Top, Height = 42 };
+            if (dt != null) sel.BindDataTable(dt, displayCol, valueCol);
+            pnl.Controls.Add(sel);
+            pnl.Controls.Add(Theme.FieldLabel(label));
+            tbl.Controls.Add(pnl);
+            return sel;
+        }
+
+        /// <summary>AddModernDateField — campo data dark consistente com
+        /// o filtro 'Período' do toolbar (substitui o DateTimePicker
+        /// nativo Windows-style).</summary>
+        internal static ModernDateField AddModernDateField(TableLayoutPanel tbl, string label)
+        {
+            var pnl = new Panel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Padding = new Padding(0, 0, 0, 12) };
+            var dt  = new ModernDateField { Dock = DockStyle.Top, Height = 42, Value = DateTime.Today };
+            pnl.Controls.Add(dt);
+            pnl.Controls.Add(Theme.FieldLabel(label));
+            tbl.Controls.Add(pnl);
+            return dt;
         }
 
         internal static ComboBox AddComboDataSource(TableLayoutPanel tbl, string label, object dataSource, string display, string value)
