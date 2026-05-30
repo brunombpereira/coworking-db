@@ -14,6 +14,18 @@ namespace CoworkingApp
         /// para callers em modo read-only adicionarem botões extra.</summary>
         public Panel Footer { get; private set; }
 
+        /// <summary>Adiciona um botão de acção ao footer (right-aligned).
+        /// Torna o footer visível se ainda não estiver — usado por modo
+        /// read-only para acções tipo "Descarregar PDF".</summary>
+        public void AddFooterAction(Control button)
+        {
+            if (_footerFlow == null) return;
+            _footerFlow.Controls.Add(button);
+            Footer.Visible = true;
+        }
+
+        private FlowLayoutPanel _footerFlow;
+
         /// <summary>
         /// Modal genérico para forms de criar/editar.
         /// </summary>
@@ -104,8 +116,12 @@ namespace CoworkingApp
                 AutoSize = true,
                 BackColor = Theme.CardBg,
             };
-            // Modo read-only (onSave=null): sem footer — só a cruz X.
+            // Modo read-only (onSave=null): footer pode ser preenchido pelo
+            // caller (ex: "Descarregar PDF"). Sem onSave, fica invisível por
+            // omissão — caller deve fazer Footer.Visible=true se adicionar.
             bool readOnly = (onSave == null);
+            _footerFlow = flow;
+            pnlFooter.Controls.Add(flow);
             if (!readOnly)
             {
                 var btnSave = new ModernButton
@@ -156,13 +172,12 @@ namespace CoworkingApp
                 // Right-to-left flow → primeiro Add = mais à direita.
                 flow.Controls.Add(btnSave);
                 flow.Controls.Add(btnCancel);
-                pnlFooter.Controls.Add(flow);
             }
             else
             {
                 pnlFooter.Visible = false;
             }
-            Footer = readOnly ? null : pnlFooter;
+            Footer = pnlFooter;
 
             // Compose
             _card.Controls.Add(_body);

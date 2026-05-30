@@ -530,7 +530,74 @@ namespace CoworkingApp.Controls
             body.Controls.Add(header);
 
             using (var dlg = new FormDialog($"Pagamento #{id}", body, 500, onSave: null))
+            {
+                // Acção extra no footer: descarregar recibo PDF.
+                var btnPdf = new ModernButton
+                {
+                    Text = "↓ Recibo PDF",
+                    Style = ModernButton.Variant.Primary,
+                    Font = Theme.FontBold,
+                    Size = new Size(160, 36),
+                    Margin = new Padding(12, 0, 0, 0),
+                };
+                btnPdf.Click += (s, e) => GerarReciboPdf(id);
+                dlg.AddFooterAction(btnPdf);
                 dlg.ShowDialog(FindForm());
+            }
+        }
+
+        private void GerarReciboPdf(int pagamentoId)
+        {
+            try
+            {
+                var data = ReciboPdf.Fetch(pagamentoId);
+                if (data == null)
+                {
+                    MessageBox.Show("Pagamento não encontrado.", "Erro",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                using (var sfd = new SaveFileDialog
+                {
+                    Title = "Guardar recibo PDF",
+                    Filter = "PDF (*.pdf)|*.pdf",
+                    FileName = ReciboPdf.SuggestFilename(data),
+                    InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
+                })
+                {
+                    if (sfd.ShowDialog(FindForm()) != DialogResult.OK) return;
+                    ReciboPdf.Generate(data, sfd.FileName);
+                    var ans = MessageBox.Show(
+                        $"Recibo gerado em:\n{sfd.FileName}\n\nAbrir agora?",
+                        "Recibo gerado", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                    if (ans == DialogResult.Yes)
+                    {
+                        try
+                        {
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = sfd.FileName,
+                                UseShellExecute = true,
+                            });
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show("Não foi possível abrir o ficheiro: " + ex.Message,
+                                "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        }
+                    }
+                }
+            }
+            catch (SqlException ex)
+            {
+                MessageBox.Show(Database.SqlErrorMessage(ex), "Erro",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Erro ao gerar PDF: " + ex.Message, "Erro",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private static Panel BuildDetailFieldP(string label, string value)
