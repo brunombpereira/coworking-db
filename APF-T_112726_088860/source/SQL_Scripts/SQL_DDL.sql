@@ -168,29 +168,8 @@ CREATE TABLE pagamento (
 GO
 
 -- =====================================================================
--- Extensões (auth + features de domínio adicionais)
+-- Extensões (features de domínio adicionais)
 -- =====================================================================
-
--- utilizador (auth) ---------------------------------------------------
--- password_hash = HASHBYTES('SHA2_256', salt || password)
-CREATE TABLE utilizador (
-    utilizador_id  INTEGER       IDENTITY(1,1) PRIMARY KEY,
-    username       NVARCHAR(100) NOT NULL UNIQUE,
-    password_hash  VARBINARY(64) NOT NULL,
-    salt           VARBINARY(16) NOT NULL,
-    role           NVARCHAR(20)  NOT NULL
-        CHECK (role IN ('Admin','Staff','Cliente')),
-    cliente_id     INTEGER       NULL
-        REFERENCES cliente(cliente_id) ON DELETE SET NULL,
-    ativo          BIT           NOT NULL DEFAULT 1,
-    data_criacao   DATETIME2     NOT NULL DEFAULT SYSDATETIME(),
-    ultimo_login   DATETIME2     NULL,
-    CONSTRAINT ck_utilizador_cliente_role CHECK (
-        (role = 'Cliente' AND cliente_id IS NOT NULL)
-     OR (role IN ('Admin','Staff') AND cliente_id IS NULL)
-    )
-);
-GO
 
 -- politica_cancelamento ----------------------------------------------
 -- Tiers de reembolso por antecedência. A política aplicada é a de maior

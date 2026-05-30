@@ -77,29 +77,20 @@ como registo histórico do que foi entregue na APF-E.
 > cobrado **explícita no schema** em vez de viver só nos triggers — fotografa o
 > preço do serviço no momento do pagamento.
 
-### 5. Autenticação
-
-**utilizador**(<u>utilizador_id</u>, username, password_hash, salt, role, *cliente_id*↑cliente?, ativo, data_criacao, ultimo_login?)
-- UNIQUE: `username`
-- CHECK: `role ∈ {Admin, Staff, Cliente}`
-- CHECK `ck_utilizador_cliente_role`: `role=Cliente ⟺ cliente_id NOT NULL`
-- ON DELETE SET NULL em `cliente_id`
-- `password_hash = HASHBYTES('SHA2_256', salt || password)`
-
-### 6. Política de cancelamento
+### 5. Política de cancelamento
 
 **politica_cancelamento**(<u>politica_id</u>, nome, horas_minimas, perc_reembolso, ativa)
 - UNIQUE: `nome`
 - CHECK: `horas_minimas ≥ 0`, `perc_reembolso ∈ [0, 100]`
 - Aplicada por `sp_cancelar_reserva_com_reembolso` (não por FK directa de `reserva`)
 
-### 7. Notificações
+### 6. Notificações
 
 **notificacao**(<u>notificacao_id</u>, *cliente_id*↑cliente, tipo, assunto, mensagem, data_criacao, lida, data_leitura?)
 - CHECK: `tipo ∈ {ReservaCriada, ReservaProxima, ReservaCancelada, PagamentoConfirmado, AdesaoExpirar, ListaEsperaPromovida}`
 - ON DELETE CASCADE em `cliente_id`
 
-### 8. Lista de espera
+### 7. Lista de espera
 
 **lista_espera**(<u>lista_espera_id</u>, *cliente_id*↑cliente, *recurso_id*↑recurso, data_pretendida, hora_inicio?, hora_fim?, data_inscricao, estado, *reserva_id*↑reserva?)
 - CHECK: `estado ∈ {Aguarda, Notificado, Promovido, Cancelado}`
@@ -115,7 +106,7 @@ como registo histórico do que foi entregue na APF-E.
 | Adicionado `recurso` (supertype) + `sala`/`posto` como subtypes (PK=FK) | Centraliza a FK de `reserva` e `lista_espera` |
 | `Adesão` ganha `recurso_id` (NULL para Flex) e `preco_acordado` | Modela a regra "Fixo/Privado têm posto atribuído" + snapshot do preço |
 | `Pagamento` ganha `preco_servico_snapshot` + FKs `adesao_id`/`reserva_id` (XOR) | Correção #1 do prof. |
-| **Novas tabelas:** `utilizador`, `politica_cancelamento`, `notificacao`, `lista_espera` | Features APF-T (auth, reembolsos, eventos, espera) |
+| **Novas tabelas:** `politica_cancelamento`, `notificacao`, `lista_espera` | Features APF-T (reembolsos, eventos, espera) |
 
 ## Tabelas de histórico (implementação)
 
@@ -131,7 +122,6 @@ Consultáveis via `FOR SYSTEM_TIME AS OF | BETWEEN | ALL` (ver `vw_reservas_hist
 
 | Origem | Cardinalidade | Destino |
 |---|---|---|
-| `cliente` | 1 — 0..1 | `utilizador` |
 | `cliente` | 1 — 0..N | `adesao`, `reserva`, `pagamento`, `notificacao`, `lista_espera` |
 | `plano` | 1 — 0..N | `adesao` |
 | `espaco` | 1 — 0..N | `sala`, `posto` |

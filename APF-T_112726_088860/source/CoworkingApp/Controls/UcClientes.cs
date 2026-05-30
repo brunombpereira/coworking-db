@@ -149,7 +149,6 @@ namespace CoworkingApp.Controls
                 Text = "—", Font = new Font(Theme.FontBase.FontFamily, 24f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
                 Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(0, 4, 0, 0),
             };
 
             inner.Controls.Add(valueLbl);

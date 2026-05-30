@@ -10,35 +10,31 @@
 
 Este projeto implementa o sistema de gestão de um operador de coworking com vários espaços físicos, salas de reunião reserváveis à hora e postos de trabalho atribuídos por adesão ou alugados ao dia. Cobre o ciclo de vida completo de cliente, adesão, reserva e pagamento, e expõe à aplicação C# Windows Forms um conjunto de stored procedures, views e funções que encapsulam toda a regra de negócio.
 
-A entrega APF-E definiu requisitos, DER e esquema relacional. A APF-T concretiza o modelo em SQL Server 2019, com schema, índices, 16 triggers, 8 views de consulta, 7 UDFs e 14 SPs, mais segurança baseada em roles, auditoria via system-versioned tables, e plano de testes documentado.
+A entrega APF-E definiu requisitos, DER e esquema relacional. A APF-T concretiza o modelo em SQL Server 2019, com schema, índices, 16 triggers, 11 views de consulta, 7 UDFs e SPs de negócio, auditoria via system-versioned tables, e plano de testes documentado.
 
 ## 2. Arquitetura
 
 ```
 ┌────────────────────────────────┐
 │  CoworkingApp (C# WinForms)    │
-│  - Login / Register Form       │
-│  - Menus por role              │
+│  - Sidebar + UCs por área      │
 │  - Forms entidade + relatórios │
 └──────────┬─────────────────────┘
-           │ ADO.NET (SqlConnection)
-           │ User: cowork_app  → role: app_staff
+           │ ADO.NET (SqlConnection parametrizada)
            ▼
 ┌────────────────────────────────┐
 │  SQL Server 2019 Express       │
 │  CoworkingDB                   │
 │  - Tabelas + temporal history  │
 │  - 16 triggers (regras BN)     │
-│  - 14 SPs, 8 views, 7 UDFs     │
-│  - Roles: app_cliente / staff  │
-│           / admin              │
+│  - SPs, views, UDFs            │
 └────────────────────────────────┘
 ```
 
-A aplicação nunca executa SQL ad-hoc — todas as operações passam por SPs com `GRANT EXECUTE` à role apropriada. As tabelas têm `DENY` direto para `app_cliente` e `app_staff`. Isto:
+A aplicação invoca a BD exclusivamente via `SqlCommand` parametrizado (sem concatenação de strings) — toda a lógica de negócio fica encapsulada em SPs/triggers e a app é uma fina camada de apresentação. Vantagens:
 - Elimina vetores de SQL injection.
 - Centraliza a regra de negócio na BD (a app não pode contornar triggers/validações).
-- Permite auditar com `sys.dm_exec_procedure_stats` e logs ao nível da SP.
+- A camada de apresentação pode ser reescrita (web, mobile) sem tocar nas regras.
 
 ## 3. Modelo de Dados
 
@@ -55,7 +51,6 @@ A aplicação nunca executa SQL ad-hoc — todas as operações passam por SPs c
 | `adesao` | adesao_id | Cliente↔Plano com preço snapshot + recurso opcional |
 | `reserva` | reserva_id | Cliente↔Recurso para data/horas |
 | `pagamento` | pagamento_id | Liga-se a **exactly one** adesão XOR reserva |
-| `utilizador` | utilizador_id | Auth — username + hash SHA256 + salt |
 | `politica_cancelamento` | politica_id | Tiers de reembolso por antecedência |
 | `notificacao` | notificacao_id | Eventos enviados ao cliente |
 | `lista_espera` | lista_espera_id | Cliente↔Recurso quando indisponível |
@@ -90,26 +85,11 @@ Todas as tabelas estão em **BCNF**:
 
 Não existe violação 3→BCNF porque as únicas DFs não-triviais saem ou de PKs ou de UNIQUE keys (candidate keys), pelo que toda DF tem lado esquerdo superkey.
 
-## 5. Segurança
+## 5. Robustez aplicacional
 
-### 5.1 Autenticação
-- Tabela `utilizador` com `password_hash VARBINARY(64)` (SHA-256) e `salt VARBINARY(16)` aleatório por utilizador (`CRYPT_GEN_RANDOM`).
-- SP `sp_login_user` retorna resultset vazio em qualquer falha (não distingue username inválido vs. password errada) — evita user-enumeration.
-- `sp_change_password` exige password atual.
+A app comunica com a BD exclusivamente via `SqlCommand` parametrizado (`cmd.Parameters.AddWithValue(...)`). Não há concatenação de strings SQL, não há `EXEC(@sql)` na BD. Todas as operações DML passam por SPs com `SET XACT_ABORT ON` que fazem rollback automático em qualquer erro intra-transacção.
 
-### 5.2 Autorização
-Três roles:
-
-| Role | Permissões |
-|---|---|
-| `app_cliente` | Login, ver/criar/cancelar as suas reservas, lista de espera, notificações |
-| `app_staff` | Tudo do cliente + registar clientes, criar/cancelar adesões, registar pagamentos, promover lista de espera, relatórios |
-| `app_admin` | `CONTROL` sobre a BD (DDL + DML direto) |
-
-`DENY` explícito nas tabelas para `app_cliente`/`app_staff` — só SPs/views. A app liga-se como `cowork_app` (member de `app_staff`).
-
-### 5.3 SQL injection
-Inexistente por construção: a app só invoca SPs parametrizadas via `SqlCommand.Parameters.Add(...)`. Não há `string.Format` em SQL nem `EXEC (@sql)` na BD.
+Resultado: SQL injection é inexistente por construção; a regra de negócio fica encapsulada em SPs/triggers; a camada de apresentação é fina (UI + chamadas a SPs) e pode ser substituída sem tocar nas regras.
 
 ## 6. Concorrência
 
@@ -157,15 +137,13 @@ Filtered indexes em `pagamento` reduzem o tamanho em 50% (a maioria dos pagament
 
 ## 9. Plano de Testes
 
-Ver `SQL_Scripts/Tests/Plano_Testes.md`. 25 casos cobrindo:
+Ver `SQL_Scripts/Tests/Plano_Testes.md`. Casos cobrindo:
 - Cada um dos 12 THROWs dos triggers (TC01–TC11).
-- Auth: register/login/change_password (TC12–TC15).
 - Concorrência manual em 2 sessões (TC16).
 - Temporal: FOR SYSTEM_TIME ALL e AS OF (TC17–TC18).
 - Reembolso por política (TC19–TC20).
 - Lista de espera + promoção (TC21–TC22).
 - Reservas recorrentes (TC23).
-- Segurança: permissões por role (TC24–TC25).
 
 ## 10. Interface — Fase 3: Card-list redesign
 
@@ -230,7 +208,6 @@ Decisão arquitectural: o **outer** do conteúdo de cada tab é um `Panel(PageBg
 - ~72 reservas de sala via `WHILE` loop (1 quarta-feira/semana × 72 semanas), com rotação determinística de clientes/recursos e slots horários para evitar T1 (sobreposição)
 - ~9 day passes de posto Flex (Diogo/Eva alternados, ~bimestrais — evita T11)
 - Pagamentos auto-gerados via `INSERT ... SELECT` sobre `adesao` e `reserva` (snapshot=valor para passar T6)
-- 15 utilizadores novos
 
 Cobertura: 18 meses (Jan/2025 → Mai/2026), suficiente para os gráficos mostrarem tendências mensais sem sobrecarregar a UI.
 
@@ -238,13 +215,11 @@ Cobertura: 18 meses (Jan/2025 → Mai/2026), suficiente para os gráficos mostra
 
 A ordem é crítica porque alguns SPs dependem de outros. Documentada em `SQL_Scripts/README.md`:
 
-`SQL_DDL` → `User_defined_functions` → `Triggers` → `Views` → **`Auth`** → `Stored_procedures` → `Temporal_tables` → `Indexes` → `Security` → `SQL_DML`
-
-A nota importante: **`Auth.sql` *antes* de `Stored_procedures.sql`** porque o `sp_registar_cliente_completo` (em Stored_procedures) chama o `sp_register_user` (em Auth). E `Security.sql` por último porque os `GRANT` precisam que os objects já existam.
+`SQL_DDL` → `User_defined_functions` → `Triggers` → `Views` → `Stored_procedures` → `Temporal_tables` → `Indexes` → `SQL_DML`
 
 ## 11. Conclusão
 
-O sistema cobre o domínio com 9 tabelas core + 4 de extensão (auth, política, notificação, lista de espera), com regras enforçadas a 3 níveis: constraints SQL (cardinalidade/domínio), triggers (regras transversais), SPs (concorrência + lógica composta). A camada de segurança via roles + SPs torna a aplicação resistente a SQL injection by design, e a auditoria via temporal tables dá-nos histórico para sempre sem trigger adicional.
+O sistema cobre o domínio com 9 tabelas core + 3 de extensão (política de cancelamento, notificação, lista de espera), com regras enforçadas a 3 níveis: constraints SQL (cardinalidade/domínio), triggers (regras transversais), SPs (concorrência + lógica composta). A aplicação invoca a BD exclusivamente via SPs parametrizadas — resistente a SQL injection por construção — e a auditoria via temporal tables dá-nos histórico para sempre sem trigger adicional.
 
 **Limitações conhecidas:**
 - Notificações ficam só na tabela; envio efetivo de email exigiria SQL Agent + Database Mail configurados fora do scope da disciplina.
@@ -326,12 +301,11 @@ professor e como suporte à apresentação oral.
 
 | Feature | Motivação | Implementação |
 |---|---|---|
-| Autenticação por roles | Sem login, não há como demonstrar a separação Admin/Staff/Cliente | Tabela `utilizador` (SHA-256 + salt); SPs `sp_register_user`, `sp_login_user`, `sp_change_password`; 3 roles em `Security.sql` (`app_admin`, `app_staff`, `app_cliente`) com `DENY` directo a tabelas + `GRANT EXECUTE` por SP |
 | Política de cancelamento com reembolso | Reflectir prática real de coworking | Tabela `politica_cancelamento` (tiers por antecedência); SP `sp_cancelar_reserva_com_reembolso` aplica a tier de maior `horas_minimas ≤ antecedência` |
 | Notificações | Feedback ao cliente sobre eventos relevantes | Tabela `notificacao`; triggers T13/T14/T15 emitem automaticamente (criar/cancelar reserva, confirmar pagamento); view `vw_notificacoes_por_ler`; `UcNotificacoes` |
 | Lista de espera | Recurso indisponível não deve perder o cliente | Tabela `lista_espera`; SPs `sp_adicionar_lista_espera`, `sp_promover_lista_espera` (cria reserva + actualiza estado + notifica) |
 | Reservas recorrentes | Use case comum em coworking | SP `sp_criar_reserva_recorrente` (cria N reservas por dia da semana, com try/catch individual para reportar falhas) |
 | Auditoria temporal | Recuperar histórico sem schema adicional | `SYSTEM_VERSIONING = ON` em `adesao`, `reserva`, `pagamento` → tabelas `_history` auto-mantidas; view `vw_reservas_historico` (FOR SYSTEM_TIME ALL) |
-| Self-registration de cliente | Visitantes têm de poder criar conta sem intervenção do staff | SP `sp_registar_cliente_completo` cria `cliente` + `utilizador` (role=Cliente) numa transacção atómica. Reusa `sp_register_user` para o hash. Validações: password ≥ 8, username único, NIF/email únicos via UNIQUE constraint. `FormRegister` com auto-login imediato após sucesso |
-| Gestão de utilizadores pelo admin | Admin tem de poder criar contas Staff/Admin, resetar passwords e desactivar contas comprometidas | SPs `sp_admin_create_user` (any role, com cliente_id quando Cliente), `sp_admin_reset_password` (sem exigir password antiga), `sp_admin_toggle_user_active` (soft-delete). View `vw_utilizadores_listagem` (utilizador + nome do cliente associado). `UcUtilizadores` visível só a Session.IsAdmin |
-| Página de perfil | UX padrão de apps modernas | `UcPerfil` lê dados do utilizador autenticado + cliente associado; permite alterar password via `sp_change_password` (exige password actual) |
+| Indicador de ligação à BD | Feedback visual ao utilizador se a BD está acessível | Status bar do `FormMain` com dot verde/vermelho + texto LIGADO/SEM LIGAÇÃO; `Database.IsAvailable()` chamado on-load + a cada 30s (assíncrono) |
+| Tab "Mapa" em Reservas | Visualizar ocupação por hora num dia (gantt simples) | `MapaReservasView` (Panel custom-painted) com timeline 08h-20h, linhas=salas agrupadas por espaço, células coloridas pelo estado da reserva; click abre detail dialog |
+| Recibo PDF de pagamento | Cliente/staff precisa de documento de prova | Pacote `PdfSharp 6.1.1` (MIT); `ReciboPdf.cs` gera A4 com header indigo, cliente, serviço, snapshot de preço, total destacado; botão "↓ Recibo PDF" no detalhe do pagamento |

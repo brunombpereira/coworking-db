@@ -186,7 +186,6 @@ namespace CoworkingApp.Controls
                 Text = "—", Font = new Font(Theme.FontBase.FontFamily, 24f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
                 Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(0, 4, 0, 0),
             };
             inner.Controls.Add(valueLbl);
             inner.Controls.Add(topLine);
@@ -247,27 +246,21 @@ namespace CoworkingApp.Controls
         private void Carregar()
         {
             // SQL: carrega TUDO (filtro por-ler é client-side, para KPIs ficarem corretos)
-            string whereCliente = Session.IsCliente ? "AND n.cliente_id = @cid" : "";
-            string sql = $@"
+            string sql = @"
                 SELECT TOP 200 n.notificacao_id AS id, c.nome AS cliente, n.tipo AS tipo,
                        n.assunto AS assunto, n.mensagem AS mensagem,
                        n.data_criacao AS data, ISNULL(n.lida, 0) AS lida
                 FROM notificacao n
                 JOIN cliente c ON n.cliente_id = c.cliente_id
-                WHERE 1 = 1 {whereCliente}
                 ORDER BY n.data_criacao DESC";
             try
             {
                 using (var conn = Database.GetConnection())
                 using (var cmd = new SqlCommand(sql, conn))
+                using (var da = new SqlDataAdapter(cmd))
                 {
-                    if (Session.IsCliente && Session.ClienteId.HasValue)
-                        cmd.Parameters.AddWithValue("@cid", Session.ClienteId.Value);
-                    using (var da = new SqlDataAdapter(cmd))
-                    {
-                        _allRows = new DataTable();
-                        da.Fill(_allRows);
-                    }
+                    _allRows = new DataTable();
+                    da.Fill(_allRows);
                 }
                 RenderRows();
             }

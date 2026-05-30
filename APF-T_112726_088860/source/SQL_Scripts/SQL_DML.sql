@@ -143,20 +143,6 @@ INSERT INTO politica_cancelamento (nome, horas_minimas, perc_reembolso) VALUES
  (N'<24h: 0%',           0,   0.00);
 GO
 
--- =====================================================================
--- Seed: utilizador (passwords de DEV — TROCAR EM PRODUÇÃO)
--- Pré-requisito: Auth.sql executado.
--- =====================================================================
-DECLARE @uid INT;
-EXEC sp_register_user N'admin',  N'admin1234',   'Admin',   NULL, @uid OUTPUT;
-EXEC sp_register_user N'staff1', N'staff1234',   'Staff',   NULL, @uid OUTPUT;
-EXEC sp_register_user N'ana',    N'cliente1234', 'Cliente', 1,    @uid OUTPUT;
-EXEC sp_register_user N'bruno',  N'cliente1234', 'Cliente', 2,    @uid OUTPUT;
-EXEC sp_register_user N'carla',  N'cliente1234', 'Cliente', 3,    @uid OUTPUT;
-EXEC sp_register_user N'diogo',  N'cliente1234', 'Cliente', 4,    @uid OUTPUT;
-EXEC sp_register_user N'eva',    N'cliente1234', 'Cliente', 5,    @uid OUTPUT;
-GO
-
 PRINT 'Seed base inserido.';
 GO
 
@@ -344,27 +330,6 @@ WHERE r.estado = 'Confirmada'
   AND r.reserva_id > 4
   AND NOT EXISTS (SELECT 1 FROM pagamento pg WHERE pg.reserva_id = r.reserva_id);
 PRINT CONCAT('Pagamentos de reserva: ', @@ROWCOUNT);
-GO
-
--- =====================================================================
--- Utilizadores adicionais para os clientes novos (passwords DEV)
--- =====================================================================
-DECLARE @uid INT;
-EXEC sp_register_user N'filipe',   N'cliente1234', 'Cliente', 6,  @uid OUTPUT;
-EXEC sp_register_user N'gabriela', N'cliente1234', 'Cliente', 7,  @uid OUTPUT;
-EXEC sp_register_user N'hugo',     N'cliente1234', 'Cliente', 8,  @uid OUTPUT;
-EXEC sp_register_user N'ines',     N'cliente1234', 'Cliente', 9,  @uid OUTPUT;
-EXEC sp_register_user N'joao',     N'cliente1234', 'Cliente', 10, @uid OUTPUT;
-EXEC sp_register_user N'luisa',    N'cliente1234', 'Cliente', 11, @uid OUTPUT;
-EXEC sp_register_user N'manuel',   N'cliente1234', 'Cliente', 12, @uid OUTPUT;
-EXEC sp_register_user N'nuno',     N'cliente1234', 'Cliente', 13, @uid OUTPUT;
-EXEC sp_register_user N'olivia',   N'cliente1234', 'Cliente', 14, @uid OUTPUT;
-EXEC sp_register_user N'pedro',    N'cliente1234', 'Cliente', 15, @uid OUTPUT;
-EXEC sp_register_user N'rita',     N'cliente1234', 'Cliente', 16, @uid OUTPUT;
-EXEC sp_register_user N'sofia',    N'cliente1234', 'Cliente', 17, @uid OUTPUT;
-EXEC sp_register_user N'tiago',    N'cliente1234', 'Cliente', 18, @uid OUTPUT;
-EXEC sp_register_user N'vanessa',  N'cliente1234', 'Cliente', 19, @uid OUTPUT;
-EXEC sp_register_user N'xavier',   N'cliente1234', 'Cliente', 20, @uid OUTPUT;
 GO
 
 PRINT 'Seed expandido inserido com sucesso.';

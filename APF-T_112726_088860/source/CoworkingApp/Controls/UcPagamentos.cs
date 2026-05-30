@@ -86,6 +86,9 @@ namespace CoworkingApp.Controls
                 Text = "+ Novo Pagamento", Style = ModernButton.Variant.Primary,
                 Font = Theme.FontBold, Size = new Size(170, 40),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                // Cliente não cria pagamentos manualmente — são gerados pelo
+                // sistema/staff (snapshot de preço, validação financeira, etc).
+                Visible = true,
             };
             _btnNovo.Click += (s, e) => OpenEditor(null);
 
@@ -136,7 +139,7 @@ namespace CoworkingApp.Controls
                 AutoSize = false, Width = TextRenderer.MeasureText(text, font).Width + 4,
                 Height = 36, TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Theme.CardBg,
-                Margin = new Padding(text == "Cliente" ? 0 : 18, 0, 8, 0),
+                Margin = new Padding(text == "Cliente" ? 8 : 18, 0, 8, 0),
             };
         }
 
@@ -192,7 +195,6 @@ namespace CoworkingApp.Controls
                 Text = "—", Font = new Font(Theme.FontBase.FontFamily, 24f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
                 Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(0, 4, 0, 0),
             };
             inner.Controls.Add(valueLbl);
             inner.Controls.Add(topLine);
@@ -427,6 +429,9 @@ namespace CoworkingApp.Controls
             leftBlock.Resize += (s, e) => leftBlock.Invalidate();
 
             // ─── Direita: ações ───────────────────────────────────────
+            // Cliente: pagamentos são read-only (gerados pelo sistema). Esconde
+            // edit/delete. O detalhe + recibo PDF continuam acessíveis via click.
+            bool roCliente = false;
             var actions = new Panel { Dock = DockStyle.Right, Width = 90, BackColor = idleBg };
             var btnEdit = UcEspacos.MakeIconBtn(IconChar.Pen, Theme.Accent, idleBg, () => OpenEditor(id));
             var btnDel  = UcEspacos.MakeIconBtn(IconChar.TrashCan, Theme.StatusDangerFg, idleBg, () => EliminarPagamento(id));
@@ -442,7 +447,7 @@ namespace CoworkingApp.Controls
                 Text = Theme.FormatEuro(valor),
                 Font = new Font(Theme.FontBase.FontFamily, 14f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 30, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+                Dock = DockStyle.Top, Height = 32, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
             };
             var estadoHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
             var estadoPill = new StatusPill

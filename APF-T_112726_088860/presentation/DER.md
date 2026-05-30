@@ -12,7 +12,6 @@ e usar **Actions → PNG**.
 | Adicionado supertype `recurso` (com subtypes `sala` / `posto`) | Centraliza a FK das reservas; trigger T1 (sobreposição) fica mais simples. |
 | `pagamento.preco_servico_snapshot` | **Correção #1 do prof.**: ligação explícita ao preço cobrado, em vez de só viver no trigger T6. |
 | Nova entidade `adesao` (em vez da relação "Subscreve") | Adesão tem atributos próprios (estado, datas, preço acordado) — promovida a entidade. |
-| Nova entidade `utilizador` (auth) | Camada de autenticação para a app C#. |
 | Nova entidade `politica_cancelamento` | Tiers de reembolso aplicados em `sp_cancelar_reserva_com_reembolso`. |
 | Nova entidade `notificacao` | Eventos enviados ao cliente (criação de reserva, pagamento, etc.). |
 | Nova entidade `lista_espera` | Cliente aguarda recurso indisponível; pode ser promovida a reserva. |
@@ -23,7 +22,6 @@ e usar **Actions → PNG**.
 ```mermaid
 erDiagram
     %% ── Identidade ──────────────────────────────────────────
-    cliente ||--o| utilizador            : "1:0..1 auth"
     cliente ||--o{ adesao                : "tem"
     cliente ||--o{ reserva               : "faz"
     cliente ||--o{ pagamento             : "efetua"
@@ -134,18 +132,6 @@ erDiagram
         nvarchar estado                  "Pendente | Pago | Cancelado | Reembolsado"
         int      adesao_id               FK "XOR reserva_id"
         int      reserva_id              FK "XOR adesao_id"
-    }
-
-    utilizador {
-        int           utilizador_id PK
-        nvarchar      username      UK
-        varbinary(64) password_hash "SHA-256(salt || password)"
-        varbinary(16) salt          "CRYPT_GEN_RANDOM(16)"
-        nvarchar      role          "Admin | Staff | Cliente"
-        int           cliente_id    FK "obrigatório se role=Cliente"
-        bit           ativo
-        datetime2     data_criacao
-        datetime2     ultimo_login
     }
 
     politica_cancelamento {

@@ -158,7 +158,7 @@ namespace CoworkingApp.Controls
                 AutoSize = true,
                 TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Theme.CardBg,
-                Margin = new Padding(text == "Período" ? 0 : 18, 14, 8, 0),
+                Margin = new Padding(text == "Período" ? 8 : 18, 14, 8, 0),
             };
         }
 
@@ -188,7 +188,7 @@ namespace CoworkingApp.Controls
         {
             return new ModernDateField
             {
-                Width = 130, Height = 36,
+                Width = 150, Height = 36,
                 Value = initial,
                 Margin = new Padding(0, 6, 0, 0),
             };
@@ -249,7 +249,6 @@ namespace CoworkingApp.Controls
                 Text = "—", Font = new Font(Theme.FontBase.FontFamily, 24f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
                 Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(0, 4, 0, 0),
             };
 
             inner.Controls.Add(valueLbl);
@@ -387,7 +386,9 @@ namespace CoworkingApp.Controls
             int? cliId = null;
             if (_cmbCliente != null && _cmbCliente.SelectedIndex > 0
                 && _cmbCliente.SelectedValue != null && !(_cmbCliente.SelectedValue is DBNull))
+            {
                 cliId = Convert.ToInt32(_cmbCliente.SelectedValue);
+            }
             string estadoFiltro = (_cmbEstado != null && _cmbEstado.SelectedIndex > 0) ? _cmbEstado.SelectedText : null;
 
             var salas = new List<MapaReservasView.SalaInfo>();
@@ -533,6 +534,7 @@ namespace CoworkingApp.Controls
                 bool filtraCliente = _cmbCliente != null && _cmbCliente.SelectedIndex > 0
                     && _cmbCliente.SelectedValue != null
                     && !(_cmbCliente.SelectedValue is DBNull);
+                int  clienteIdParam = filtraCliente ? Convert.ToInt32(_cmbCliente.SelectedValue) : 0;
                 if (filtraCliente) whereParts.Add("r.cliente_id = @c");
 
                 string sql = $@"
@@ -557,7 +559,7 @@ namespace CoworkingApp.Controls
                     cmd.Parameters.AddWithValue("@de",  _dtDe.Value.Date);
                     cmd.Parameters.AddWithValue("@ate", _dtAte.Value.Date);
                     if (estadoFiltro != null) cmd.Parameters.AddWithValue("@e", estadoFiltro);
-                    if (filtraCliente) cmd.Parameters.AddWithValue("@c", Convert.ToInt32(_cmbCliente.SelectedValue));
+                    if (filtraCliente) cmd.Parameters.AddWithValue("@c", clienteIdParam);
                     using (var adapter = new SqlDataAdapter(cmd))
                     {
                         var dt = new DataTable();
@@ -666,7 +668,10 @@ namespace CoworkingApp.Controls
             };
 
             // ─── Bloco data (Dock=Left) ───────────────────────────────
-            var dateBlock = new Panel { Dock = DockStyle.Left, Width = 78, BackColor = idleBg };
+            // Width=92 (era 78): dá respiro à esquerda. Texto está centrado
+            // via Paint, por isso o aumento desloca naturalmente "MAI/DD"
+            // para a direita, longe da extremidade do card.
+            var dateBlock = new Panel { Dock = DockStyle.Left, Width = 92, BackColor = idleBg };
             string mesPt   = data.ToString("MMM", new CultureInfo("pt-PT")).ToUpper().TrimEnd('.');
             int    dia     = data.Day;
             string semana  = data.ToString("ddd", new CultureInfo("pt-PT")).ToUpper();
@@ -711,7 +716,7 @@ namespace CoworkingApp.Controls
                 Text = Theme.FormatEuro(valor),
                 Font = new Font(Theme.FontBase.FontFamily, 14f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 30, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+                Dock = DockStyle.Top, Height = 32, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
             };
             var estadoHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
             var estadoPill = new StatusPill

@@ -78,11 +78,13 @@ namespace CoworkingApp.Controls
                 Dock = DockStyle.Top, Height = 34, AutoSize = false,
             });
 
+            // Cliente: catálogo view-only — sem botão de criar.
             _btnNovo = new ModernButton
             {
                 Text  = "+ Novo Espaço",
                 Style = ModernButton.Variant.Primary,
                 Dock  = DockStyle.Top, Width = 160, Height = 38,
+                Visible = true,
             };
             _btnNovo.Click += (s, e) => OnNovoClick();
             var btnHolder = new Panel { Dock = DockStyle.Right, Width = 160, BackColor = Theme.PageBg, Padding = new Padding(0, 14, 0, 0) };
@@ -189,7 +191,6 @@ namespace CoworkingApp.Controls
                 Text = "—", Font = new Font(Theme.FontBase.FontFamily, 24f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
                 Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(0, 4, 0, 0),
             };
             inner.Controls.Add(valueLbl);
             inner.Controls.Add(topLine);
@@ -414,8 +415,8 @@ namespace CoworkingApp.Controls
             };
             avatarHolder.Resize += (s, e) => avatarHolder.Invalidate();
 
-            // Actions
-            var actions = new Panel { Dock = DockStyle.Right, Width = 100, BackColor = idleBg };
+            // Actions — Cliente vê catálogo read-only.
+            var actions = new Panel { Dock = DockStyle.Right, Width = 100, BackColor = idleBg};
             var btnEdit = MakeIconBtn(IconChar.Pen, Theme.Accent, idleBg, () => OpenEspacoEditor(id));
             var btnDel  = MakeIconBtn(IconChar.TrashCan, Theme.StatusDangerFg, idleBg, () => DeleteEspaco(id, nome));
             btnEdit.Location = new Point(8, 28);
@@ -576,7 +577,7 @@ namespace CoworkingApp.Controls
                 Text = Theme.FormatEuro(preco) + " /hora",
                 Font = new Font(Theme.FontBase.FontFamily, 18f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 34, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Dock = DockStyle.Top, Height = 38, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
             var spPrice = new Panel { Dock = DockStyle.Top, Height = 4, BackColor = idleBg };
             var lblCap = new Label
@@ -585,7 +586,7 @@ namespace CoworkingApp.Controls
                 Font = Theme.FontSub, ForeColor = Theme.TextMuted, BackColor = idleBg,
                 Dock = DockStyle.Top, Height = 20, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
-            var footer = new Panel { Dock = DockStyle.Bottom, Height = 40, BackColor = idleBg };
+            var footer = new Panel { Dock = DockStyle.Bottom, Height = 40, BackColor = idleBg};
             var btnEdit = MakeIconBtn(IconChar.Pen, Theme.Accent, idleBg, () => OpenSalaEditor(id));
             var btnDel  = MakeIconBtn(IconChar.TrashCan, Theme.StatusDangerFg, idleBg, () => DeleteSala(id, nome));
             btnEdit.Dock = DockStyle.Right;
@@ -735,10 +736,10 @@ namespace CoworkingApp.Controls
                 Text = Theme.FormatEuro(preco) + " /dia",
                 Font = new Font(Theme.FontBase.FontFamily, 18f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 34, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
+                Dock = DockStyle.Top, Height = 38, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
             };
 
-            var footer = new Panel { Dock = DockStyle.Bottom, Height = 40, BackColor = idleBg };
+            var footer = new Panel { Dock = DockStyle.Bottom, Height = 40, BackColor = idleBg};
             var btnEdit = MakeIconBtn(IconChar.Pen, Theme.Accent, idleBg, () => OpenPostoEditor(id));
             var btnDel  = MakeIconBtn(IconChar.TrashCan, Theme.StatusDangerFg, idleBg, () => DeletePosto(id, codigo));
             btnEdit.Dock = DockStyle.Right;

@@ -58,11 +58,13 @@ namespace CoworkingApp.Controls
                 Dock = DockStyle.Top, Height = 34, AutoSize = false,
             });
 
+            // Cliente: catálogo view-only — esconde botão de criar plano.
             var btnNovo = new ModernButton
             {
                 Text  = "+ Novo Plano",
                 Style = ModernButton.Variant.Primary,
                 Dock  = DockStyle.Top, Width = 140, Height = 38,
+                Visible = true,
             };
             btnNovo.Click += (s, e) => OpenEditor(null);
             var btnHolder = new Panel { Dock = DockStyle.Right, Width = 140, BackColor = Theme.PageBg, Padding = new Padding(0, 14, 0, 0) };
@@ -136,7 +138,6 @@ namespace CoworkingApp.Controls
                 Text = "—", Font = new Font(Theme.FontBase.FontFamily, 24f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
                 Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(0, 4, 0, 0),
             };
 
             inner.Controls.Add(valueLbl);
@@ -453,6 +454,9 @@ namespace CoworkingApp.Controls
             btnEdit.MouseLeave += (s, e) => btnEdit.IconColor = Theme.TextSecondary;
             btnEdit.Click += (s, e) => OpenEditor(id);
 
+            // Cliente: catálogo view-only — esconde edit/delete.
+            btnDelete.Visible = true;
+            btnEdit  .Visible = true;
             footer.Controls.Add(btnDelete);
             footer.Controls.Add(btnEdit);
             footer.Controls.Add(lblSubs);

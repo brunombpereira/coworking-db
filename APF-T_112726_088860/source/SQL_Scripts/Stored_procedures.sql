@@ -433,54 +433,6 @@ BEGIN
 END;
 GO
 
--- Registar cliente + utilizador numa única transacção -----------------
--- Usado pelo formulário "Criar conta" da app. Cria a entidade cliente,
--- depois chama sp_register_user com role='Cliente' a apontar para o
--- cliente_id recém-criado. Tudo numa transacção — se a criação do
--- utilizador falhar (username duplicado, etc.), o cliente é rolled back.
-CREATE OR ALTER PROCEDURE sp_registar_cliente_completo
-    @nome          NVARCHAR(255),
-    @nif           CHAR(9),
-    @email         NVARCHAR(255),
-    @telefone      NVARCHAR(20)   = NULL,
-    @username      NVARCHAR(100),
-    @password      NVARCHAR(255),
-    @cliente_id    INTEGER        OUTPUT,
-    @utilizador_id INTEGER        OUTPUT
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SET XACT_ABORT ON;
-
-    IF LEN(@password) < 8
-    BEGIN
-        THROW 51060, 'A password deve ter pelo menos 8 caracteres.', 1;
-    END
-
-    IF EXISTS (SELECT 1 FROM utilizador WHERE username = @username)
-    BEGIN
-        THROW 51061, 'Username já existe — escolhe outro.', 1;
-    END
-
-    -- cliente.nif e cliente.email têm UNIQUE constraint → falham
-    -- automaticamente com erro 2627/2601 se duplicados.
-    BEGIN TRANSACTION;
-
-    INSERT INTO cliente (nome, nif, email, telefone)
-    VALUES (@nome, @nif, @email, @telefone);
-    SET @cliente_id = SCOPE_IDENTITY();
-
-    EXEC sp_register_user
-         @username      = @username,
-         @password      = @password,
-         @role          = 'Cliente',
-         @cliente_id    = @cliente_id,
-         @utilizador_id = @utilizador_id OUTPUT;
-
-    COMMIT;
-END;
-GO
-
 -- Notificações: marcar como lida -------------------------------------
 CREATE OR ALTER PROCEDURE sp_marcar_notificacao_lida
     @notificacao_id INTEGER

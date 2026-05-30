@@ -11,8 +11,6 @@ namespace CoworkingApp
 {
     public partial class FormMain : Form
     {
-        public static bool LogoutRequested { get; private set; }
-
         private Panel pnlContent;
         /// <summary>Área de conteúdo principal (sem sidebar) — usada por
         /// modais para se centrarem visualmente em vez de sobrepor a
@@ -29,7 +27,6 @@ namespace CoworkingApp
 
         public FormMain()
         {
-            LogoutRequested = false;
             InitializeComponent();
             BuildUI();
 
@@ -208,9 +205,6 @@ namespace CoworkingApp
             };
             pnlHeader.Controls.Add(logoBox);
 
-            // ── Footer: avatar + nome → click abre menu ──────────────────
-            var pnlFooter = BuildAvatarFooter();
-
             // ── Nav area ────────────────────────────────────────────────
             var pnlNav = new Panel
             {
@@ -229,88 +223,52 @@ namespace CoworkingApp
 
             AddSectionLabel(flp, "OPERACIONAL");
             AddNavItem(flp, "Dashboard",     IconChar.ThLarge,        () => Navigate<UcDashboard>());
-            if (Session.IsStaff)
-            {
-                AddNavItem(flp, "Clientes",  IconChar.Users,          () => Navigate<UcClientes>());
-                AddNavItem(flp, "Planos",    IconChar.ClipboardList,  () => Navigate<UcPlanos>());
-                AddNavItem(flp, "Espaços",   IconChar.Building,       () => Navigate<UcEspacos>());
-            }
+            AddNavItem(flp, "Clientes",      IconChar.Users,          () => Navigate<UcClientes>());
+            AddNavItem(flp, "Planos",        IconChar.ClipboardList,  () => Navigate<UcPlanos>());
+            AddNavItem(flp, "Espaços",       IconChar.Building,       () => Navigate<UcEspacos>());
             AddNavItem(flp, "Reservas",      IconChar.CalendarAlt,    () => Navigate<UcReservas>());
             AddNavItem(flp, "Notificações",  IconChar.Bell,           () => Navigate<UcNotificacoes>());
 
-            if (Session.IsStaff)
-            {
-                AddSectionLabel(flp, "FINANCEIRO");
-                AddNavItem(flp, "Adesões",       IconChar.Star,           () => Navigate<UcAdesoes>());
-                AddNavItem(flp, "Pagamentos",    IconChar.CreditCard,     () => Navigate<UcPagamentos>());
-                AddNavItem(flp, "Relatórios",    IconChar.ChartLine,      () => Navigate<UcRelatorios>());
-                AddNavItem(flp, "Estatísticas",  IconChar.ChartBar,       () => Navigate<UcEstatisticas>());
-            }
-
-            if (Session.IsAdmin)
-            {
-                AddSectionLabel(flp, "ADMIN");
-                AddNavItem(flp, "Utilizadores",  IconChar.UserShield,     () => Navigate<UcUtilizadores>());
-            }
+            AddSectionLabel(flp, "FINANCEIRO");
+            AddNavItem(flp, "Adesões",       IconChar.Star,           () => Navigate<UcAdesoes>());
+            AddNavItem(flp, "Pagamentos",    IconChar.CreditCard,     () => Navigate<UcPagamentos>());
+            AddNavItem(flp, "Relatórios",    IconChar.ChartLine,      () => Navigate<UcRelatorios>());
+            AddNavItem(flp, "Estatísticas",  IconChar.ChartBar,       () => Navigate<UcEstatisticas>());
 
             pnlNav.Controls.Add(flp);
+
+            // ── Footer simples: botão toggle de tema light/dark ─────────
+            var pnlFooter = BuildThemeToggleFooter();
+
             sidebar.Controls.Add(pnlNav);
             sidebar.Controls.Add(pnlFooter);
             sidebar.Controls.Add(pnlHeader);
         }
 
-        // ── Footer avatar com menu de perfil/tema/sair ──────────────────
-        private Control BuildAvatarFooter()
+        private Control BuildThemeToggleFooter()
         {
-            var footer = new AvatarFooter
+            var footer = new Panel
             {
-                Dock         = DockStyle.Bottom,
-                Username     = Session.Username ?? "?",
-                AccentColor  = Theme.Accent,
-                BackColor    = Theme.SidebarBg,
-                HoverColor   = Theme.SidebarBgActive,
-                TextColor    = Color.White,
-                ChevronColor = Theme.SidebarText,
+                Dock = DockStyle.Bottom, Height = 56, BackColor = Theme.SidebarBg,
+                Padding = new Padding(14, 10, 14, 10),
             };
-            footer.Click += (s, e) => ShowProfilePopup(footer);
+            var btn = new IconButton
+            {
+                Text = ThemeManager.Current == ThemeMode.Light ? "  Modo escuro" : "  Modo claro",
+                IconChar = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon : IconChar.Sun,
+                IconColor = Theme.SidebarText, IconSize = 16,
+                ImageAlign = ContentAlignment.MiddleLeft, TextAlign = ContentAlignment.MiddleLeft,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                FlatStyle = FlatStyle.Flat, ForeColor = Theme.SidebarText, BackColor = Color.Transparent,
+                Font = new Font(Theme.FontBase.FontFamily, 9.5f),
+                Dock = DockStyle.Fill, Padding = new Padding(8, 0, 0, 0), Cursor = Cursors.Hand,
+                UseVisualStyleBackColor = false,
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.FlatAppearance.MouseOverBackColor = Theme.SidebarBgActive;
+            btn.Click += (s, e) => ThemeManager.Toggle();
+            footer.Controls.Add(btn);
             return footer;
-        }
-
-        private void ShowProfilePopup(Control anchor)
-        {
-            var items = new System.Collections.Generic.List<ProfilePopup.MenuItemDef>
-            {
-                new ProfilePopup.MenuItemDef
-                {
-                    Text    = "Perfil",
-                    Icon    = IconChar.User,
-                    OnClick = () => Navigate<UcPerfil>(),
-                },
-                new ProfilePopup.MenuItemDef
-                {
-                    Text    = ThemeManager.Current == ThemeMode.Light ? "Modo escuro" : "Modo claro",
-                    Icon    = ThemeManager.Current == ThemeMode.Light ? IconChar.Moon  : IconChar.Sun,
-                    OnClick = () => ThemeManager.Toggle(),
-                },
-                new ProfilePopup.MenuItemDef { IsSeparator = true },
-                new ProfilePopup.MenuItemDef
-                {
-                    Text     = "Sair",
-                    Icon     = IconChar.SignOutAlt,
-                    IsDanger = true,
-                    OnClick  = () => { LogoutRequested = true; this.Close(); },
-                },
-            };
-
-            var popup = new ProfilePopup(items);
-            // Posicionar à DIREITA do footer (fora da sidebar) com a base
-            // do popup alinhada com a base do footer — feel "explode from
-            // the side" tipo Discord/Slack.
-            var screenAnchor = anchor.PointToScreen(Point.Empty);
-            popup.Location = new Point(
-                screenAnchor.X + anchor.Width + 6,
-                screenAnchor.Y - popup.Height + anchor.Height);
-            popup.Show(this);
         }
 
         private void AddSectionLabel(FlowLayoutPanel container, string text)
@@ -407,8 +365,6 @@ namespace CoworkingApp
                 { typeof(UcPagamentos),    "Pagamentos"    },
                 { typeof(UcRelatorios),    "Relatórios"    },
                 { typeof(UcEstatisticas),  "Estatísticas"  },
-                { typeof(UcUtilizadores),  "Utilizadores"  },
-                { typeof(UcPerfil),        "Perfil"        }
             };
             if (names.TryGetValue(typeof(T), out string name))
                 _lblModule.Text = name;

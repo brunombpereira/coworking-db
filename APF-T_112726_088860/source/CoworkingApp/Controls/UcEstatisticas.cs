@@ -124,7 +124,6 @@ namespace CoworkingApp.Controls
                 Text = "—", Font = new Font(Theme.FontBase.FontFamily, 24f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
                 Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(0, 4, 0, 0),
             };
             inner.Controls.Add(valueLbl);
             inner.Controls.Add(topLine);
@@ -535,7 +534,7 @@ namespace CoworkingApp.Controls
                 Text = Theme.FormatEuro(receita),
                 Font = new Font(Theme.FontBase.FontFamily, 12f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 28, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+                Dock = DockStyle.Top, Height = 30, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
             });
 
             // Centro: nome + barra progress

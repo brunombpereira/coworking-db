@@ -1,5 +1,6 @@
 using System;
 using System.Data;
+using System.Globalization;
 using Microsoft.Data.SqlClient;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -161,7 +162,7 @@ namespace CoworkingApp.Controls
             {
                 Text = "—", Font = new Font(Theme.FontBase.FontFamily, 22f, FontStyle.Bold),
                 ForeColor = isAccent ? Color.White : Theme.TextPrimary,
-                Dock = DockStyle.Top, Height = 38, AutoSize = false,
+                Dock = DockStyle.Top, Height = 46, AutoSize = false,
                 BackColor = card.BackColor,
             };
 
@@ -551,13 +552,14 @@ namespace CoworkingApp.Controls
                 c.Width = w;
         }
 
-        private void LoadProximas(SqlConnection conn)
+        private void LoadProximas(SqlConnection conn, int? cliId = null)
         {
             _proximasList.Controls.Clear();
             int count = 0;
             int y     = 0;
+            string filtroCli = cliId.HasValue ? " AND r.cliente_id = @cli " : "";
             using (var cmd = new SqlCommand(
-                @"SELECT TOP 6
+                $@"SELECT TOP 6
                        c.nome AS Cliente,
                        CASE WHEN s.recurso_id IS NOT NULL THEN s.nome ELSE p.codigo END AS Recurso,
                        rc.tipo,
@@ -571,7 +573,10 @@ namespace CoworkingApp.Controls
                   LEFT JOIN posto p ON rc.recurso_id = p.recurso_id
                   WHERE r.data_reserva >= CAST(GETDATE() AS date)
                     AND r.estado IN ('Confirmada','Pendente')
+                    {filtroCli}
                   ORDER BY r.data_reserva, r.hora_inicio", conn))
+            {
+                if (cliId.HasValue) cmd.Parameters.AddWithValue("@cli", cliId.Value);
             using (var reader = cmd.ExecuteReader())
             {
                 while (reader.Read())
@@ -592,6 +597,7 @@ namespace CoworkingApp.Controls
                     count++;
                 }
             }
+            } // fecha o bloco do `using cmd`
 
             // Toggle visibility: lista OU empty state — nunca os dois.
             _proximasList.Visible  = count > 0;

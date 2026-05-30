@@ -5,13 +5,6 @@
 USE CoworkingDB;
 GO
 
--- Roles ---------------------------------------------------------------
--- (drop dos membros antes da role; aqui só largamos a role se vazia)
-IF DATABASE_PRINCIPAL_ID('app_cliente') IS NOT NULL DROP ROLE app_cliente;
-IF DATABASE_PRINCIPAL_ID('app_staff')   IS NOT NULL DROP ROLE app_staff;
-IF DATABASE_PRINCIPAL_ID('app_admin')   IS NOT NULL DROP ROLE app_admin;
-GO
-
 -- Views ---------------------------------------------------------------
 DROP VIEW IF EXISTS vw_reservas_ativas;
 DROP VIEW IF EXISTS vw_ocupacao_recurso;
@@ -51,10 +44,6 @@ DROP PROCEDURE IF EXISTS sp_relatorio_receita_periodo;
 DROP PROCEDURE IF EXISTS sp_adicionar_lista_espera;
 DROP PROCEDURE IF EXISTS sp_promover_lista_espera;
 DROP PROCEDURE IF EXISTS sp_marcar_notificacao_lida;
-DROP PROCEDURE IF EXISTS sp_register_user;
-DROP PROCEDURE IF EXISTS sp_login_user;
-DROP PROCEDURE IF EXISTS sp_change_password;
-DROP PROCEDURE IF EXISTS sp_desativar_utilizador;
 GO
 
 -- Triggers ------------------------------------------------------------
@@ -92,7 +81,6 @@ GO
 DROP TABLE IF EXISTS notificacao;
 DROP TABLE IF EXISTS lista_espera;
 DROP TABLE IF EXISTS politica_cancelamento;
-DROP TABLE IF EXISTS utilizador;
 DROP TABLE IF EXISTS pagamento;
 DROP TABLE IF EXISTS pagamento_history;
 DROP TABLE IF EXISTS reserva;

@@ -139,7 +139,7 @@ namespace CoworkingApp.Controls
                 AutoSize = false, Width = TextRenderer.MeasureText(text, new Font(Theme.FontBase.FontFamily, 9f, FontStyle.Bold)).Width + 4,
                 Height = 36, TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Theme.CardBg,
-                Margin = new Padding(text == "Cliente" ? 0 : 18, 0, 8, 0),
+                Margin = new Padding(text == "Cliente" ? 8 : 18, 0, 8, 0),
             };
         }
 
@@ -195,7 +195,6 @@ namespace CoworkingApp.Controls
                 Text = "—", Font = new Font(Theme.FontBase.FontFamily, 24f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
                 Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(0, 4, 0, 0),
             };
             inner.Controls.Add(valueLbl);
             inner.Controls.Add(topLine);
@@ -429,7 +428,7 @@ namespace CoworkingApp.Controls
                 Text = Theme.FormatEuro(preco) + " /mês",
                 Font = new Font(Theme.FontBase.FontFamily, 14f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 30, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+                Dock = DockStyle.Top, Height = 32, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
             };
             var estadoHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
             var estadoPill = new StatusPill

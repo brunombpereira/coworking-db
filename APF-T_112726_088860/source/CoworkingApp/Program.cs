@@ -22,17 +22,7 @@ namespace CoworkingApp
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             ThemeManager.Load();
 
-            // Loop: login -> main -> (optional logout) -> login again.
-            while (true)
-            {
-                using (var login = new FormLogin())
-                {
-                    if (login.ShowDialog() != DialogResult.OK) return;
-                }
-                Application.Run(new FormMain());
-                if (!FormMain.LogoutRequested) break;
-                Session.Clear();
-            }
+            Application.Run(new FormMain());
         }
     }
 }

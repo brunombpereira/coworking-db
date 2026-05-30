@@ -409,7 +409,7 @@ namespace CoworkingApp.Controls
                 Text = Theme.FormatEuro(preco) + " " + unidade,
                 Font = new Font(Theme.FontBase.FontFamily, 14f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 30, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+                Dock = DockStyle.Top, Height = 32, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
             };
             var pillHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
             var pill = new StatusPill
@@ -608,7 +608,6 @@ namespace CoworkingApp.Controls
                 Text = "—", Font = new Font(Theme.FontBase.FontFamily, 20f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = Theme.CardBg,
                 Dock = DockStyle.Fill, AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(0, 4, 0, 0),
             };
             inner.Controls.Add(valLbl);
             inner.Controls.Add(topLine);
@@ -801,7 +800,7 @@ namespace CoworkingApp.Controls
                 Text = Theme.FormatEuro(valor),
                 Font = new Font(Theme.FontBase.FontFamily, 12f, FontStyle.Bold),
                 ForeColor = Theme.TextPrimary, BackColor = idleBg,
-                Dock = DockStyle.Top, Height = 28, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+                Dock = DockStyle.Top, Height = 30, AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
             };
             var pillHolder = new Panel { Dock = DockStyle.Top, Height = 22, BackColor = idleBg };
             var pill = new StatusPill
