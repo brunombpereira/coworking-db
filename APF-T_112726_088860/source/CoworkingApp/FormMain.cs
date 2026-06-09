@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using CoworkingApp.Controls;
@@ -25,9 +26,20 @@ namespace CoworkingApp
         private bool _connOk;
         private System.Windows.Forms.Timer _connTimer;
 
+        // UC actual — para reaplicar após rebuild do tema.
+        private Type _currentUcType = typeof(UcDashboard);
+
         public FormMain()
         {
             InitializeComponent();
+
+            // Window-level: só aplica uma vez (não no rebuild do tema, para
+            // não forçar Maximized se o user tiver restaurado a janela).
+            this.Text        = "Coworking — Painel de Gestão";
+            this.Icon        = AppIcon.Get(32);
+            this.MinimumSize = new Size(900, 600);
+            this.WindowState = FormWindowState.Maximized;
+
             BuildUI();
 
             // Entrar directamente no Dashboard + activar o botão na sidebar.
@@ -37,6 +49,63 @@ namespace CoworkingApp
             if (_navBtns.Count > 0) SetActive(_navBtns[0]);
 
             ThemeManager.ThemeChanged += ApplyDwmTitleBar;
+            ThemeManager.ThemeChanged += RebuildForThemeChange;
+        }
+
+        /// <summary>
+        /// Os UCs e o chrome do form lêem Theme.* na construção e não
+        /// observam o evento ThemeChanged (seria preciso re-pintar cada
+        /// controlo recursivamente). Mais simples: destruir os controlos
+        /// do form e re-correr BuildUI — o novo tema é aplicado em massa.
+        /// O UC actual é preservado via _currentUcType.
+        /// </summary>
+        private void RebuildForThemeChange()
+        {
+            // Stop timers que vão ser recriados pelo BuildUI
+            _clockTimer?.Stop(); _clockTimer?.Dispose(); _clockTimer = null;
+            _connTimer?.Stop();  _connTimer?.Dispose();  _connTimer  = null;
+
+            // Limpar estado
+            _navBtns.Clear();
+            _activeBtn = null;
+
+            // Dispose dos controlos do form (recursivamente)
+            foreach (Control c in this.Controls.OfType<Control>().ToList())
+            {
+                this.Controls.Remove(c);
+                c.Dispose();
+            }
+
+            // Re-construir
+            this.BackColor = Theme.ContentBg;
+            this.Font      = Theme.FontBase;
+            BuildUI();
+
+            // Voltar à UC actual
+            NavigateTo(_currentUcType ?? typeof(UcDashboard));
+
+            // Reactivar o botão da UC actual no sidebar (matching por nome)
+            var label = NavigateTitle(_currentUcType);
+            if (label != null)
+            {
+                var btn = _navBtns.FirstOrDefault(b => b.Text == label);
+                if (btn != null) SetActive(btn);
+            }
+        }
+
+        private static string NavigateTitle(Type t)
+        {
+            if (t == typeof(UcDashboard))     return "Dashboard";
+            if (t == typeof(UcClientes))      return "Clientes";
+            if (t == typeof(UcPlanos))        return "Planos";
+            if (t == typeof(UcEspacos))       return "Espaços";
+            if (t == typeof(UcReservas))      return "Reservas";
+            if (t == typeof(UcNotificacoes))  return "Notificações";
+            if (t == typeof(UcAdesoes))       return "Adesões";
+            if (t == typeof(UcPagamentos))    return "Pagamentos";
+            if (t == typeof(UcRelatorios))    return "Relatórios";
+            if (t == typeof(UcEstatisticas))  return "Estatísticas";
+            return null;
         }
 
         // ── Dark title bar (Win10 2004+/11) ─────────────────────────────
@@ -65,11 +134,8 @@ namespace CoworkingApp
 
         private void BuildUI()
         {
-            this.Text = "Coworking — Painel de Gestão";
-            this.Icon = AppIcon.Get(32);
-            this.MinimumSize = new Size(900, 600);
-            this.WindowState = FormWindowState.Maximized;
-            this.Font = Theme.FontBase;
+            // Theme-sensitive properties — re-aplicadas em cada rebuild do tema.
+            this.Font      = Theme.FontBase;
             this.BackColor = Theme.ContentBg;
 
             // Status bar custom
@@ -349,6 +415,7 @@ namespace CoworkingApp
 
         private void Navigate<T>() where T : Control, new()
         {
+            _currentUcType = typeof(T);
             pnlContent.Controls.Clear();
             var uc = new T { Dock = DockStyle.Fill };
             pnlContent.Controls.Add(uc);

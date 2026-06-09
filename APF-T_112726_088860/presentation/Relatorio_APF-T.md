@@ -1,6 +1,6 @@
 # Relatório APF-T — Sistema de Gestão de Coworking
 
-**Autor:** Bruno Pereira (88860, turma 11272)
+**Autores:** Bruno Pereira (Nº 112726) · Rafael Claro (Nº 088860)
 **Disciplina:** Base de Dados — LECI
 **Data:** 2026-05
 

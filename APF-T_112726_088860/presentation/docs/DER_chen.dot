@@ -1,0 +1,51 @@
+graph DER {
+  graph [bgcolor="white", overlap=prism, splines=true, sep="+34", esep="+14", nodesep=0.6, start=7, fontname="Helvetica"];
+  node  [fontname="Helvetica", fontsize=15];
+  edge  [fontname="Helvetica", fontsize=15, len=2.6, color="#334155"];
+
+  // ── Entidades (retângulos) ──
+  node [shape=box, style="filled", fillcolor="#e0e7ff", color="#4338ca", penwidth=1.6, margin="0.18,0.10"];
+  cliente; plano; espaco; recurso; sala; posto; adesao; reserva; pagamento;
+  notificacao; lista_espera; politica_cancelamento;
+
+  // ── Relações (losangos) ──
+  node [shape=diamond, style="filled", fillcolor="#fef3c7", color="#b45309", penwidth=1.4, fontsize=13, margin="0.02,0.02"];
+  r_tem        [label="tem"];
+  r_faz        [label="faz"];
+  r_efetua     [label="efetua"];
+  r_recebe     [label="recebe"];
+  r_inscreve   [label="inscreve"];
+  r_instancia  [label="instancia"];
+  r_csala      [label="contém"];
+  r_cposto     [label="contém"];
+  r_atribui    [label="atribuído"];
+  r_alvo       [label="alvo de"];
+  r_pretende   [label="pretende"];
+  r_pagad      [label="paga"];
+  r_pagre      [label="paga"];
+  r_promove    [label="promove"];
+
+  // ── ISA (generalização) ──
+  isa [shape=triangle, style="filled", fillcolor="#dcfce7", color="#15803d", label="ISA", fontsize=12, height=0.6, width=0.9];
+
+  // ── Arestas com (min,max) junto a cada entidade ──
+  cliente -- r_tem       [taillabel="(0,*)"];  r_tem       -- adesao       [headlabel="(1,1)"];
+  cliente -- r_faz       [taillabel="(0,*)"];  r_faz       -- reserva      [headlabel="(1,1)"];
+  cliente -- r_efetua    [taillabel="(0,*)"];  r_efetua    -- pagamento    [headlabel="(1,1)"];
+  cliente -- r_recebe    [taillabel="(0,*)"];  r_recebe    -- notificacao  [headlabel="(1,1)"];
+  cliente -- r_inscreve  [taillabel="(0,*)"];  r_inscreve  -- lista_espera [headlabel="(1,1)"];
+  plano   -- r_instancia [taillabel="(0,*)"];  r_instancia -- adesao       [headlabel="(1,1)"];
+  espaco  -- r_csala     [taillabel="(0,*)"];  r_csala     -- sala         [headlabel="(1,1)"];
+  espaco  -- r_cposto    [taillabel="(0,*)"];  r_cposto    -- posto        [headlabel="(1,1)"];
+  recurso -- r_atribui   [taillabel="(0,*)"];  r_atribui   -- adesao       [headlabel="(0,1)"];
+  recurso -- r_alvo      [taillabel="(0,*)"];  r_alvo      -- reserva      [headlabel="(1,1)"];
+  recurso -- r_pretende  [taillabel="(0,*)"];  r_pretende  -- lista_espera [headlabel="(1,1)"];
+  adesao  -- r_pagad     [taillabel="(0,*)"];  r_pagad     -- pagamento    [headlabel="(0,1)"];
+  reserva -- r_pagre     [taillabel="(0,*)"];  r_pagre     -- pagamento    [headlabel="(0,1)"];
+  reserva -- r_promove   [taillabel="(0,1)"];  r_promove   -- lista_espera [headlabel="(0,1)"];
+
+  // ISA: recurso (supertype) -> sala / posto (total, disjuntas)
+  recurso -- isa [penwidth=1.6, color="#15803d"];
+  isa -- sala    [penwidth=1.6, color="#15803d"];
+  isa -- posto   [penwidth=1.6, color="#15803d"];
+}

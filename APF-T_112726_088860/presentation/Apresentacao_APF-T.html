@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<title>Sistema de Gestão de Coworking - APF-T</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ═══════ Reset + base ═══════ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: #020617;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: #e2e8f0;
+    -webkit-font-smoothing: antialiased;
+  }
+  :root {
+    --bg-deep:    #020617;
+    --bg-base:    #0a0e2e;
+    --bg-card:    rgba(15, 23, 42, 0.65);
+    --border:     rgba(99, 102, 241, 0.18);
+    --border-2:   rgba(99, 102, 241, 0.35);
+    --text:       #f1f5f9;
+    --text-2:     #cbd5e1;
+    --text-3:     #94a3b8;
+    --indigo:     #6366f1;
+    --purple:     #a855f7;
+    --pink:       #ec4899;
+    --cyan:       #06b6d4;
+    --emerald:    #10b981;
+    --amber:      #f59e0b;
+  }
+  @page { size: 20in 11.25in; margin: 0; }
+  @media print {
+    body, body.present, body.overview {
+      overflow: visible !important;
+      height: auto !important;
+      display: block !important;
+      background: var(--bg-deep) !important;
+    }
+    .slide, body.present .slide, body.overview .slide {
+      page-break-after: always; page-break-inside: avoid;
+      display: flex !important;
+      position: static !important;
+      transform: none !important;
+      opacity: 1 !important;
+      margin: 0 !important;
+      top: auto !important; left: auto !important;
+      zoom: 1 !important;
+      outline: none !important;
+      cursor: default !important;
+    }
+    .slide + .slide { margin-top: 0 !important; }
+    .slide:last-child { page-break-after: auto; }
+    .controls-hint { display: none !important; }
+
+    /* ━━━ Print-optimised: remover efeitos que Chrome rasteriza em bitmaps
+           gigantes (mesh gradients, backdrop blur, glow shadows). O visual
+           continua premium (tipografia, gradients de texto, cores, code
+           blocks, browser frames) mas o PDF passa de ~8MB para ~1-2MB e
+           abre instantaneamente. ━━━ */
+    .slide::before, .slide::after { display: none !important; }
+    .slide { background: var(--bg-deep) !important; }
+    .glass {
+      background: rgba(15, 23, 42, 0.85) !important;
+      backdrop-filter: none !important;
+      box-shadow: none !important;
+    }
+    .code-block {
+      background: #020617 !important;
+      backdrop-filter: none !important;
+      box-shadow: none !important;
+    }
+    .schema-block { box-shadow: none !important; }
+    .browser-frame {
+      box-shadow: 0 6px 16px rgba(0,0,0,0.5) !important;
+    }
+    .stat-card {
+      backdrop-filter: none !important;
+      background: rgba(15, 23, 42, 0.85) !important;
+    }
+    .callout { box-shadow: none !important; }
+    .number-grid .item {
+      backdrop-filter: none !important;
+      background: rgba(15, 23, 42, 0.7) !important;
+    }
+    .number-grid .item .num { box-shadow: none !important; }
+    .title-slide, .section-divider {
+      background: linear-gradient(135deg, #0a0e2e 0%, #1e1b4b 100%) !important;
+    }
+    .hero-title, .big-text {
+      text-shadow: none !important;
+    }
+  }
+
+  /* ═══════ Presentation mode (default in browser) ═══════ */
+  body.present { overflow: hidden; height: 100vh; }
+  body.present .slide {
+    position: fixed; top: 50%; left: 50%;
+    transform-origin: center center;
+    transform: translate(-50%, -50%) scale(var(--scale, 1));
+    margin: 0 !important;
+    display: none;
+  }
+  body.present .slide.active { display: flex; }
+  body.present .controls-hint {
+    position: fixed; bottom: 20px; right: 20px;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(99,102,241,0.3);
+    color: #cbd5e1;
+    padding: 10px 16px; border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  body.present .controls-hint.show { opacity: 0.7; }
+
+  /* ═══════ Slide base ═══════ */
+  .slide {
+    width: 1920px; height: 1080px;
+    padding: 90px 120px;
+    background: var(--bg-deep);
+    position: relative; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .slide + .slide { margin-top: 32px; }
+
+  /* Mesh gradient background */
+  .slide::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(at 18% 28%, rgba(99,102,241,0.28) 0%, transparent 45%),
+      radial-gradient(at 82% 18%, rgba(168,85,247,0.22) 0%, transparent 50%),
+      radial-gradient(at 50% 88%, rgba(236,72,153,0.18) 0%, transparent 55%),
+      radial-gradient(at 8% 95%, rgba(6,182,212,0.15) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  /* Grid pattern overlay */
+  .slide::after {
+    content: ''; position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
+    background-size: 80px 80px;
+    pointer-events: none;
+  }
+  .slide > * { position: relative; z-index: 1; }
+
+  /* Footer */
+  .slide-no, .brand {
+    position: absolute; bottom: 36px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px; color: var(--text-3);
+    letter-spacing: 0.1em; z-index: 2;
+  }
+  .slide-no { right: 60px; }
+  .brand    { left: 60px; }
+  .brand .dot { color: var(--indigo); }
+
+  /* Section number badge top */
+  .section-tag {
+    display: inline-flex; align-items: center; gap: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; color: var(--text-3);
+    letter-spacing: 0.2em; text-transform: uppercase;
+    margin-bottom: 26px;
+  }
+  .section-tag .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 38px; height: 38px;
+    border: 1px solid var(--border-2);
+    border-radius: 50%;
+    background: rgba(99,102,241,0.1);
+    color: var(--indigo); font-weight: 700; font-size: 14px;
+  }
+
+  /* ═══════ Typography ═══════ */
+  .hero-title {
+    font-size: 200px; font-weight: 900; line-height: 0.95;
+    letter-spacing: -0.04em;
+    background: linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #f472b6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 0 80px rgba(168,85,247,0.3);
+  }
+  h1.section-h1 {
+    font-size: 72px; font-weight: 800; line-height: 1.05;
+    color: var(--text);
+    letter-spacing: -0.025em;
+    margin-bottom: 12px;
+  }
+  h1.section-h1 .accent {
+    background: linear-gradient(135deg, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .lead {
+    font-size: 28px; color: var(--text-2); line-height: 1.55; font-weight: 400;
+    max-width: 1300px;
+  }
+  h3 {
+    font-size: 28px; font-weight: 700; color: var(--text);
+    margin: 6px 0 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  h3::before {
+    content: ''; width: 8px; height: 8px;
+    background: linear-gradient(135deg, var(--indigo), var(--purple));
+    border-radius: 50%;
+    box-shadow: 0 0 16px rgba(99,102,241,0.6);
+  }
+  p, li {
+    font-size: 24px; line-height: 1.55; color: var(--text-2);
+    font-weight: 400;
+  }
+  li { margin: 10px 0; padding-left: 8px; }
+  ul { list-style: none; padding: 0; }
+  ul li::before {
+    content: '→';
+    color: var(--indigo);
+    font-weight: 700; margin-right: 14px;
+    display: inline-block;
+  }
+  strong { color: var(--text); font-weight: 700; }
+  em {
+    font-style: normal; font-weight: 600;
+    background: linear-gradient(135deg, #a5b4fc, #f472b6);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(99,102,241,0.15);
+    color: #c7d2fe;
+    padding: 3px 10px; border-radius: 6px;
+    font-size: 0.9em;
+    border: 1px solid rgba(99,102,241,0.25);
+  }
+
+  /* ═══════ Code blocks ═══════ */
+  .code-block {
+    background: rgba(2, 6, 23, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(99,102,241,0.25);
+    border-radius: 16px;
+    padding: 32px 40px;
+    font-family: 'JetBrains Mono', monospace;
+    color: #cbd5e1;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.6),
+                0 0 60px -20px rgba(99,102,241,0.3),
+                inset 0 1px 0 rgba(255,255,255,0.06);
+    position: relative;
+    overflow: hidden;
+  }
+  .code-block::before {
+    content: ''; position: absolute; inset: 0;
+    border-radius: 16px; padding: 1px;
+    background: linear-gradient(135deg, rgba(99,102,241,0.4), rgba(168,85,247,0.2), transparent);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+  }
+  .code-block .header {
+    display: flex; align-items: center; gap: 12px;
+    margin: -8px -16px 18px; padding: 0 0 14px;
+    border-bottom: 1px solid rgba(99,102,241,0.15);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; color: var(--text-3);
+  }
+  .code-block .header .dot-r { width: 12px; height: 12px; border-radius: 50%; background: #f87171; }
+  .code-block .header .dot-y { width: 12px; height: 12px; border-radius: 50%; background: #fbbf24; }
+  .code-block .header .dot-g { width: 12px; height: 12px; border-radius: 50%; background: #34d399; }
+  .code-block .header .filename { margin-left: 20px; font-style: italic; }
+  pre {
+    font-size: 22px; line-height: 1.55;
+    color: inherit;
+    font-family: inherit;
+  }
+  pre.small { font-size: 19px; line-height: 1.5; }
+  pre.tiny  { font-size: 17px; line-height: 1.5; }
+  .kw   { color: #c084fc; font-weight: 600; }
+  .typ  { color: #38bdf8; font-weight: 500; }
+  .str  { color: #fde047; }
+  .num  { color: #fbbf24; }
+  .com  { color: #64748b; font-style: italic; }
+  .fn   { color: #f472b6; font-weight: 500; }
+  .id   { color: #a5b4fc; }
+
+  /* ═══════ Title slide ═══════ */
+  .title-slide {
+    justify-content: center; align-items: flex-start;
+    padding: 0 160px;
+  }
+  .title-slide::before {
+    background:
+      radial-gradient(at 20% 30%, rgba(99,102,241,0.45) 0%, transparent 50%),
+      radial-gradient(at 80% 20%, rgba(168,85,247,0.35) 0%, transparent 55%),
+      radial-gradient(at 50% 80%, rgba(236,72,153,0.25) 0%, transparent 60%),
+      radial-gradient(at 10% 90%, rgba(6,182,212,0.20) 0%, transparent 55%);
+  }
+  .title-slide .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 24px; letter-spacing: 0.3em;
+    color: var(--indigo); font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 50px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .title-slide .eyebrow::before {
+    content: ''; width: 60px; height: 2px;
+    background: linear-gradient(90deg, var(--indigo), transparent);
+  }
+  .title-slide .meta { margin-top: 80px; }
+  .title-slide .meta .names {
+    font-size: 40px; font-weight: 600; color: var(--text);
+    line-height: 1.45;
+  }
+  .title-slide .meta .mec {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--indigo); font-weight: 700;
+    background: rgba(99,102,241,0.12);
+    padding: 4px 12px; border-radius: 8px;
+    border: 1px solid rgba(99,102,241,0.3);
+    font-size: 0.7em;
+    margin: 0 4px;
+  }
+  .title-slide .meta .course {
+    font-size: 22px; color: var(--text-3);
+    letter-spacing: 0.2em; text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 24px;
+  }
+  .title-slide .date-row {
+    margin-top: 60px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px; color: var(--text-3);
+    display: flex; align-items: center; gap: 20px;
+  }
+  .title-slide .date-row::before {
+    content: ''; width: 40px; height: 1px;
+    background: rgba(255,255,255,0.2);
+  }
+
+  /* ═══════ Section divider ═══════ */
+  .section-divider {
+    justify-content: center; align-items: center;
+    text-align: center;
+  }
+  .section-divider::before {
+    background:
+      radial-gradient(at 30% 40%, rgba(99,102,241,0.5) 0%, transparent 60%),
+      radial-gradient(at 70% 60%, rgba(168,85,247,0.45) 0%, transparent 60%);
+  }
+  .section-divider .big-text {
+    font-size: 280px; font-weight: 900; line-height: 0.9;
+    letter-spacing: -0.05em;
+    background: linear-gradient(135deg, #a5b4fc 0%, #f0abfc 50%, #f9a8d4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 0 100px rgba(168,85,247,0.4);
+  }
+  .section-divider .big-text-sub {
+    margin-top: 30px;
+    font-size: 36px; color: var(--text-2);
+    font-weight: 300; letter-spacing: 0.1em;
+  }
+
+  /* ═══════ Glass cards ═══════ */
+  .glass {
+    background: var(--bg-card);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px 36px;
+    box-shadow: 0 20px 60px -20px rgba(0,0,0,0.5),
+                inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+
+  /* ═══════ Layouts ═══════ */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; align-items: stretch; }
+  .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+
+  /* ═══════ Callout ═══════ */
+  .callout {
+    margin-top: 28px;
+    padding: 26px 36px;
+    background: linear-gradient(135deg, rgba(99,102,241,0.18), rgba(168,85,247,0.12));
+    border: 1px solid rgba(99,102,241,0.35);
+    border-radius: 16px;
+    font-size: 22px;
+    line-height: 1.55;
+    color: var(--text);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .callout strong {
+    background: linear-gradient(135deg, #a5b4fc, #f0abfc);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 700;
+  }
+
+  /* ═══════ Numbered list (SQL scripts) ═══════ */
+  .number-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+    margin-top: 30px;
+  }
+  .number-grid .item {
+    display: flex; align-items: center; gap: 20px;
+    padding: 18px 24px;
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    font-size: 22px;
+    transition: all 0.2s;
+  }
+  .number-grid .item .num {
+    display: flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, var(--indigo), var(--purple));
+    border-radius: 10px;
+    color: white; font-weight: 800; font-size: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    flex-shrink: 0;
+    box-shadow: 0 8px 20px -6px rgba(99,102,241,0.5);
+  }
+  .number-grid .item code {
+    background: none; border: none; color: #c7d2fe; padding: 0;
+    font-weight: 600;
+  }
+  .number-grid .item .desc {
+    color: var(--text-3); font-size: 18px;
+    margin-left: 4px;
+  }
+
+  /* ═══════ Schema relacional ═══════ */
+  .schema-block {
+    background: rgba(2, 6, 23, 0.85);
+    border: 1px solid rgba(99,102,241,0.25);
+    border-radius: 16px;
+    padding: 32px 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 19px; line-height: 1.75;
+    color: #cbd5e1;
+    box-shadow: 0 30px 80px -20px rgba(0,0,0,0.6),
+                0 0 60px -20px rgba(99,102,241,0.3);
+  }
+  .schema-block .tn { color: #fbbf24; font-weight: 700; }
+  .schema-block .pk { color: #f472b6; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+  .schema-block .fk { color: #93c5fd; }
+  .schema-block .uk { color: #c084fc; font-weight: 700; }
+  .schema-block .nl { color: #64748b; }
+  .schema-block .cm { color: #64748b; font-style: italic; }
+
+  /* ═══════ Browser mockup (for screenshots) ═══════ */
+  .browser-frame {
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid var(--border-2);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 40px 80px -20px rgba(0,0,0,0.7),
+                0 0 80px -30px rgba(99,102,241,0.3);
+    margin: 30px auto 0;
+    max-height: calc(100% - 50px);
+    display: flex; flex-direction: column;
+  }
+  .browser-frame .titlebar {
+    background: rgba(15, 23, 42, 0.95);
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid rgba(99,102,241,0.15);
+  }
+  .browser-frame .titlebar .dot { width: 14px; height: 14px; border-radius: 50%; }
+  .browser-frame .titlebar .dot.r { background: #f87171; }
+  .browser-frame .titlebar .dot.y { background: #fbbf24; }
+  .browser-frame .titlebar .dot.g { background: #34d399; }
+  .browser-frame .titlebar .title {
+    margin-left: auto; margin-right: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; color: var(--text-3);
+    letter-spacing: 0.05em;
+  }
+  .browser-frame img {
+    width: 100%; height: auto;
+    display: block;
+    object-fit: contain;
+  }
+
+  /* ═══════ Stat cards (conclusão) ═══════ */
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px;
+    margin-top: 30px;
+  }
+  .stat-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 36px 30px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--indigo), var(--purple), transparent);
+  }
+  .stat-card .value {
+    font-size: 96px; font-weight: 900;
+    line-height: 1;
+    background: linear-gradient(135deg, #a5b4fc 0%, #f0abfc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-feature-settings: 'tnum';
+  }
+  .stat-card .label {
+    margin-top: 18px;
+    font-size: 20px; color: var(--text-3);
+    font-weight: 500; letter-spacing: 0.02em;
+  }
+
+  /* ═══════ Image full ═══════ */
+  .image-stage {
+    flex: 1; min-height: 0;
+    display: flex; justify-content: center; align-items: center;
+    margin-top: 20px;
+  }
+  .image-stage img {
+    max-width: 100%; max-height: 100%;
+    border-radius: 14px;
+  }
+
+  /* ═══════ Caption ═══════ */
+  .caption {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 22px; color: var(--text-3);
+    font-weight: 400;
+  }
+  .caption strong {
+    color: var(--text-2);
+    background: linear-gradient(135deg, #a5b4fc, #f0abfc);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 1: TITLE                                                             -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide title-slide">
+  <div class="eyebrow">Sistema de Gestão</div>
+  <div class="hero-title">Coworking</div>
+  <div class="meta">
+    <div class="course">Bases de Dados · LECI · 3.º Ano · APF-T</div>
+    <div class="names">
+      Bruno Pereira <span class="mec">112726</span>&nbsp;&nbsp;·&nbsp;&nbsp;
+      Rafael Claro <span class="mec">088860</span>
+    </div>
+    <div class="date-row">Junho 2026</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 2: INTRODUÇÃO                                                        -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">01</span>Contexto</div>
+  <h1 class="section-h1">O que <span class="accent">resolve</span>?</h1>
+  <p class="lead" style="margin-top: 14px; margin-bottom: 36px;">
+    Sistema completo de gestão para um operador de coworking com múltiplos espaços físicos -
+    do registo de cliente ao pagamento, com auditoria e regras de negócio.
+  </p>
+  <div class="two-col" style="margin-top: 16px;">
+    <div class="glass">
+      <h3>Domínio principal</h3>
+      <ul>
+        <li><strong>Clientes</strong>, planos (Flex / Fixo / Privado) e adesões</li>
+        <li>Reservar <strong>salas de reunião</strong> à hora</li>
+        <li>Reservar <strong>postos</strong> ao dia ou via adesão</li>
+        <li><strong>Pagamentos</strong> com snapshot do preço cobrado</li>
+      </ul>
+    </div>
+    <div class="glass">
+      <h3>Operações transversais</h3>
+      <ul>
+        <li><strong>Notificações</strong> automáticas via triggers</li>
+        <li><strong>Lista de espera</strong> + promoção a reserva</li>
+        <li><strong>Reservas recorrentes</strong> (semanais)</li>
+        <li><strong>Auditoria temporal</strong> (history tables)</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout">
+    <strong>Stack:</strong> SQL Server 2019 Express · C# WinForms (.NET 8) · ADO.NET parametrizado · zero SQL injection por construção
+  </div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">02 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 3: DER                                                               -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide" style="padding: 40px 50px 28px;">
+  <div style="display: flex; align-items: baseline; gap: 22px; flex-wrap: wrap;">
+    <h1 class="section-h1" style="font-size: 52px; margin-bottom: 0;">Diagrama <span class="accent">Entidade-Relacionamento</span></h1>
+    <p style="color: var(--text-3); font-size: 17px; margin: 0;">
+      Cardinalidade <span style="color:#818cf8; font-weight:700;">1</span> / <span style="color:#818cf8; font-weight:700;">N</span> nas pontas (1:N, 1:1) · <span style="color:#f472b6; font-weight:700;">PK</span> · <span style="color:#60a5fa; font-weight:700;">FK</span> · <span style="color:#c084fc; font-weight:700;">UK</span> · supertype <code>recurso</code> <span style="color:#4ade80; font-weight:700;">é-um</span> <code>sala</code> / <code>posto</code>
+    </p>
+  </div>
+  <div class="image-stage" style="margin-top: 12px;">
+    <div class="glass" style="padding: 16px; max-width: 100%; display: inline-flex; align-items: center; justify-content: center;">
+      <img src="docs/DER_tabelas.svg" alt="DER - tabelas com cardinalidade 1:N" style="max-height: 860px; max-width: 100%; width: auto; height: auto; border-radius: 8px;">
+    </div>
+  </div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">03 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 4: ESQUEMA RELACIONAL                                                -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">02</span>Modelo de Dados</div>
+  <h1 class="section-h1">Esquema <span class="accent">Relacional</span></h1>
+  <p style="color: var(--text-3); font-size: 18px; margin: 4px 0 22px;">
+    PK <span style="color: #f472b6; text-decoration: underline; text-decoration-thickness: 1.5px;">sublinhado</span> ·
+    FK <span style="color: #93c5fd;">↑tabela</span> ·
+    UNIQUE <span style="color: #c084fc; font-weight: 700;">*</span> ·
+    NULL permitido <span style="color: #64748b;">?</span>
+  </p>
+  <div class="schema-block" style="flex: 1;">
+<span class="tn">cliente</span>   (<span class="pk">cliente_id</span>, nome, nif<span class="uk">*</span>, email<span class="uk">*</span>, telefone, data_registo)<br>
+<span class="tn">plano</span>     (<span class="pk">plano_id</span>, nome_plano<span class="uk">*</span>, tipo_plano, preco_mensal, duracao_meses)<br>
+<span class="tn">espaco</span>    (<span class="pk">espaco_id</span>, nome<span class="uk">*</span>, morada, hora_abertura, hora_fecho)<br>
+<span class="tn">recurso</span>   (<span class="pk">recurso_id</span>, tipo)                            <span class="cm">-- supertype</span><br>
+&nbsp;&nbsp;<span class="tn">sala</span>    (<span class="pk">recurso_id</span><span class="fk">↑recurso</span>, <span class="fk">espaco_id↑espaco</span>, nome, capacidade, preco_hora)<br>
+&nbsp;&nbsp;<span class="tn">posto</span>   (<span class="pk">recurso_id</span><span class="fk">↑recurso</span>, <span class="fk">espaco_id↑espaco</span>, codigo, tipo_posto, preco_dia)<br>
+<br>
+<span class="tn">adesao</span>    (<span class="pk">adesao_id</span>, <span class="fk">cliente_id↑</span>, <span class="fk">plano_id↑</span>, <span class="fk">recurso_id↑<span class="nl">?</span></span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data_inicio, data_fim, <span class="cm">preco_acordado /* snapshot do plano */</span>, estado)<br>
+<span class="tn">reserva</span>   (<span class="pk">reserva_id</span>, <span class="fk">cliente_id↑</span>, <span class="fk">recurso_id↑</span>, data_reserva,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hora_inicio<span class="nl">?</span>, hora_fim<span class="nl">?</span>, valor, estado, num_participantes)<br>
+<span class="tn">pagamento</span> (<span class="pk">pagamento_id</span>, <span class="fk">cliente_id↑</span>, <span class="fk">adesao_id↑</span> <span class="cm">XOR</span> <span class="fk">reserva_id↑</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;data, valor, <span class="cm">preco_servico_snapshot</span>, metodo, estado)
+  </div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">04 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 5: SQL SCRIPTS                                                       -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">03</span>Implementação</div>
+  <h1 class="section-h1">SQL <span class="accent">Scripts</span></h1>
+  <p class="lead" style="margin-top: 14px;">8 ficheiros separados por tópico em <code>source/SQL_Scripts/</code></p>
+  <div class="number-grid">
+    <div class="item"><div class="num">01</div><div><code>SQL_DDL.sql</code><div class="desc">schema · tabelas · FKs · CHECKs</div></div></div>
+    <div class="item"><div class="num">02</div><div><code>User_defined_functions.sql</code><div class="desc">7 UDFs (scalar + TVF)</div></div></div>
+    <div class="item"><div class="num">03</div><div><code>Triggers.sql</code><div class="desc">16 triggers de regras de negócio</div></div></div>
+    <div class="item"><div class="num">04</div><div><code>Views.sql</code><div class="desc">11 views de consulta</div></div></div>
+    <div class="item"><div class="num">05</div><div><code>Stored_procedures.sql</code><div class="desc">SPs de negócio</div></div></div>
+    <div class="item"><div class="num">06</div><div><code>Temporal_tables.sql</code><div class="desc">SYSTEM_VERSIONING</div></div></div>
+    <div class="item"><div class="num">07</div><div><code>Indexes.sql</code><div class="desc">índices + filtered</div></div></div>
+    <div class="item"><div class="num">08</div><div><code>SQL_DML.sql</code><div class="desc">seed (~20 clientes · ~72 reservas)</div></div></div>
+  </div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">05 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 6: DDL                                                               -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">03</span>Implementação · DDL</div>
+  <h1 class="section-h1">Supertype <code style="font-size: 0.75em;">recurso</code></h1>
+  <div class="code-block" style="margin-top: 28px;">
+    <div class="header">
+      <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+      <span class="filename">SQL_DDL.sql · linhas 90-115</span>
+    </div>
+<pre class="small"><span class="kw">CREATE TABLE</span> <span class="fn">recurso</span> (
+    <span class="id">recurso_id</span> <span class="typ">INTEGER IDENTITY</span>(<span class="num">1</span>,<span class="num">1</span>) <span class="kw">PRIMARY KEY</span>,
+    <span class="id">tipo</span>       <span class="typ">NVARCHAR</span>(<span class="num">10</span>) <span class="kw">NOT NULL</span>
+        <span class="kw">CHECK</span> (<span class="id">tipo</span> <span class="kw">IN</span> (<span class="str">'Sala'</span>,<span class="str">'Posto'</span>))
+);
+
+<span class="kw">CREATE TABLE</span> <span class="fn">sala</span> (
+    <span class="id">recurso_id</span>  <span class="typ">INTEGER</span> <span class="kw">PRIMARY KEY</span>
+                <span class="kw">REFERENCES</span> <span class="fn">recurso</span>(<span class="id">recurso_id</span>) <span class="kw">ON DELETE CASCADE</span>,
+    <span class="id">espaco_id</span>   <span class="typ">INTEGER</span> <span class="kw">NOT NULL REFERENCES</span> <span class="fn">espaco</span>(<span class="id">espaco_id</span>),
+    <span class="id">nome</span>        <span class="typ">NVARCHAR</span>(<span class="num">100</span>) <span class="kw">NOT NULL</span>,
+    <span class="id">capacidade</span>  <span class="typ">INTEGER</span> <span class="kw">NOT NULL CHECK</span> (<span class="id">capacidade</span> &gt; <span class="num">0</span>),
+    <span class="id">preco_hora</span>  <span class="typ">DECIMAL</span>(<span class="num">10</span>,<span class="num">2</span>) <span class="kw">NOT NULL CHECK</span> (<span class="id">preco_hora</span> &gt; <span class="num">0</span>),
+    <span class="kw">CONSTRAINT</span> <span class="id">uq_sala_espaco_nome</span> <span class="kw">UNIQUE</span> (<span class="id">espaco_id</span>, <span class="id">nome</span>)
+);</pre>
+  </div>
+  <div class="callout"><strong>Supertype</strong> com <em>PK = FK</em> ao <code>recurso</code> + <em>CASCADE delete</em>. Uma única FK em <code>reserva.recurso_id</code> cobre salas e postos.</div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">06 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 7: UDF                                                               -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">03</span>Implementação · UDF</div>
+  <h1 class="section-h1"><code style="font-size: 0.75em;">fn_recurso_disponivel</code></h1>
+  <div class="code-block" style="margin-top: 28px;">
+    <div class="header">
+      <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+      <span class="filename">User_defined_functions.sql</span>
+    </div>
+<pre class="small"><span class="kw">CREATE FUNCTION</span> <span class="fn">fn_recurso_disponivel</span> (
+    <span class="id">@recurso_id</span> <span class="typ">INTEGER</span>, <span class="id">@data_reserva</span> <span class="typ">DATE</span>,
+    <span class="id">@hora_inicio</span> <span class="typ">TIME</span>, <span class="id">@hora_fim</span> <span class="typ">TIME</span>
+)
+<span class="kw">RETURNS</span> <span class="typ">BIT</span>
+<span class="kw">AS</span>
+<span class="kw">BEGIN</span>
+    <span class="kw">IF EXISTS</span> (
+        <span class="kw">SELECT</span> <span class="num">1</span> <span class="kw">FROM</span> <span class="fn">reserva</span> r
+        <span class="kw">WHERE</span> r.<span class="id">recurso_id</span>   = <span class="id">@recurso_id</span>
+          <span class="kw">AND</span> r.<span class="id">data_reserva</span> = <span class="id">@data_reserva</span>
+          <span class="kw">AND</span> r.<span class="id">estado</span> &lt;&gt; <span class="str">'Cancelada'</span>
+          <span class="kw">AND</span> ( <span class="id">@hora_inicio</span> &lt; r.<span class="id">hora_fim</span>
+                <span class="kw">AND</span> <span class="id">@hora_fim</span> &gt; r.<span class="id">hora_inicio</span> )
+    )
+        <span class="kw">RETURN</span> <span class="num">0</span>;     <span class="com">-- ocupado</span>
+    <span class="kw">RETURN</span> <span class="num">1</span>;         <span class="com">-- disponível</span>
+<span class="kw">END</span>;</pre>
+  </div>
+  <div class="callout"><strong>Usada pela aplicação</strong> antes de oferecer a opção de reservar, e pelo trigger T7 antes de aceitar o INSERT.</div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">07 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 8: SP                                                                -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">03</span>Implementação · Stored Procedure</div>
+  <h1 class="section-h1"><code style="font-size: 0.7em;">sp_criar_reserva_sala</code></h1>
+  <div class="code-block" style="margin-top: 28px;">
+    <div class="header">
+      <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+      <span class="filename">Stored_procedures.sql · concorrência com sp_getapplock</span>
+    </div>
+<pre class="tiny"><span class="kw">CREATE PROCEDURE</span> <span class="fn">sp_criar_reserva_sala</span>
+    <span class="id">@cliente_id</span> <span class="typ">INTEGER</span>, <span class="id">@recurso_id</span> <span class="typ">INTEGER</span>,
+    <span class="id">@data_reserva</span> <span class="typ">DATE</span>, <span class="id">@hora_inicio</span> <span class="typ">TIME</span>, <span class="id">@hora_fim</span> <span class="typ">TIME</span>, ...
+<span class="kw">AS BEGIN</span>
+    <span class="kw">SET XACT_ABORT ON</span>;
+    <span class="kw">DECLARE</span> <span class="id">@lock_res</span> <span class="typ">NVARCHAR</span>(<span class="num">255</span>) =
+        <span class="fn">CONCAT</span>(<span class="str">'reserva_recurso_'</span>, <span class="id">@recurso_id</span>, <span class="str">'_'</span>, <span class="id">@data_reserva</span>);
+
+    <span class="kw">BEGIN TRANSACTION</span>;
+
+    <span class="kw">EXEC</span> <span class="fn">sp_getapplock</span>                          <span class="com">-- evita race condition T1</span>
+         <span class="id">@Resource</span>  = <span class="id">@lock_res</span>,
+         <span class="id">@LockMode</span>  = <span class="str">'Exclusive'</span>,
+         <span class="id">@LockOwner</span> = <span class="str">'Transaction'</span>;
+
+    <span class="kw">INSERT INTO</span> <span class="fn">reserva</span> (...) <span class="kw">VALUES</span> (...);    <span class="com">-- dispara T1, T2, T3, T7, T12</span>
+
+    <span class="kw">COMMIT</span>;
+<span class="kw">END</span>;</pre>
+  </div>
+  <div class="callout"><strong>sp_getapplock</strong> em modo <em>Exclusive · Transaction</em> serializa INSERTs concorrentes para o mesmo recurso/dia. Resolve a <strong>race condition</strong> que existiria com apenas o trigger T1.</div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">08 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 9: VIEW                                                              -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">03</span>Implementação · View</div>
+  <h1 class="section-h1"><code style="font-size: 0.7em;">vw_top_clientes_receita</code></h1>
+  <div class="code-block" style="margin-top: 28px;">
+    <div class="header">
+      <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+      <span class="filename">Views.sql · ranking de clientes com RANK()</span>
+    </div>
+<pre class="small"><span class="kw">CREATE VIEW</span> <span class="fn">vw_top_clientes_receita</span> <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    c.<span class="id">cliente_id</span>,
+    c.<span class="id">nome</span>,
+    <span class="fn">COALESCE</span>(<span class="fn">SUM</span>(pg.<span class="id">valor</span>), <span class="num">0</span>)                            <span class="kw">AS</span> <span class="id">receita</span>,
+    <span class="fn">COUNT</span>(pg.<span class="id">pagamento_id</span>)                                <span class="kw">AS</span> <span class="id">num_pagamentos</span>,
+    <span class="fn">RANK</span>() <span class="kw">OVER</span> (<span class="kw">ORDER BY</span> <span class="fn">COALESCE</span>(<span class="fn">SUM</span>(pg.<span class="id">valor</span>),<span class="num">0</span>) <span class="kw">DESC</span>) <span class="kw">AS</span> <span class="id">posicao</span>
+<span class="kw">FROM</span> <span class="fn">cliente</span> c
+<span class="kw">LEFT JOIN</span> <span class="fn">pagamento</span> pg
+       <span class="kw">ON</span> pg.<span class="id">cliente_id</span> = c.<span class="id">cliente_id</span>
+      <span class="kw">AND</span> pg.<span class="id">estado</span> = <span class="str">'Pago'</span>
+<span class="kw">GROUP BY</span> c.<span class="id">cliente_id</span>, c.<span class="id">nome</span>;</pre>
+  </div>
+  <div class="callout">Usada no UC <strong>Estatísticas</strong> para ranking. <code>RANK()</code> em vez de <code>ROW_NUMBER()</code> permite <em>empates correctos</em>. <code>LEFT JOIN</code> garante que clientes sem pagamentos aparecem com receita = 0.</div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">09 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 10: TRIGGER                                                          -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">03</span>Implementação · Trigger T6</div>
+  <h1 class="section-h1">Snapshot do <span class="accent">preço</span> cobrado</h1>
+  <p style="color: var(--text-3); font-size: 22px; margin: 4px 0 22px;">Resposta directa à pergunta <em>"qual o preço?"</em> no pagamento</p>
+  <div class="code-block">
+    <div class="header">
+      <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+      <span class="filename">Triggers.sql · trg_pagamento_valor_correto</span>
+    </div>
+<pre class="small"><span class="kw">CREATE TRIGGER</span> <span class="fn">trg_pagamento_valor_correto</span>
+<span class="kw">ON</span> <span class="fn">pagamento</span> <span class="kw">AFTER INSERT, UPDATE AS</span>
+<span class="kw">BEGIN</span>
+    <span class="kw">IF EXISTS</span> (
+        <span class="kw">SELECT</span> <span class="num">1</span> <span class="kw">FROM</span> <span class="id">inserted</span> i
+        <span class="kw">JOIN</span> <span class="fn">reserva</span> r <span class="kw">ON</span> i.<span class="id">reserva_id</span> = r.<span class="id">reserva_id</span>
+        <span class="kw">WHERE</span> i.<span class="id">preco_servico_snapshot</span> &lt;&gt; r.<span class="id">valor</span> )
+    <span class="kw">BEGIN</span>
+        <span class="kw">ROLLBACK</span>;
+        <span class="kw">THROW</span> <span class="num">50005</span>, <span class="str">'Snapshot não corresponde ao valor da reserva.'</span>, <span class="num">1</span>;
+    <span class="kw">END</span>
+    <span class="com">-- (idem para adesão)</span>
+<span class="kw">END</span>;</pre>
+  </div>
+  <div class="callout"><strong>preco_servico_snapshot</strong> + <strong>CHECK constraint</strong> + este trigger garantem que o valor cobrado fica <em>imutável</em> mesmo que o preço do serviço mude depois - <strong>3 níveis de defesa</strong>.</div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">10 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 11: INDEXES                                                          -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">03</span>Implementação · Indexes</div>
+  <h1 class="section-h1">Filtered <span class="accent">indexes</span></h1>
+  <div class="code-block" style="margin-top: 28px;">
+    <div class="header">
+      <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+      <span class="filename">Indexes.sql · optimizações chave</span>
+    </div>
+<pre class="small"><span class="com">-- Reserva: detecção de sobreposições (T1) por recurso/dia</span>
+<span class="kw">CREATE INDEX</span> <span class="fn">idx_reserva_recurso</span>
+    <span class="kw">ON</span> <span class="fn">reserva</span> (<span class="id">recurso_id</span>, <span class="id">data_reserva</span>, <span class="id">hora_inicio</span>, <span class="id">hora_fim</span>);
+
+<span class="com">-- Pagamentos: filtered indexes evitam linhas NULL (~50% storage)</span>
+<span class="kw">CREATE INDEX</span> <span class="fn">idx_pagamento_adesao</span>
+    <span class="kw">ON</span> <span class="fn">pagamento</span> (<span class="id">adesao_id</span>)
+    <span class="kw">WHERE</span> <span class="id">adesao_id</span> <span class="kw">IS NOT NULL</span>;
+
+<span class="kw">CREATE INDEX</span> <span class="fn">idx_pagamento_reserva</span>
+    <span class="kw">ON</span> <span class="fn">pagamento</span> (<span class="id">reserva_id</span>)
+    <span class="kw">WHERE</span> <span class="id">reserva_id</span> <span class="kw">IS NOT NULL</span>;</pre>
+  </div>
+  <div class="callout"><code>SET STATISTICS IO ON</code> confirma: T1 sobreposição passa de <em>Table Scan → Index Seek</em>. Filtered indexes em pagamento reduzem ~50% storage porque metade das linhas tem o ID a NULL.</div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">11 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 12: TEMPORAL                                                         -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">03</span>Implementação · Auditoria</div>
+  <h1 class="section-h1">Temporal <span class="accent">Tables</span></h1>
+  <div class="code-block" style="margin-top: 28px;">
+    <div class="header">
+      <span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span>
+      <span class="filename">Temporal_tables.sql · SYSTEM_VERSIONING</span>
+    </div>
+<pre><span class="kw">ALTER TABLE</span> <span class="fn">adesao</span>    <span class="kw">SET</span> (<span class="id">SYSTEM_VERSIONING</span> = <span class="kw">ON</span>);
+<span class="kw">ALTER TABLE</span> <span class="fn">reserva</span>   <span class="kw">SET</span> (<span class="id">SYSTEM_VERSIONING</span> = <span class="kw">ON</span>);
+<span class="kw">ALTER TABLE</span> <span class="fn">pagamento</span> <span class="kw">SET</span> (<span class="id">SYSTEM_VERSIONING</span> = <span class="kw">ON</span>);
+
+<span class="com">-- Reconstituir estado num instante passado:</span>
+<span class="kw">SELECT</span> *
+<span class="kw">FROM</span>   <span class="fn">reserva</span>
+<span class="kw">FOR</span>    <span class="kw">SYSTEM_TIME AS OF</span> <span class="str">'2026-05-01 00:00:00'</span>;</pre>
+  </div>
+  <div class="callout">Cada UPDATE/DELETE escreve a versão anterior em <code>&lt;tabela&gt;_history</code> automaticamente. <strong>Sem trigger adicional</strong>, sem schema manual de histórico. Suporta <em>FOR SYSTEM_TIME ALL / AS OF / BETWEEN</em>.</div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">12 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 13: APP DASHBOARD LIGHT                                              -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">04</span>Aplicação · UI</div>
+  <h1 class="section-h1">Dashboard <span class="accent">light</span></h1>
+  <div class="browser-frame">
+    <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">Coworking - Painel de Gestão</span></div>
+    <img src="docs/screenshots/01_dashboard_light.png" alt="Dashboard light">
+  </div>
+  <div class="caption">KPIs operacionais · gráficos Receita Mensal e Métodos de Pagamento · próximas reservas</div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">13 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 14: APP DASHBOARD DARK                                               -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">04</span>Aplicação · UI</div>
+  <h1 class="section-h1">Dashboard <span class="accent">dark</span></h1>
+  <div class="browser-frame">
+    <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">Coworking - Painel de Gestão</span></div>
+    <img src="docs/screenshots/02_dashboard_dark.png" alt="Dashboard dark">
+  </div>
+  <div class="caption">Toggle light ↔ dark <strong>em tempo real</strong> · preferência persiste em <code>%LocalAppData%</code></div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">14 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 15: APP RESERVAS MAPA                                                -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">04</span>Aplicação · UI</div>
+  <h1 class="section-h1">Reservas · <span class="accent">Tab Mapa</span></h1>
+  <div class="browser-frame">
+    <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">Coworking - Reservas</span></div>
+    <img src="docs/screenshots/04_reservas_mapa.png" alt="Reservas Mapa">
+  </div>
+  <div class="caption">Vista <strong>timeline horária</strong> (08h–20h) · salas agrupadas por espaço · cores codificam o estado da reserva</div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">15 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 16: APP PAGAMENTOS                                                   -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">04</span>Aplicação · UI</div>
+  <h1 class="section-h1">Pagamentos &amp; <span class="accent">Recibo PDF</span></h1>
+  <div class="browser-frame">
+    <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">Coworking - Pagamentos</span></div>
+    <img src="docs/screenshots/07_pagamentos_detalhe.png" alt="Pagamentos detalhe">
+  </div>
+  <div class="caption">Detalhe read-only com botão <strong>"↓ Recibo PDF"</strong> · gerado via PdfSharp 6.1.1 com snapshot do preço</div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">16 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 17: APP ESTATÍSTICAS                                                 -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">04</span>Aplicação · UI</div>
+  <h1 class="section-h1"><span class="accent">Estatísticas</span></h1>
+  <div class="browser-frame">
+    <div class="titlebar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">Coworking - Estatísticas</span></div>
+    <img src="docs/screenshots/09_estatisticas.png" alt="Estatísticas">
+  </div>
+  <div class="caption">Top clientes (via <code>vw_top_clientes_receita</code>) · receita por método · ocupação por espaço</div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">17 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 18: DEMO                                                             -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide section-divider">
+  <div>
+    <div class="big-text">DEMO</div>
+    <div class="big-text-sub">Demonstração ao vivo da aplicação</div>
+  </div>
+  <div class="brand" style="color: rgba(255,255,255,0.4)">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no" style="color: rgba(255,255,255,0.4)">18 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 19: CONCLUSÃO                                                        -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide">
+  <div class="section-tag"><span class="num">05</span>Resumo</div>
+  <h1 class="section-h1">Em <span class="accent">números</span></h1>
+  <div class="stat-grid">
+    <div class="stat-card"><div class="value">12</div><div class="label">Tabelas em BCNF</div></div>
+    <div class="stat-card"><div class="value">16</div><div class="label">Triggers de negócio</div></div>
+    <div class="stat-card"><div class="value">18+</div><div class="label">Stored Procedures</div></div>
+  </div>
+  <div class="stat-grid" style="margin-top: 24px;">
+    <div class="stat-card"><div class="value">11</div><div class="label">Views de consulta</div></div>
+    <div class="stat-card"><div class="value">7</div><div class="label">UDFs</div></div>
+    <div class="stat-card"><div class="value">10</div><div class="label">UserControls C#</div></div>
+  </div>
+  <div class="callout" style="margin-top: 32px;">
+    Regras de negócio em <strong>3 níveis</strong> · concorrência segura com <strong>sp_getapplock</strong> · auditoria via <strong>temporal tables</strong> · correcções do prof. <strong>resolvidas</strong> (#1 snapshot · #2 reserva associativa)
+  </div>
+  <div class="brand">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no">19 / 20</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 20: OBRIGADO                                                         -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section class="slide section-divider">
+  <div>
+    <div class="big-text" style="font-size: 220px; line-height: 1.0; padding: 30px 0;">Obrigado</div>
+  </div>
+  <div class="brand" style="color: rgba(255,255,255,0.4)">Coworking<span class="dot"> · </span>APF-T</div>
+  <div class="slide-no" style="color: rgba(255,255,255,0.4)">20 / 20</div>
+</section>
+
+<div class="controls-hint">← → navegar  ·  F fullscreen  ·  O overview  ·  H esta ajuda</div>
+
+<script>
+(function() {
+  // ?print=1 → desactiva presentation mode (mostra tudo empilhado para PDF/imprimir)
+  if (location.search.includes('print=1')) return;
+
+  document.body.classList.add('present');
+
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  let current = parseInt(location.hash.replace('#', ''), 10) || 0;
+  if (isNaN(current) || current < 0 || current >= slides.length) current = 0;
+
+  function show(i) {
+    current = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, idx) => s.classList.toggle('active', idx === current));
+    history.replaceState(null, '', '#' + current);
+  }
+
+  function fitScale() {
+    const sw = window.innerWidth, sh = window.innerHeight;
+    const scale = Math.min(sw / 1920, sh / 1080);
+    document.documentElement.style.setProperty('--scale', scale);
+  }
+
+  let overview = false;
+  function toggleOverview() {
+    overview = !overview;
+    document.body.classList.toggle('overview', overview);
+    document.body.classList.toggle('present', !overview);
+  }
+
+  window.addEventListener('keydown', e => {
+    if (overview) {
+      if (e.key === 'Escape' || e.key === 'o' || e.key === 'O') {
+        e.preventDefault(); toggleOverview();
+      }
+      return;
+    }
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+      e.preventDefault(); show(current + 1);
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault(); show(current - 1);
+    } else if (e.key === 'Home') {
+      e.preventDefault(); show(0);
+    } else if (e.key === 'End') {
+      e.preventDefault(); show(slides.length - 1);
+    } else if (e.key === 'f' || e.key === 'F') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    } else if (e.key === 'o' || e.key === 'O') {
+      toggleOverview();
+    } else if (e.key === 'h' || e.key === 'H' || e.key === '?') {
+      const hint = document.querySelector('.controls-hint');
+      if (hint) hint.classList.toggle('show');
+    }
+  });
+
+  // Click anywhere except interactive elements: advance
+  document.addEventListener('click', e => {
+    if (overview) {
+      // In overview, click on a slide → go to it and exit overview
+      const s = e.target.closest('.slide');
+      if (s) {
+        const idx = slides.indexOf(s);
+        if (idx >= 0) { toggleOverview(); show(idx); }
+      }
+      return;
+    }
+    if (e.target.closest('a, button, input')) return;
+    show(current + 1);
+  });
+
+  window.addEventListener('resize', fitScale);
+
+  fitScale();
+  show(current);
+
+  // Mostrar hint dos controlos brevemente no início (3 segundos)
+  const hint = document.querySelector('.controls-hint');
+  if (hint) {
+    hint.classList.add('show');
+    setTimeout(() => hint.classList.remove('show'), 3500);
+  }
+})();
+</script>
+
+<style>
+  /* Overview mode: thumbnails grid usando `zoom` (encolhe a layout box) */
+  body.overview {
+    overflow: auto; height: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 422px);
+    gap: 24px; padding: 40px;
+    background: var(--bg-deep);
+    justify-content: center;
+  }
+  body.overview .slide {
+    position: static !important;
+    zoom: 0.22;
+    margin: 0 !important;
+    display: flex !important;
+    cursor: pointer;
+    transition: outline 0.15s;
+    outline: 3px solid transparent;
+    outline-offset: -3px;
+    border-radius: 14px;
+  }
+  body.overview .slide:hover { outline-color: var(--indigo); }
+  body.overview .controls-hint { display: none; }
+</style>
+
+</body>
+</html>

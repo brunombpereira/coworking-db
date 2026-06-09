@@ -12,17 +12,24 @@ namespace CoworkingApp
             ThemeManager.Current == ThemeMode.Light ? L(light) : L(dark);
 
         // ── Sidebar ──────────────────────────────────────────────────────────
-        public static Color SidebarBg          => Pick("#0f172a", "#020617");
-        public static Color SidebarBgActive    => Pick("#312e81", "#1e1b4b");
-        public static Color SidebarText        => Pick("#94a3b8", "#64748b");
-        public static Color SidebarTextActive  => L("#a5b4fc");
-        public static Color SidebarSectionLbl  => Pick("#64748b", "#475569");
+        // Light: sidebar clara (slate-100) com texto escuro — visualmente
+        // distinta do PageBg (#f8fafc) por contraste subtil.
+        // Dark:  sidebar quase-preta com texto claro — alto contraste.
+        public static Color SidebarBg          => Pick("#f1f5f9", "#020617");
+        public static Color SidebarBgActive    => Pick("#e0e7ff", "#1e1b4b");
+        public static Color SidebarText        => Pick("#475569", "#64748b");
+        public static Color SidebarTextActive  => Pick("#4f46e5", "#a5b4fc");
+        public static Color SidebarSectionLbl  => Pick("#94a3b8", "#475569");
 
         // ── Page / cards ─────────────────────────────────────────────────────
+        // Light: page mais "branco" (slate-50), cards na cor slate-100 da
+        // sidebar — visual coeso e ligeiramente "encaixado" em vez de
+        // cards-flutuam-sobre-fundo-branco. Border slate-300 para definição.
+        // Dark: cards sobem visualmente da página (slate-900 → slate-800).
         public static Color PageBg     => Pick("#f8fafc", "#0f172a");
         public static Color ContentBg  => PageBg;
-        public static Color CardBg     => Pick("#ffffff", "#1e293b");
-        public static Color CardBorder => Pick("#e2e8f0", "#334155");
+        public static Color CardBg     => Pick("#f1f5f9", "#1e293b");
+        public static Color CardBorder => Pick("#cbd5e1", "#334155");
         public static Color ToolbarBg  => CardBg;
 
         // ── Text ─────────────────────────────────────────────────────────────
@@ -43,7 +50,8 @@ namespace CoworkingApp
         public static Color StatusWarningFg => Pick("#92400e", "#fcd34d");
         public static Color StatusDangerBg  => Pick("#fee2e2", "#7f1d1d");
         public static Color StatusDangerFg  => Pick("#991b1b", "#fca5a5");
-        public static Color StatusNeutralBg => Pick("#f1f5f9", "#1e293b");
+        // Neutral bg light = slate-200 (não slate-100 — senão fica igual a CardBg)
+        public static Color StatusNeutralBg => Pick("#e2e8f0", "#1e293b");
         public static Color StatusNeutralFg => Pick("#475569", "#94a3b8");
         public static Color StatusOrangeBg  => Pick("#fed7aa", "#7c2d12");
         public static Color StatusOrangeFg  => Pick("#9a3412", "#fdba74");
